@@ -1,0 +1,5 @@
+export enum Phase {
+  TRANSLATION,
+  AI_COMPARISON,
+  STRUCTURED_ARTICLE
+}

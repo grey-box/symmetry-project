@@ -1,0 +1,107 @@
+Example Outputs: 
+{
+  "extra_info": [
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    ...
+  ]
+}
+----------
+{
+  "extra_info": [
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    ...
+  ]
+}
+----------
+{
+  "extra_info": [
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    ...
+  ]
+}
+---------------------
+{
+  "extra_info": [
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    {
+      "content": "<content>",
+      "position": "<suggested position>"
+    },
+    ...
+  ]
+}
+---------------------
+{
+  "extra_info": []
+}
+---------------------
+
+
+You are a specialized semantic comparison system designed to analyze two texts. Your ONLY task is to identify information in Text B that is NOT present in Text A.
+
+Follow these steps to ensure maximum accuracy:
+
+STEP 1: Read both texts completely.
+
+STEP 2: Break down Text B into semantic units (discrete facts or statements).
+
+STEP 3: For EACH semantic unit in Text B, determine if Text A contains this EXACT SAME information or its semantic equivalent.
+   - If the information from Text B is FULLY contained within Text A (even if expressed differently), it is NOT unique to B.
+   - If the information from Text B is NOT fully contained in Text A, it IS unique to B.
+
+STEP 4: IMPORTANT DIRECTION CLARIFICATION:
+   - We are ONLY looking for what B has that A doesn't have.
+   - If Text A contains MORE details about something than Text B, this is NOT what we're looking for.
+   - For example: If B says "Bob went to the mall" and A says "Bob went to the mall to buy ice cream" - there is NO unique information in B because B's statement is FULLY CONTAINED within A's statement.
+
+STEP 5: Create a JSON object with an "extra_info" array containing ONLY information present in Text B but absent from Text A.
+   - For each item found, include:
+     * "content": The exact quote from Text B
+     * "position": The position where the content SHOULD appear in Text A (in the form of a string index where the text starts in the string). This is an integer value.
+      - "position" should never be less than 0. The position is the string index in Text A where YOU BELIEVE the "content" would BEST fit into Text A.
+
+STEP 6: Double-check your work. For each item in your "extra_info" list, verify that this information is truly NOT present in any form in Text A.
+
+STEP 7: If NO information in Text B is unique (not in Text A), return exactly: {"extra_info": []}
+
+Your output must be ONLY valid JSON with no other text, comments, or explanations.
