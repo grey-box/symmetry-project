@@ -18,13 +18,17 @@ This backend consolidates three separate repositories:
 - LRU cache with TTL for performance optimization
 
 ### Semantic Comparison
-- **LLM-based comparison** (DeepSeek-r1 via Ollama)
-  - Two-pass comparison using custom prompts
-  - Returns missing_info and extra_info with suggested positions
-- **Traditional semantic comparison** (Sentence Transformers)
+- **Semantic comparison** (Sentence Transformers)
   - Support for multiple models: LaBSE, XLM-RoBERTa, multi-qa-distilbert-cos-v1, etc.
   - Configurable similarity threshold
   - Cosine similarity-based sentence matching
+  - Returns missing/extra information with indices and actual text content
+  - Enhanced error handling with success tracking
+
+### Translation
+- Text translation using configured translation models
+- Model management (select, import, delete)
+- Multiple model support
 
 ### Structural Analysis
 - Table analysis (count, rows, columns per table)
@@ -36,24 +40,38 @@ This backend consolidates three separate repositories:
 
 ## Quick Start
 
-The easiest way to get started:
+The easiest way to get started is using the unified start script from the project root:
 
 ```bash
-cd symmetry-unified-backend
-./start.sh
+# From project root
+./start.sh backend
+
+# Or start both backend and frontend
+./start.sh all
 ```
 
 This will:
 1. Create a virtual environment (`venv/`) if it doesn't exist
 2. Install all dependencies from `requirements.txt`
-3. Start the FastAPI server at http://127.0.0.1:8000
+3. Start FastAPI server at http://127.0.0.1:8000
 
 Access interactive API documentation at: http://127.0.0.1:8000/docs
 
+### Manual Setup
+
+If you prefer to run the backend directly:
+
+```bash
+cd symmetry-unified-backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
 ## Installation
 
-### Automatic (Recommended)
-Use the provided start script which handles virtual environment setup automatically.
+Use the unified start script from project root for automatic setup. See main README for details.
 
 ### Manual Setup
 
@@ -144,11 +162,23 @@ symmetry-unified-backend/
 - `GET /wiki_translate/source_article?url={url}&title={title}&language={code}` - Get translated article
 
 ### Comparison
-- `POST /symmetry/v1/articles/compare` - Compare two articles (traditional semantic)
-- `GET /symmetry/v1/comparison/llm?text_a={text}&text_b={text}` - LLM comparison (GET)
-- `POST /symmetry/v1/comparison/llm` - LLM comparison (POST)
+- `POST /symmetry/v1/articles/compare` - Compare two articles (semantic comparison)
 - `GET /symmetry/v1/comparison/semantic?text_a={text}&text_b={text}&threshold={float}&model={name}` - Semantic comparison (GET)
 - `POST /symmetry/v1/comparison/semantic` - Semantic comparison (POST)
+- `GET /symmetry/v1/comparison/translate_text?source_language={code}&target_language={code}&text={text}` - Translate text (GET)
+- `POST /symmetry/v1/comparison/translate_text` - Translate text (POST)
+
+### Models Management
+- `GET /models/translation` - List available translation models
+- `GET /models/translation/selected` - Get selected translation model
+- `GET /models/translation/select?modelname={name}` - Select translation model
+- `GET /models/translation/delete?modelname={name}` - Delete translation model
+- `GET /models/translation/import?model={name}&from_huggingface={bool}` - Import translation model
+- `GET /models/comparison` - List available comparison models
+- `GET /models/comparison/selected` - Get selected comparison model
+- `GET /models/comparison/select?modelname={name}` - Select comparison model
+- `GET /models/comparison/delete?modelname={name}` - Delete comparison model
+- `GET /models/comparison/import?model={name}&from_huggingface={bool}` - Import comparison model
 
 ### Structural Analysis
 - `GET /operations/{source_language}/{title}` - Analyze article across 6 languages with quality scoring
@@ -200,13 +230,12 @@ rm -rf venv/
 ./start.sh
 ```
 
-### Ollama not running for LLM comparison
-Make sure Ollama is installed and running:
-```bash
-ollama serve
-# In another terminal, pull the model:
-ollama pull deepseek-r1
-```
+### Model loading issues
+For semantic comparison and translation, the backend will automatically download required models:
+- spaCy language models (en_core_web_sm, fr_core_news_sm, etc.)
+- Sentence transformer models (LaBSE, XLM-RoBERTa, etc.)
+
+Models are cached locally after first download.
 
 ### Dependencies fail to install
 Ensure Python 3.8+ is installed:

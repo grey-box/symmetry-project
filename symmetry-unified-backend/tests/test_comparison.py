@@ -96,59 +96,6 @@ class TestComparisonRouter:
 
         assert response.status_code == 422
 
-    def test_compare_llm_get_success(self, client, valid_llm_compare_request):
-        """Test successful GET request for LLM comparison"""
-        mock_response = {
-            "missing_info": [{"sentence": "Missing sentence", "index": 1}],
-            "extra_info": [{"sentence": "Extra sentence", "index": 2}],
-        }
-
-        with patch(
-            "app.routers.comparison.llm_semantic_comparison", return_value=mock_response
-        ):
-            response = client.get(
-                "/symmetry/v1/comparison/llm",
-                params=valid_llm_compare_request,
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "missing_info" in data
-            assert "extra_info" in data
-
-    def test_compare_llm_get_missing_text(self, client):
-        """Test LLM comparison GET with missing text parameters"""
-        response = client.get("/symmetry/v1/comparison/llm", params={"text_a": "Test"})
-
-        assert response.status_code == 422
-
-    def test_compare_llm_post_success(self, client, valid_llm_compare_request):
-        """Test successful POST request for LLM comparison"""
-        mock_response = {
-            "missing_info": [{"sentence": "Missing sentence", "index": 1}],
-            "extra_info": [{"sentence": "Extra sentence", "index": 2}],
-        }
-
-        with patch(
-            "app.routers.comparison.llm_semantic_comparison", return_value=mock_response
-        ):
-            response = client.post(
-                "/symmetry/v1/comparison/llm", json=valid_llm_compare_request
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "missing_info" in data
-            assert "extra_info" in data
-
-    def test_compare_llm_post_missing_text(self, client):
-        """Test LLM comparison POST with missing text"""
-        incomplete_request = {"text_a": "Test text"}
-
-        response = client.post("/symmetry/v1/comparison/llm", json=incomplete_request)
-
-        assert response.status_code == 422
-
     def test_compare_semantic_get_success(self, client, valid_semantic_compare_request):
         """Test successful GET request for semantic comparison"""
         mock_response = {
@@ -252,20 +199,25 @@ class TestComparisonRouter:
         mock_page = Mock()
         mock_page.exists.return_value = True
         mock_page.text = "Translated content"
+        mock_page.langlinks = {"fr": "Article_Test"}
+        mock_page.title.return_value = "Test Article"
         mock_wiki.page.return_value = mock_page
 
         with patch("wikipediaapi.Wikipedia", return_value=mock_wiki):
-            response = client.get(
-                "/symmetry/v1/wiki_translate/source_article",
-                params={
-                    "url": "https://en.wikipedia.org/wiki/Test_Article",
-                    "language": "fr",
-                },
-            )
+            with patch(
+                "app.services.wiki_utils.get_translation", return_value="Article_Test"
+            ):
+                response = client.get(
+                    "/symmetry/v1/wiki_translate/source_article",
+                    params={
+                        "url": "https://en.wikipedia.org/wiki/Test_Article",
+                        "language": "fr",
+                    },
+                )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "translatedArticle" in data
+                assert response.status_code == 200
+                data = response.json()
+                assert "translatedArticle" in data
 
     def test_wiki_translate_with_title(self, client):
         """Test wiki translation with title"""
@@ -273,17 +225,22 @@ class TestComparisonRouter:
         mock_page = Mock()
         mock_page.exists.return_value = True
         mock_page.text = "Translated content"
+        mock_page.langlinks = {"fr": "Article_Test"}
+        mock_page.title.return_value = "Test Article"
         mock_wiki.page.return_value = mock_page
 
         with patch("wikipediaapi.Wikipedia", return_value=mock_wiki):
-            response = client.get(
-                "/symmetry/v1/wiki_translate/source_article",
-                params={"title": "Test_Article", "language": "fr"},
-            )
+            with patch(
+                "app.services.wiki_utils.get_translation", return_value="Article_Test"
+            ):
+                response = client.get(
+                    "/symmetry/v1/wiki_translate/source_article",
+                    params={"title": "Test_Article", "language": "fr"},
+                )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "translatedArticle" in data
+                assert response.status_code == 200
+                data = response.json()
+                assert "translatedArticle" in data
 
     def test_wiki_translate_missing_params(self, client):
         """Test wiki translation without required parameters"""

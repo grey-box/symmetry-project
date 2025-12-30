@@ -156,12 +156,16 @@ class TestWikiArticlesRouter:
 
     def test_get_article_default_language(self, client, mock_wikipediaapi_fresh):
         """Test that English is default language when not specified"""
-        with patch(
-            "app.routers.wiki_articles.wikipediaapi.Wikipedia",
-            return_value=mock_wikipediaapi_fresh,
-        ):
-            with patch("app.routers.wiki_articles.validate_language_code"):
-                response = client.get("/symmetry/v1/wiki/articles?query=Test_Article")
+        with patch("app.routers.wiki_articles.validate_language_code"):
+            with patch("wikipediaapi.Wikipedia", return_value=mock_wikipediaapi_fresh):
+                with patch(
+                    "app.routers.wiki_articles.get_cached_article",
+                    return_value=(None, None),
+                ):
+                    with patch("app.routers.wiki_articles.set_cached_article"):
+                        response = client.get(
+                            "/symmetry/v1/wiki/articles?query=Test_Article"
+                        )
 
-                assert response.status_code == 200
-                mock_wikipediaapi_fresh.page.assert_called_once()
+                        assert response.status_code == 200
+                        mock_wikipediaapi_fresh.page.assert_called_once()

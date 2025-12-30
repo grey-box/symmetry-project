@@ -261,10 +261,15 @@ execFile('python3', ['app/main.py'], {
 
 The frontend communicates with these backend endpoints:
 
-- `POST /symmetry/v1/articles/compare` - Compare two articles
-- `GET /symmetry/v1/wiki/articles` - Fetch Wikipedia article
-- `GET /symmetry/v1/wiki/structured-article` - Get structured article
-- `POST /wiki_translate/source_article` - Translate article
+- `POST /symmetry/v1/articles/compare` - Compare two articles (semantic comparison)
+- `GET /symmetry/v1/wiki/articles?query={url|title}&lang={code}` - Fetch Wikipedia article
+- `GET /symmetry/v1/wiki/structured-article?query={url|title}&lang={code}` - Get structured article
+- `POST /symmetry/v1/comparison/translate_text` - Translate text
+- `GET /symmetry/v1/comparison/translate_text` - Translate text (GET)
+- `GET /models/translation` - List available translation models
+- `GET /models/translation/selected` - Get selected translation model
+- `GET /models/comparison` - List available comparison models
+- `GET /models/comparison/selected` - Get selected comparison model
 
 ## Building for Distribution
 

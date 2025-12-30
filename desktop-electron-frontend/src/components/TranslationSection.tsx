@@ -47,7 +47,6 @@ const TranslationSection = () => {
   const [availableTranslationLanguages, setAvailableTranslationLanguages] = useState<SelectData<string>[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
-  const [isBackendStarting, setIsBackendStarting] = useState(false)
   const [texts, setTexts] = useState([
     {
       editing: "",
@@ -99,44 +98,17 @@ const TranslationSection = () => {
     setValue,
   } = form
   
-  // Function to check backend status
+  // Function to check backend status using health endpoint
   const checkBackendStatus = useCallback(async () => {
     try {
       const { getAxiosInstance } = await import('@/services/axios');
       const axios = await getAxiosInstance();
-      await axios.get('/symmetry/v1/wiki/articles', {
-        params: { query: 'test' },
-        timeout: 5000
-      })
+      await axios.get('/health', { timeout: 5000 })
       setBackendStatus('online')
     } catch (error) {
       setBackendStatus('offline')
     }
   }, [])
-
-  // Function to start the backend
-  const startBackend = useCallback(async () => {
-    if (backendStatus === 'online') return
-    
-    setIsBackendStarting(true)
-    try {
-      // Send IPC message to main process to start backend
-      const result = await (window as any).electronAPI.startBackend()
-      if (result.success) {
-        // Wait a bit for backend to start, then check status
-        setTimeout(() => {
-          checkBackendStatus()
-        }, 3000)
-      } else {
-        alert(`Failed to start backend: ${result.error}`)
-      }
-    } catch (error) {
-      console.error('Error starting backend:', error)
-      alert('Failed to start backend. Please check the logs.')
-    } finally {
-      setIsBackendStarting(false)
-    }
-  }, [backendStatus, checkBackendStatus])
 
   // Check backend status when component mounts
   useEffect(() => {
@@ -269,29 +241,6 @@ const TranslationSection = () => {
                   {backendStatus === 'online' ? 'Backend Online' :
                    backendStatus === 'offline' ? 'Backend Offline' : 'Checking...'}
                 </span>
-                
-                {/* Backend Control Button */}
-                {backendStatus === 'offline' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={startBackend}
-                    disabled={isBackendStarting}
-                    className="ml-2 h-6 px-2 text-xs"
-                  >
-                    {isBackendStarting ? (
-                      <>
-                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                        Starting...
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3 h-3 mr-1" />
-                        Start Backend
-                      </>
-                    )}
-                  </Button>
-                )}
               </div>
             </div>
             <div className="flex gap-x-2">

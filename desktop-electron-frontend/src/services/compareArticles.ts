@@ -26,7 +26,7 @@ export async function compareArticles(
       article_text_blob_2: textB,
       article_text_blob_1_language: languageA,
       article_text_blob_2_language: languageB,
-      model_name: 'default'
+      model_name: 'sentence-transformers/LaBSE'
     });
   } catch (error) {
     console.error('Failed to get axios instance:', error);

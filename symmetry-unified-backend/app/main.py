@@ -8,7 +8,13 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 import uvicorn
 
-from app.routers import wiki_articles, comparison, structured_wiki, structural_analysis
+from app.routers import (
+    wiki_articles,
+    comparison,
+    structured_wiki,
+    structural_analysis,
+    models,
+)
 
 config = Config(".env")
 
@@ -59,6 +65,7 @@ app.include_router(wiki_articles.router)
 app.include_router(comparison.router)
 app.include_router(structured_wiki.router)
 app.include_router(structural_analysis.router)
+app.include_router(models.router)
 
 
 @app.get("/")

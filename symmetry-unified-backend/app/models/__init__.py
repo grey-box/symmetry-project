@@ -30,6 +30,13 @@ from app.models.comparison_request import (
     SemanticCompareRequest,
     BaseCompareRequest,
 )
+from app.models.api_models import (
+    ComparisonResponse,
+    TranslationResponse,
+    ArticleResponse,
+    ModelSelectionResponse,
+    ListResponse,
+)
 
 __all__ = [
     "Citation",
@@ -61,4 +68,9 @@ __all__ = [
     "LLMCompareRequest",
     "SemanticCompareRequest",
     "BaseCompareRequest",
+    "ComparisonResponse",
+    "TranslationResponse",
+    "ArticleResponse",
+    "ModelSelectionResponse",
+    "ListResponse",
 ]

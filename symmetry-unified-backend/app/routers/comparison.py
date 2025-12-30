@@ -1,18 +1,17 @@
 import logging
 import re
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.models import (
     CompareRequest,
     CompareResponse,
     ArticleComparisonResponse,
-    LLMCompareRequest,
     SemanticCompareRequest,
     MissingInfo,
     ExtraInfo,
 )
-from app.ai.llm_comparison import llm_semantic_comparison
+from app.models.server_model import ServerModel
 
 try:
     from app.ai.semantic_comparison import perform_semantic_comparison
@@ -62,35 +61,6 @@ def compare_articles(payload: CompareRequest):
     else:
         result = perform_semantic_comparison(payload_dict)
     return result
-
-
-@router.get("/comparison/llm", response_model=ArticleComparisonResponse)
-def compare_articles_llm(text_a: str, text_b: str):
-    logging.info("Calling LLM semantic comparison endpoint.")
-
-    if text_a is None or text_b is None:
-        logging.info("Invalid input provided to LLM comparison.")
-        raise HTTPException(
-            status_code=400,
-            detail="Either text_a or text_b (or both) was found to be None.",
-        )
-
-    output = llm_semantic_comparison(text_a, text_b)
-    return ArticleComparisonResponse(
-        missing_info=output.get("missing_info", []),
-        extra_info=output.get("extra_info", []),
-    )
-
-
-@router.post("/comparison/llm", response_model=ArticleComparisonResponse)
-def compare_articles_llm_post(payload: LLMCompareRequest):
-    logging.info("Calling LLM semantic comparison endpoint (POST).")
-
-    output = llm_semantic_comparison(payload.text_a, payload.text_b)
-    return ArticleComparisonResponse(
-        missing_info=output.get("missing_info", []),
-        extra_info=output.get("extra_info", []),
-    )
 
 
 @router.get("/comparison/semantic", response_model=ArticleComparisonResponse)
@@ -269,3 +239,13 @@ def translate_article(url: str = None, title: str = None, language: str = None):
     translated_content = translated_page.text if translated_page.text else ""
 
     return {"translatedArticle": translated_content}
+
+
+@router.get("/translate_text", response_model=dict)
+def translate_text_endpoint(
+    source_language: str = Query(...),
+    target_language: str = Query(...),
+    text: str = Query(...),
+):
+    server = ServerModel()
+    return {"response": server.text_translate(text, target_language)}

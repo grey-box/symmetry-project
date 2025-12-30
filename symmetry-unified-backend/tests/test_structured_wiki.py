@@ -68,9 +68,7 @@ class TestStructuredWikiRouter:
             data = response.json()
             assert data["lang"] == "fr"
 
-    def test_get_structured_article_with_citations(
-        self, client, mock_article_parser, mock_article_parser_factory
-    ):
+    def test_get_structured_article_with_citations(self, client, mock_article_parser):
         """Test structured article returns citation data"""
         from app.models import Citation
 
@@ -93,16 +91,17 @@ class TestStructuredWikiRouter:
             ]
             return article
 
-        with patch(
-            "app.routers.structured_wiki.article_fetcher",
-            side_effect=mock_citations_fetcher,
-        ):
-            response = client.get("/symmetry/v1/wiki/structured-article?query=Test")
+        with patch("app.routers.structured_wiki.structured_cache", {}):
+            with patch(
+                "app.routers.structured_wiki.article_fetcher",
+                side_effect=mock_citations_fetcher,
+            ):
+                response = client.get("/symmetry/v1/wiki/structured-article?query=Test")
 
-            assert response.status_code == 200
-            data = response.json()
-            assert data["total_citations"] == 1
-            assert data["total_references"] == 1
+                assert response.status_code == 200
+                data = response.json()
+                assert data["total_citations"] == 1
+                assert data["total_references"] == 1
 
     def test_get_structured_article_default_language(self, client, mock_article_parser):
         """Test that English is default language for structured articles"""
