@@ -12,15 +12,12 @@ services:
       - PORT=8000
       - HOST=0.0.0.0
       - PYTHONUNBUFFERED=1
-      - SPACY_DATA=/spacy_models
-      - SPACY_MODELS=en_core_web_sm
     volumes:
       - ./symmetry-unified-backend:/app
       - /app/venv
       - /app/__pycache__
-      - spacy_models:/spacy_models
     working_dir: /app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - symmetry-network
     healthcheck:
@@ -56,6 +53,3 @@ services:
 networks:
   symmetry-network:
     driver: bridge
-
-volumes:
-  spacy_models:

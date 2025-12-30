@@ -25,7 +25,6 @@ Commands:
     
     docker          Start services with Docker Compose
     docker-up       Start services with Docker Compose (detached)
-    docker-up-rebuild  Rebuild and start Docker services
     docker-down     Stop Docker Compose services
     
     help            Show this help message
@@ -49,12 +48,8 @@ check_backend_requirements() {
     cd "$BACKEND_DIR"
     
     if [ ! -d "venv" ]; then
-        echo "Creating virtual environment with Python 3.11..."
-        if ! command -v python3.11 &> /dev/null; then
-            echo "Error: Python 3.11 is not installed. Please install Python 3.11 first."
-            exit 1
-        fi
-        python3.11 -m venv venv
+        echo "Creating virtual environment..."
+        python3 -m venv venv
     fi
     
     source venv/bin/activate
@@ -133,10 +128,7 @@ start_backend() {
     source venv/bin/activate
     export PORT=$BACKEND_PORT
     export HOST=${HOST:-127.0.0.1}
-    uvicorn app.main:app --host $HOST --port $BACKEND_PORT --reload \
-        --reload-exclude "venv/*" \
-        --reload-exclude "venv/**" \
-        --reload-exclude "**/site-packages/*"
+    uvicorn app.main:app --host $HOST --port $BACKEND_PORT --reload
 }
 
 start_frontend() {
@@ -206,13 +198,6 @@ docker_up() {
 }
 
 docker_up_detached() {
-    echo "Starting services with Docker Compose (detached)..."
-    docker-compose up -d
-}
-
-docker_up_rebuild() {
-    echo "Rebuilding Docker images..."
-    docker-compose build
     echo "Starting services with Docker Compose (detached)..."
     docker-compose up -d
 }
@@ -302,9 +287,6 @@ case $COMMAND in
         ;;
     docker-up-detached|up)
         docker_up_detached
-        ;;
-    docker-up-rebuild|rebuild)
-        docker_up_rebuild
         ;;
     docker-down|down)
         docker_down

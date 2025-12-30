@@ -15,7 +15,6 @@ from app.models import (
     SentenceDiff,
 )
 from app.models.server_model import ServerModel
-from app.ai.model_registry import COMPARISON_MODELS
 
 try:
     from app.ai.semantic_comparison import perform_semantic_comparison
@@ -79,49 +78,7 @@ def compare_articles(payload: CompareRequest):
     return result
 
 
-@router.get("/comparison/llm", response_model=ArticleComparisonResponse)
-def compare_articles_llm(text_a: str, text_b: str):
-    logging.info("Calling LLM semantic comparison endpoint.")
-
-    if text_a is None or text_b is None:
-        logging.info("Invalid input provided to LLM comparison.")
-        raise HTTPException(
-            status_code=400,
-            detail="Either text_a or text_b (or both) was found to be None.",
-        )
-
-    request_data = {
-        "original_article_content": payload.original_article_content,
-        "translated_article_content": payload.translated_article_content,
-        "original_language": payload.original_language,
-        "translated_language": payload.translated_language,
-        "comparison_threshold": payload.similarity_threshold,
-        "model_name": payload.model_name,
-    }
-
-    result = perform_semantic_comparison(request_data)
-
-    if not result or "comparisons" not in result:
-        return CompareResponse(
-            missing_info=[],
-            extra_info=[],
-            error_message="Comparison failed or returned no results.",
-            model_name=payload.model_name,
-            similarity_threshold=payload.similarity_threshold,
-        )
-
-    # Return the raw comparisons payload when available so legacy clients/tests
-    # that expect a "comparisons" key receive it. The response_model includes
-    # the comparisons field to allow this passthrough.
-    return {"comparisons": result["comparisons"]}
-
-
-@router.get(
-    "/comparison/semantic",
-    response_model=ArticleComparisonResponse,
-    summary="Semantic Comparison (GET)",
-    description="Performs semantic comparison between two texts using sentence embeddings. Returns sentences that are missing or extra based on similarity threshold.",
-)
+@router.get("/comparison/semantic", response_model=ArticleComparisonResponse)
 def compare_articles_semantic(
     original_article_content: str = Query(..., description="Original article text"),
     translated_article_content: str = Query(..., description="Translated article text"),
@@ -341,132 +298,11 @@ def translate_article(
     return {"translatedArticle": translated_content}
 
 
-@router.get(
-    "/translate_text",
-    response_model=dict,
-    summary="Translate Text",
-    description="Translates text from source language to target language using configured translation model.",
-)
+@router.get("/translate_text", response_model=dict)
 def translate_text_endpoint(
-    source_language: str = Query(..., description="Source language code (e.g., 'en')"),
-    target_language: str = Query(..., description="Target language code (e.g., 'fr')"),
-    text: str = Query(..., description="Text to translate"),
+    source_language: str = Query(...),
+    target_language: str = Query(...),
+    text: str = Query(...),
 ):
     server = ServerModel()
     return {"response": server.text_translate(text, target_language)}
-
-
-@router.post(
-    "/wiki_translate/chunked_text",
-    response_model=TranslateArticleResponse,
-    summary="Translate Text (Chunked)",
-    description="Translates long text using the chunked translation pipeline.",
-)
-def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
-    try:
-        from app.ai.translations import translate as chunked_translate
-        logging.info(
-            "Chunked translation request (source='%s', target='%s', chars=%d)",
-            payload.source_language,
-            payload.target_language,
-            len(payload.text or ""),
-        )
-        translated = chunked_translate(
-            payload.text,
-            payload.source_language,
-            payload.target_language,
-        )
-        return {"translatedArticle": translated}
-    except ImportError as e:
-        logging.exception("Chunked translation dependency error: %s", str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Missing translation dependency. Install sentencepiece in the backend venv "
-                "and restart the backend."
-            ),
-        )
-    except ValueError as e:
-        logging.exception("Chunked translation validation error: %s", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logging.exception("Chunked translation failed: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
-
-
-# ---------------------------------------------------------------------------
-# Section-level structured comparison
-# ---------------------------------------------------------------------------
-
-from app.models.section_comparison import (
-    SectionCompareRequest,
-    SectionCompareResponse,
-)
-from app.services.article_parser import article_fetcher
-from app.services.section_comparison import compare_article_sections
-
-
-def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
-    """Extract Wikipedia title and language from a URL or plain title string."""
-    if "://" in query:
-        match = re.search(r"https?://([a-z]{2,3})\.wikipedia\.org/wiki/([^#?]*)", query)
-        if match:
-            from urllib.parse import unquote
-
-            lang = match.group(1)
-            title = unquote(match.group(2).replace("_", " "))
-            return title, lang
-        raise ValueError(f"Invalid Wikipedia URL: {query}")
-    return query, default_lang
-
-
-@router.post(
-    "/articles/compare-sections",
-    response_model=SectionCompareResponse,
-    summary="Section-Level Article Comparison",
-    description=(
-        "Compares two Wikipedia articles section-by-section and paragraph-by-paragraph "
-        "using semantic embeddings. Returns a structured diff showing matched, missing, "
-        "and added sections/paragraphs. Uses Levenshtein distance for disambiguation "
-        "when semantic similarity scores are close."
-    ),
-)
-def compare_article_sections_endpoint(payload: SectionCompareRequest):
-    """Compare two Wikipedia articles at the section and paragraph level."""
-
-    try:
-        source_title, source_lang = _resolve_title_and_lang(
-            payload.source_query, payload.source_lang
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        target_title, target_lang = _resolve_title_and_lang(
-            payload.target_query, payload.target_lang
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        source_article = article_fetcher(source_title, source_lang)
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Failed to fetch source article '{source_title}' ({source_lang}): {e}",
-        )
-
-    try:
-        target_article = article_fetcher(target_title, target_lang)
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Failed to fetch target article '{target_title}' ({target_lang}): {e}",
-        )
-
-    return compare_article_sections(
-        source_article=source_article,
-        target_article=target_article,
-        similarity_threshold=payload.similarity_threshold,
-        model_name=payload.model_name,
-    )

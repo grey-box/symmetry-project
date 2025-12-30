@@ -14,7 +14,6 @@ from app.routers import (
     structured_wiki,
     structural_analysis,
     models,
-    config as config_router,
 )
 
 config = Config(".env")
@@ -67,7 +66,6 @@ app.include_router(comparison.router)
 app.include_router(structured_wiki.router)
 app.include_router(structural_analysis.router)
 app.include_router(models.router)
-app.include_router(config_router.router)
 
 
 @app.get(

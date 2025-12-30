@@ -1,5 +1,5 @@
 import pytest
-from app.ai.semantic_comparison import semantic_compare, preprocess_input
+from app.ai.semantic_comparison import semantic_compare
 
 
 class TestSemanticComparison:
@@ -86,21 +86,3 @@ class TestSemanticComparison:
             assert result["success"] is True
             assert isinstance(result["original_sentences"], list)
             assert isinstance(result["translated_sentences"], list)
-
-
-def test_preprocess_input_uses_chunking_for_large_text(monkeypatch):
-    """Checks that very large input text uses chunking instead of sentence splitting."""
-    large_text = "word " * 800  # comfortably above 3500 chars
-    observed = {"called": False}
-
-    def fake_chunk_text(text, chunk_size=450, overlap=60):
-        observed["called"] = True
-        assert chunk_size == 450
-        assert overlap == 60
-        return ["chunk one", "chunk two", "  "]
-
-    monkeypatch.setattr("app.ai.semantic_comparison.chunk_text", fake_chunk_text)
-    result = preprocess_input(large_text, "en")
-
-    assert observed["called"] is True
-    assert result == ["chunk one", "chunk two"]

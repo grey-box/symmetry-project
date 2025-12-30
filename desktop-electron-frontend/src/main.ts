@@ -4,7 +4,7 @@ This file which runs when you use command 'npm run start'
 
 import { app, BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
-import { get } from 'node:http'
+import { exec } from 'child_process'
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -26,70 +26,29 @@ async function grabConfig() {
     return AppConstants;
 }
 
-function checkBackendHealth(backendUrl: string) {
-  return new Promise<{ status: string; url?: string; httpCode?: number; error?: string }>((resolve) => {
-    const req = get(backendUrl, { timeout: 5000 }, (res) => {
-      res.resume();
-
-      if (res.statusCode === 200) {
-        console.log(`[INFO] Backend is healthy (HTTP 200)`);
-        resolve({ status: 'healthy', url: backendUrl });
-        return;
-      }
-
-      console.log(`[WARN] Backend responded with HTTP ${res.statusCode}`);
-      resolve({ status: 'unhealthy', httpCode: res.statusCode });
-    });
-
-    req.on('error', (error) => {
-      console.log(`[WARN] Backend health check failed: ${error.message}`);
-      resolve({ status: 'unhealthy', error: error.message });
-    });
-
-    req.on('timeout', () => {
-      req.destroy();
-      console.log('[WARN] Backend health check timed out.');
-      resolve({ status: 'unhealthy', error: 'timeout' });
-    });
-  });
-}
-
 // IPC handler to check backend health (does not start backend, just checks if it's running)
 ipcMain.handle('check-backend-health', async () => {
-  return checkBackendHealth(BACKEND_HEALTH_URL);
+  const backendUrl = 'http://127.0.0.1:8000/health';
+  
+  return new Promise((resolve) => {
+    exec(`curl -s -o /dev/null -w "%{http_code}" ${backendUrl}`, (error: any, stdout: any) => {
+      if (error) {
+        console.log(`[WARN] Backend health check failed: ${error.message}`);
+        resolve({ status: 'unhealthy', error: error.message });
+      } else if (stdout === '200') {
+        console.log(`[INFO] Backend is healthy (HTTP 200)`);
+        resolve({ status: 'healthy', url: backendUrl });
+      } else {
+        console.log(`[WARN] Backend responded with HTTP ${stdout}`);
+        resolve({ status: 'unhealthy', httpCode: stdout });
+      }
+    });
+  });
 });
 
-// IPC handler to start backend from renderer
-ipcMain.handle('start-backend', async () => {
-  try {
-    // Kill any existing backend processes first
-    console.log("[INFO] Killing existing backend processes...")
-    exec('pkill -f "python.*main.py" || true', (err: any) => {
-      if (err) {
-        console.log(`No existing backend processes found: ${err}`);
-      }
-    });
-    
-    // Start the backend from the correct directory
-    console.log("[INFO] Starting backend API from renderer request...")
-    execFile('python3', ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000'], {
-      cwd: path.join(process.cwd(), '../symmetry-unified-backend'),
-      timeout: 10000
-    }, (error: any, stdout: any, stderr: any) => {
-      if (error) {
-        console.error(`Backend exec error: ${error}`);
-        return { success: false, error: error.message };
-      }
-      console.log(`[INFO] Backend API started successfully from renderer!`)
-      console.log(`stdout: ${stdout}`);
-      console.error(`stderr: ${stderr}`);
-    });
-    
-    return { success: true };
-  } catch (error) {
-    console.error('Error starting backend from renderer:', error);
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
-  }
+// Defining an IPC handle so renderer processes can access config.
+ipcMain.handle('get-app-config', () => {
+  return AppConstants as any;
 });
 
 // Detect if we're in development mode
@@ -118,64 +77,23 @@ const createWindow = async () => {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
     );
   }
-  let backendPath;
-  let backendDir;
-  if (app.isPackaged) {
-    backendPath = path.join(process.resourcesPath, 'main');
-    backendDir = path.join(process.resourcesPath, '..');
-  } else {
-    // For development, run the Python script directly from the correct directory
-    backendPath = path.join(process.cwd(), '../symmetry-unified-backend/app/main.py');
-    backendDir = path.join(process.cwd(), '../symmetry-unified-backend');
-  }
-  console.log(`[INFO] backendPath: ${backendPath}`)
-  console.log(`[INFO] backendDir: ${backendDir}`)
   
   // Check backend health on startup
   try {
     AppConstants = await grabConfig();
-    
-    // Kill any existing backend processes first
-    console.log("[INFO] Killing existing backend processes...")
-    
-    // Kill processes on the specific port first
-    exec(`lsof -ti:8000 | xargs kill -9 || true`, (err: any, stdout: any, stderr: any) => {
-      if (err) {
-        console.log(`No processes found on port 8000 or kill command failed: ${err}`);
-      }
-      
-      // Then kill any python main.py processes
-      exec('pkill -f "python.*main.py" || true', (err: any, stdout: any, stderr: any) => {
-        if (err) {
-          console.log(`No existing backend processes found or kill command failed: ${err}`);
-        }
-        console.log("[INFO] Existing backend processes killed")
-        
-        // Start the backend from the correct directory
-        console.log("[INFO] Starting backend API from correct directory...")
-        execFile('python3', ['-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8000'], {
-          cwd: backendDir,
-          timeout: 10000
-        }, (error: any, stdout: any, stderr: any) => {
-          console.log("[INFO] Backend API process started")
-          if (error) {
-            console.error(`Backend exec error: ${error}`);
-            return;
-          }
-          console.log(`[INFO] Backend API has started on port ${AppConstants.BACKEND_PORT}!`)
-          console.log(`stdout: ${stdout}`);
-          console.error(`stderr: ${stderr}`);
-        });
-      });
-    });
+  } catch(e) {
+    console.error(`Error loading config: ${e}`);
   }
   
   // Perform a health check on backend
-  const health = await checkBackendHealth(BACKEND_HEALTH_URL);
-  if (health.status !== 'healthy') {
+  exec('curl -s http://127.0.0.1:8000/health', (error: any, stdout: any, stderr: any) => {
+    if (error) {
       console.log(`[WARN] Backend health check failed: Backend may not be running`);
       console.log(`[INFO] Please start backend using: ./start.sh backend`);
-  }
+    } else {
+      console.log(`[INFO] Backend is healthy: ${stdout.trim()}`);
+    }
+  });
 
   // Open the DevTools.
   if (isDev) {

@@ -88,18 +88,13 @@ class TestComparisonRouter:
     def test_compare_articles_invalid_language_length(
         self, client, valid_compare_request
     ):
-        """Test comparison accepts long language codes (no length constraint)"""
-        valid_request = valid_compare_request.copy()
-        valid_request["original_language"] = "verylonglanguagecode"
+        """Test comparison with invalid language code length"""
+        invalid_request = valid_compare_request.copy()
+        invalid_request["article_text_blob_1_language"] = "verylonglanguagecode"
 
-        mock_response = {"comparisons": []}
-        with patch(
-            "app.routers.comparison.perform_semantic_comparison",
-            return_value=mock_response,
-        ):
-            response = client.post("/symmetry/v1/articles/compare", json=valid_request)
+        response = client.post("/symmetry/v1/articles/compare", json=invalid_request)
 
-        assert response.status_code == 200
+        assert response.status_code == 422
 
     def test_compare_semantic_get_success(self, client, valid_semantic_compare_request):
         """Test successful GET request for semantic comparison"""

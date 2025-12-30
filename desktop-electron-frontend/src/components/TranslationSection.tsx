@@ -37,7 +37,14 @@ const TranslationSection = () => {
   const translationAbortRef = useRef<AbortController | null>(null)
   const [translationProgress, setTranslationProgress] = useState(0)
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
-  const [articleBlocks, setArticleBlocks] = useState<ArticleDisplayBlock[]>([]);
+  const [texts, setTexts] = useState([
+    {
+      editing: "",
+      reference: "",
+      suggestedContribution: "",
+      suggestionType: ""
+    }
+  ]);
 
   const form = useForm<TranslationFormType>({
     defaultValues: {
@@ -74,6 +81,7 @@ const TranslationSection = () => {
     setValue,
   } = form
   
+  // Function to check backend status using health endpoint
   const checkBackendStatus = useCallback(async () => {
     try {
       const { getAxiosInstance } = await import('@/services/axios');
@@ -85,6 +93,7 @@ const TranslationSection = () => {
     }
   }, [])
 
+  // Check backend status when component mounts
   useEffect(() => {
     checkBackendStatus()
     const interval = setInterval(checkBackendStatus, 30000)

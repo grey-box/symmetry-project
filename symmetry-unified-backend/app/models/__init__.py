@@ -36,6 +36,13 @@ from app.models.api_models import (
     FactExtractionRequest,
     FactExtractionResponse,
 )
+from app.models.api_models import (
+    ComparisonResponse,
+    TranslationResponse,
+    ArticleResponse,
+    ModelSelectionResponse,
+    ListResponse,
+)
 
 __all__ = [
     "Citation",
@@ -67,13 +74,9 @@ __all__ = [
     "InfoBoxAttribute",
     "SemanticCompareRequest",
     "BaseCompareRequest",
-    "ChunkedTranslateRequest",
+    "ComparisonResponse",
+    "TranslationResponse",
+    "ArticleResponse",
     "ModelSelectionResponse",
     "ListResponse",
-    "SectionCompareRequest",
-    "SectionCompareResponse",
-    "SectionDiff",
-    "ParagraphDiff",
-    "FactExtractionRequest",
-    "FactExtractionResponse",
 ]
