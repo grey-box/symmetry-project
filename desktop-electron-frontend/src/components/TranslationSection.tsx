@@ -297,9 +297,8 @@ const TranslationSection = () => {
                 type="button" 
                 variant="outline" 
                 onClick={() => { 
-                  translationAbortRef.current?.abort()
-                  translationAbortRef.current = null
-                  setArticleBlocks([])
+                  console.log("Clear button clicked")
+                  setTexts([]) // Clear the texts state
                   form.setValue('sourceArticleUrl', '')
                   form.setValue('sourceArticleContent', '')
                   form.setValue('translatedArticleContent', '')

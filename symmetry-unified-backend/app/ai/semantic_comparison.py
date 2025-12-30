@@ -1,32 +1,24 @@
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import spacy
-import os
-import sys
-import logging
 
-try:
-    from app.services.chunking import chunk_text
-except ModuleNotFoundError:
-    backend_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    if backend_root not in sys.path:
-        sys.path.insert(0, backend_root)
-    from app.services.chunking import chunk_text
-
-from app.ai.model_registry import COMPARISON_MODELS, DEFAULT_MODEL
-from app.core.settings import SIMILARITY_THRESHOLD as _DEFAULT_SIMILARITY_THRESHOLD
-
-logger = logging.getLogger(__name__)
+comparison_models = [
+    "sentence-transformers/LaBSE",
+    "xlm-roberta-base",
+    "multi-qa-distilbert-cos-v1",
+    "multi-qa-MiniLM-L6-cos-v1",
+    "multi-qa-mpnet-base-cos-v1",
+]
 
 
 def semantic_compare(
-    original_blob,
-    translated_blob,
+    model_name,
+    og_article,
+    translated_article,
     source_language,
     target_language,
     sim_threshold,
-    model_name,
-):
+):  # main function
     """
     Performs semantic comparison between two articles in different languages.
 
@@ -51,7 +43,20 @@ def semantic_compare(
         "success": [true or false depending on if request was successful]
     }
     """
-    success = True
+    # Load a multilingual sentence transformer model (LaBSE or cmlm)
+    match model_name:
+        case "sentence-transformers/LaBSE":
+            model = SentenceTransformer("sentence-transformers/LaBSE")
+        case "xlm-roberta-base":
+            model = SentenceTransformer("xlm-roberta-base")
+        case "multi-qa-distilbert-cos-v1":
+            model = SentenceTransformer("multi-qa-distilbert-cos-v1")
+        case "multi-qa-MiniLM-L6-cos-v1":
+            model = SentenceTransformer("multi-qa-MiniLM-L6-cos-v1")
+        case "multi-qa-mpnet-base-cos-v1":
+            model = SentenceTransformer("multi-qa-mpnet-base-cos-v1")
+        case _:
+            model = SentenceTransformer("sentence-transformers/LaBSE")
 
     try:
         if not model_name:
@@ -135,6 +140,22 @@ def semantic_compare(
         "success": success,
     }
 
+    missing_info, missing_info_index = sentences_diff(
+        og_article_sentences, og_embeddings, translated_embeddings, sim_threshold
+    )
+    extra_info, extra_info_index = sentences_diff(
+        translated_article_sentences,
+        translated_embeddings,
+        og_embeddings,
+        sim_threshold,
+    )
+    return (
+        og_article_sentences,
+        translated_article_sentences,
+        missing_info_index,
+        extra_info_index,
+    )
+
 
 def universal_sentences_split(text):
     """
@@ -185,44 +206,54 @@ def preprocess_input(article, language):
         "nl": "nl_core_news_sm",  # Dutch
     }
 
-    cleaned_article = article.replace("\n\n", "<DOUBLE_NEWLINE>")
+    # Acommodate for TITLES
+    cleaned_article = article.replace(
+        "\n\n", "<DOUBLE_NEWLINE>"
+    )  # temporarily replace double newlines
+    cleaned_article = cleaned_article.replace(
+        "\n", "."
+    )  # replace single newlines with periods
+    cleaned_article = cleaned_article.replace(
+        "<DOUBLE_NEWLINE>", " "
+    ).strip()  # remove double newlines
 
-    cleaned_article = cleaned_article.replace("\n", ". ")
-
-    cleaned_article = cleaned_article.replace("<DOUBLE_NEWLINE>", " ").strip()
-
-    if len(cleaned_article) > 3500:
-        logger.info(
-            "Using chunking for large input (chars=%d, chunk_size=%d, overlap=%d)",
-            len(cleaned_article),
-            450,
-            60,
-        )
-        out = chunk_text(cleaned_article, chunk_size=450, overlap=60)
-        logger.info("Chunking produced %d chunks", len(out))
-        return [x for x in out if isinstance(x, str) and x.strip()]
-
-    if language in language_model_map:
+    # Check if the language is supported
+    if language not in language_model_map:
+        sentences = universal_sentences_split(
+            cleaned_article
+        )  # Fallback to universal sentence splitting
+        return sentences
+    else:
+        # Load the appropriate spaCy model
+        model_name = language_model_map[language]
         try:
-            model_name = language_model_map[language]
+            nlp = spacy.load(model_name)
+        except OSError:
+            import subprocess
+            import logging
+
+            logging.warning(f"Model '{model_name}' not found. Installing...")
+            subprocess.run(
+                ["python", "-m", "spacy", "download", model_name], check=True
+            )
             nlp = spacy.load(model_name)
 
-            doc = nlp(cleaned_article)
-            sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
-            return sentences
-        except Exception as e:
-            print(f"Warning: Could not load spaCy model for {language}: {e}")
-            print("Falling back to universal sentence splitting")
-
-    sentences = universal_sentences_split(cleaned_article)
-    return [s for s in sentences if isinstance(s, str) and s.strip()]
+    cleaned_article = article.replace("\n\n", "<DOUBLE_NEWLINE>")
 
 
 def sentences_diff(
-    article_sentences, source_embeddings, reference_embeddings, similarity_threshold
+    article_sentences, first_embeddings, second_embeddings, sim_threshold
 ):
     """
-    Find sentences in source that have no close semantic match in the reference.
+    Compares sentence embeddings to find semantic differences.
+
+    Expected parameters:
+    {
+        "article_sentences": [array of sentences],
+        "first_embeddings": [array of sentence embeddings from first article],
+        "second_embeddings": [array of sentence embeddings from second article],
+        "sim_threshold": "float - similarity threshold value"
+    }
 
     Returns:
         unmatched_sentences: Sentences below the similarity threshold.
@@ -239,6 +270,14 @@ def sentences_diff(
             unmatched_indices.append(i)
 
     return unmatched_sentences, unmatched_indices
+
+        if max_sim < sim_threshold:  # Threshold for similarity
+            diff_info.append(
+                article_sentences[i]
+            )  # This sentence might be missing or extra
+            indices.append(i)
+
+    return diff_info, indices
 
 
 def perform_semantic_comparison(request_data):
@@ -267,35 +306,55 @@ def perform_semantic_comparison(request_data):
         ]
     }
     """
-    # extract values from request data
-    source_article = request_data["original_article_content"]
-    target_article = request_data["translated_article_content"]
-    source_language = request_data["original_language"]
-    target_language = request_data["translated_language"]
-    sim_threshold = request_data.get("comparison_threshold", _DEFAULT_SIMILARITY_THRESHOLD)
-    model_name = request_data.get("model_name", DEFAULT_MODEL)
+    # Extract values from request data
+    source_article = request_data["article_text_blob_1"]
+    target_article = request_data["article_text_blob_2"]
+    source_language = request_data["article_text_blob_1_language"]
+    target_language = request_data["article_text_blob_2_language"]
+    sim_threshold = request_data["comparison_threshold"] or 0.65  # Default to 0.65 if 0
+    model_name = (
+        request_data["model_name"] or "LaBSE"
+    )  # Default to LaBSE if not specified
 
-    # perform semantic comparison
-    result = semantic_compare(
-        source_article,
-        target_article,
-        source_language,
-        target_language,
-        sim_threshold,
-        model_name,
+    # Perform semantic comparison
+    source_sentences, target_sentences, missing_info_index, extra_info_index = (
+        semantic_compare(
+            model_name=model_name,
+            og_article=source_article,
+            translated_article=target_article,
+            source_language=source_language,
+            target_language=target_language,
+            sim_threshold=sim_threshold,
+        )
     )
 
     # Return results in a structured format
     return {
         "comparisons": [
             {
-                "left_article_array": result["original_sentences"],
-                "right_article_array": result["translated_sentences"],
-                "left_article_missing_info_index": result["missing_info_indices"],
-                "right_article_extra_info_index": result["extra_info_indices"],
-                "missing_info": result["missing_info"],
-                "extra_info": result["extra_info"],
-                "success": result["success"],
+                "left_article_array": source_sentences,
+                "right_article_array": target_sentences,
+                "left_article_missing_info_index": missing_info_index,
+                "right_article_extra_info_index": extra_info_index,
             }
         ]
     }
+
+
+def main():  # testing the code
+    # Example test request data
+    test_request = {
+        "article_text_blob_1": "This is the first sentence.\n\nThis is the second sentence\nThis is the third sentence.",
+        "article_text_blob_2": "\n\nCeci est la première phrase\nJe vais bien. Ceci est la deuxième phrase.",
+        "article_text_blob_1_language": "en",
+        "article_text_blob_2_language": "fr",
+        "comparison_threshold": 0.65,
+        "model_name": "sentence-transformers/LaBSE",
+    }
+
+    result = perform_semantic_comparison(test_request)
+    print("Comparison Results:", result)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,16 +1,12 @@
 import { AxiosResponse } from 'axios'
 import { getAxiosInstance } from '@/services/axios'
 
-/**
- * Compare two article texts using semantic similarity (legacy plain-text comparison).
- * Calls POST /symmetry/v1/articles/compare with LaBSE embeddings.
- */
+// API call for semantic comparison of articles
 export async function compareArticles(
-  sourceArticleContent: string,
-  targetArticleContent: string,
-  sourceLanguage: string,
-  targetLanguage: string,
-  similarityThreshold: number = 0.65
+  textA: string,
+  textB: string,
+  languageA: string,
+  languageB: string
 ): Promise<AxiosResponse<{
   comparisons: Array<{
     left_article_array: string[]
@@ -20,29 +16,18 @@ export async function compareArticles(
   }>
 }>> {
   try {
-    const axiosInstance = await getAxiosInstance()
+    const axiosInstance = await getAxiosInstance();
 
-    console.log(
-      '[DEBUG] compareArticles called with original length:',
-      sourceArticleContent.length,
-      'translated length:',
-      targetArticleContent.length
-    )
-    console.log(
-      '[DEBUG] Languages - original:',
-      sourceLanguage,
-      'translated:',
-      targetLanguage
-    )
+    console.log('[DEBUG] compareArticles called with textA length:', textA.length, 'textB length:', textB.length);
+    console.log('[DEBUG] Languages - A:', languageA, 'B:', languageB);
 
     return axiosInstance.post('/symmetry/v1/articles/compare', {
-      original_article_content: sourceArticleContent,
-      translated_article_content: targetArticleContent,
-      original_language: sourceLanguage,
-      translated_language: targetLanguage,
-      similarity_threshold: similarityThreshold,
-      model_name: 'sentence-transformers/LaBSE',
-    })
+      article_text_blob_1: textA,
+      article_text_blob_2: textB,
+      article_text_blob_1_language: languageA,
+      article_text_blob_2_language: languageB,
+      model_name: 'default'
+    });
   } catch (error) {
     console.error('Failed to get axios instance:', error)
     throw error

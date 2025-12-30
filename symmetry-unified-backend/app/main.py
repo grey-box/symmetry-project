@@ -23,6 +23,14 @@ LOG_LEVEL = config.get("LOG_LEVEL", default="INFO")
 FASTAPI_DEBUG = config.get("FASTAPI_DEBUG", cast=bool, default=False)
 SIMILARITY_THRESHOLD = config.get("SIMILARITY_THRESHOLD", cast=float, default=0.65)
 
+comparison_models = [
+    "sentence-transformers/LaBSE",
+    "xlm-roberta-base",
+    "multi-qa-distilbert-cos-v1",
+    "multi-qa-MiniLM-L6-cos-v1",
+    "multi-qa-mpnet-base-cos-v1",
+]
+
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(message)s")
 
 app = FastAPI(debug=FASTAPI_DEBUG, title="Symmetry Unified API", version="1.0.0")
