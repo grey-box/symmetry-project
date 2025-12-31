@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 import { Separator } from '@/components/ui/separator'
+import { Input } from '@/components/ui/input'
 
 const ComparisonSection = () => {
   const [isLoading, setIsLoading] = useState(false)
@@ -25,6 +26,7 @@ const ComparisonSection = () => {
   const [targetUrl, setTargetUrl] = useState('')
   const [isTargetTextReadOnly, setIsTargetTextReadOnly] = useState(false)
   const [isTargetLanguageReadOnly, setIsTargetLanguageReadOnly] = useState(false)
+  const [similarityThreshold, setSimilarityThreshold] = useState(0.65)
 
   const form = useForm({
     defaultValues: {
@@ -101,7 +103,7 @@ const ComparisonSection = () => {
     setComparisonResult(null)
 
     try {
-      const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage)
+      const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage, similarityThreshold)
       // The response data has a 'comparisons' array, we need the first comparison
       const comparison = response.data.comparisons[0]
       setComparisonResult(comparison)
@@ -277,6 +279,25 @@ const ComparisonSection = () => {
                  </FormItem>
               )}
             />
+          </div>
+
+          {/* Similarity Threshold */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Similarity Threshold</label>
+            <div className="flex items-center gap-4">
+              <Input
+                type="number"
+                min="0"
+                max="1"
+                step="0.01"
+                value={similarityThreshold}
+                onChange={(e) => setSimilarityThreshold(parseFloat(e.target.value) || 0.65)}
+                className="w-24"
+              />
+              <span className="text-sm text-gray-500">
+                Lower values = more sensitive (detects more differences)
+              </span>
+            </div>
           </div>
 
           {/* Submit Button */}
