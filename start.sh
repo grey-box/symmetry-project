@@ -48,8 +48,12 @@ check_backend_requirements() {
     cd "$BACKEND_DIR"
     
     if [ ! -d "venv" ]; then
-        echo "Creating virtual environment..."
-        python3 -m venv venv
+        echo "Creating virtual environment with Python 3.13..."
+        if ! command -v python3.13 &> /dev/null; then
+            echo "Error: Python 3.13 is not installed. Please install Python 3.13 first."
+            exit 1
+        fi
+        python3.13 -m venv venv
     fi
     
     source venv/bin/activate
