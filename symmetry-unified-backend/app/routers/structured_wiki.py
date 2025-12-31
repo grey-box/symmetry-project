@@ -17,12 +17,21 @@ router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 structured_cache: Dict[str, Dict] = {}
 
 
-@router.get("/structured-article", response_model=StructuredArticleResponse)
+@router.get(
+    "/structured-article",
+    response_model=StructuredArticleResponse,
+    summary="Get Structured Wikipedia Article",
+    description="Parses a Wikipedia article into structured data including sections, citations, and references. Provides metadata like section counts and citation statistics.",
+)
 async def get_structured_article(
     query: Optional[str] = Query(
-        None, description="Either a full Wikipedia URL or a keyword/title"
+        None,
+        description="Either a full Wikipedia URL (e.g., https://en.wikipedia.org/wiki/Python) or a keyword/title (e.g., 'Python')",
     ),
-    lang: Optional[str] = Query(None, description="Article language code"),
+    lang: Optional[str] = Query(
+        None,
+        description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided",
+    ),
 ):
     logging.info(
         "Calling structured article endpoint (query='%s', lang='%s')", query, lang
@@ -83,12 +92,24 @@ async def get_structured_article(
         )
 
 
-@router.get("/structured-section", response_model=StructuredSectionResponse)
+@router.get(
+    "/structured-section",
+    response_model=StructuredSectionResponse,
+    summary="Get Specific Article Section",
+    description="Retrieves a specific section from a Wikipedia article with metadata including word count, citation count, and citation positions.",
+)
 async def get_structured_section(
-    query: str = Query(..., description="Wikipedia article title or URL"),
-    lang: Optional[str] = Query(None, description="Article language code"),
+    query: str = Query(
+        ...,
+        description="Wikipedia article title or URL (e.g., 'Python' or https://en.wikipedia.org/wiki/Python)",
+    ),
+    lang: Optional[str] = Query(
+        None,
+        description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided",
+    ),
     section_title: str = Query(
-        ..., description="Title of the specific section to retrieve"
+        ...,
+        description="Title of the specific section to retrieve (e.g., 'History', 'Uses')",
     ),
 ):
     logging.info(
@@ -150,10 +171,21 @@ async def get_structured_section(
         )
 
 
-@router.get("/citation-analysis", response_model=StructuredCitationResponse)
+@router.get(
+    "/citation-analysis",
+    response_model=StructuredCitationResponse,
+    summary="Analyze Article Citations",
+    description="Provides detailed analysis of all citations in a Wikipedia article, including total citations, unique citation targets, and most cited articles.",
+)
 async def get_citation_analysis(
-    query: str = Query(..., description="Wikipedia article title or URL"),
-    lang: Optional[str] = Query(None, description="Article language code"),
+    query: str = Query(
+        ...,
+        description="Wikipedia article title or URL (e.g., 'Python' or https://en.wikipedia.org/wiki/Python)",
+    ),
+    lang: Optional[str] = Query(
+        None,
+        description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided",
+    ),
 ):
     logging.info("Calling citation analysis endpoint (query='%s')", query)
 
@@ -207,10 +239,21 @@ async def get_citation_analysis(
         )
 
 
-@router.get("/reference-analysis", response_model=StructuredReferenceResponse)
+@router.get(
+    "/reference-analysis",
+    response_model=StructuredReferenceResponse,
+    summary="Analyze Article References",
+    description="Analyzes reference statistics for a Wikipedia article, including total references, references with URLs, and reference density (references per 1000 words).",
+)
 async def get_reference_analysis(
-    query: str = Query(..., description="Wikipedia article title or URL"),
-    lang: Optional[str] = Query(None, description="Article language code"),
+    query: str = Query(
+        ...,
+        description="Wikipedia article title or URL (e.g., 'Python' or https://en.wikipedia.org/wiki/Python)",
+    ),
+    lang: Optional[str] = Query(
+        None,
+        description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided",
+    ),
 ):
     logging.info("Calling reference analysis endpoint (query='%s')", query)
 

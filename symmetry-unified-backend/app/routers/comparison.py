@@ -29,12 +29,13 @@ comparison_models = [
 ]
 
 
-@router.post("/articles/compare", response_model=CompareResponse)
+@router.post(
+    "/articles/compare",
+    response_model=CompareResponse,
+    summary="Compare Two Articles",
+    description="Compares two articles using semantic similarity analysis. Returns missing and extra information based on configurable threshold and model selection.",
+)
 def compare_articles(payload: CompareRequest):
-    """
-    This endpoint requests a comparison of two blobs of text using semantic comparison.
-    The request includes the articles, the languages of the articles, the comparison threshold, and model name.
-    """
     from app.main import SIMILARITY_THRESHOLD
 
     # Use threshold from config if not provided in request
@@ -63,12 +64,25 @@ def compare_articles(payload: CompareRequest):
     return result
 
 
-@router.get("/comparison/semantic", response_model=ArticleComparisonResponse)
+@router.get(
+    "/comparison/semantic",
+    response_model=ArticleComparisonResponse,
+    summary="Semantic Comparison (GET)",
+    description="Performs semantic comparison between two texts using sentence embeddings. Returns sentences that are missing or extra based on similarity threshold.",
+)
 def compare_articles_semantic(
-    text_a: str,
-    text_b: str,
-    similarity_threshold: float = 0.75,
-    model_name: str = "sentence-transformers/LaBSE",
+    text_a: str = Query(..., description="First text to compare"),
+    text_b: str = Query(..., description="Second text to compare"),
+    similarity_threshold: float = Query(
+        0.75,
+        ge=0,
+        le=1,
+        description="Similarity threshold between 0 and 1. Sentences below this threshold are considered different",
+    ),
+    model_name: str = Query(
+        "sentence-transformers/LaBSE",
+        description="Name of the sentence transformer model to use",
+    ),
 ):
     global perform_semantic_comparison
     logging.info("Calling semantic comparison endpoint.")
@@ -126,7 +140,12 @@ def compare_articles_semantic(
     )
 
 
-@router.post("/comparison/semantic", response_model=ArticleComparisonResponse)
+@router.post(
+    "/comparison/semantic",
+    response_model=ArticleComparisonResponse,
+    summary="Semantic Comparison (POST)",
+    description="Performs semantic comparison between two texts using sentence embeddings via POST request. Returns sentences that are missing or extra based on similarity threshold.",
+)
 def compare_articles_semantic_post(payload: SemanticCompareRequest):
     logging.info("Calling semantic comparison endpoint (POST).")
 
@@ -179,8 +198,21 @@ def compare_articles_semantic_post(payload: SemanticCompareRequest):
     return ArticleComparisonResponse(missing_info=[], extra_info=[])
 
 
-@router.get("/wiki_translate/source_article", response_model=dict)
-def translate_article(url: str = None, title: str = None, language: str = None):
+@router.get(
+    "/wiki_translate/source_article",
+    response_model=dict,
+    summary="Translate Wikipedia Article",
+    description="Finds and retrieves a translated version of a Wikipedia article in the target language.",
+)
+def translate_article(
+    url: str = Query(None, description="Full Wikipedia URL of the source article"),
+    title: str = Query(
+        None, description="Title of the source article (alternative to URL)"
+    ),
+    language: str = Query(
+        ..., description="Target language code (e.g., 'fr', 'es', 'de')"
+    ),
+):
     import wikipediaapi
     from app.services.wiki_utils import get_translation
     from urllib.parse import unquote
@@ -241,11 +273,16 @@ def translate_article(url: str = None, title: str = None, language: str = None):
     return {"translatedArticle": translated_content}
 
 
-@router.get("/translate_text", response_model=dict)
+@router.get(
+    "/translate_text",
+    response_model=dict,
+    summary="Translate Text",
+    description="Translates text from source language to target language using configured translation model.",
+)
 def translate_text_endpoint(
-    source_language: str = Query(...),
-    target_language: str = Query(...),
-    text: str = Query(...),
+    source_language: str = Query(..., description="Source language code (e.g., 'en')"),
+    target_language: str = Query(..., description="Target language code (e.g., 'fr')"),
+    text: str = Query(..., description="Text to translate"),
 ):
     server = ServerModel()
     return {"response": server.text_translate(text, target_language)}

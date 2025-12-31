@@ -68,7 +68,11 @@ app.include_router(structural_analysis.router)
 app.include_router(models.router)
 
 
-@app.get("/")
+@app.get(
+    "/",
+    summary="API Root",
+    description="Returns API information, version, and available endpoint categories. Use /docs for interactive documentation.",
+)
 async def root():
     return {
         "message": "Symmetry Unified API",
@@ -81,7 +85,11 @@ async def root():
     }
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    summary="Health Check",
+    description="Simple health check endpoint that returns the current service status. Can be used by load balancers and monitoring systems.",
+)
 async def health_check():
     return {"status": "healthy"}
 

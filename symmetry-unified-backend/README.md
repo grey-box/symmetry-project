@@ -116,14 +116,10 @@ API endpoints organized into logical routers:
 symmetry-unified-backend/
 ├── app/
 │   ├── ai/                    # AI comparison logic
-│   │   ├── llm_comparison.py
 │   │   ├── semantic_comparison.py
 │   │   └── translations.py
 │   ├── models/                # Pydantic v2 models
 │   │   └── __init__.py
-│   ├── prompts/               # LLM prompts
-│   │   ├── first_pass.txt
-│   │   └── second_pass.txt
 │   ├── routers/               # API route handlers
 │   │   ├── wiki_articles.py
 │   │   ├── structured_wiki.py
@@ -271,7 +267,6 @@ pytest
 2. **Verify all features work**:
    - Wiki article fetching and translation
    - Structured article parsing
-   - LLM comparison (requires Ollama)
    - Semantic comparison
    - Structural analysis across languages
 
