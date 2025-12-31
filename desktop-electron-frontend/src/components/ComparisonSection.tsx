@@ -27,6 +27,7 @@ const ComparisonSection = () => {
   const [targetUrl, setTargetUrl] = useState('')
   const [isTargetTextReadOnly, setIsTargetTextReadOnly] = useState(false)
   const [isTargetLanguageReadOnly, setIsTargetLanguageReadOnly] = useState(false)
+  const [similarityThreshold, setSimilarityThreshold] = useState(0.65)
 
   const form = useForm({
     defaultValues: {
@@ -103,7 +104,7 @@ const ComparisonSection = () => {
     setComparisonResult(null)
 
     try {
-      const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage)
+      const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage, similarityThreshold)
       // The response data has a 'comparisons' array, we need the first comparison
       const comparison = response.data.comparisons[0]
       setComparisonResult(comparison)

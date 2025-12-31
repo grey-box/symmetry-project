@@ -6,7 +6,8 @@ export async function compareArticles(
   textA: string,
   textB: string,
   languageA: string,
-  languageB: string
+  languageB: string,
+  similarityThreshold: number = 0.65
 ): Promise<AxiosResponse<{
   comparisons: Array<{
     left_article_array: string[]
@@ -26,6 +27,7 @@ export async function compareArticles(
       article_text_blob_2: textB,
       article_text_blob_1_language: languageA,
       article_text_blob_2_language: languageB,
+      comparison_threshold: similarityThreshold,
       model_name: 'sentence-transformers/LaBSE'
     });
   } catch (error) {
