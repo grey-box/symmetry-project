@@ -25,6 +25,27 @@ except Exception:
 router = APIRouter(prefix="/symmetry/v1", tags=["comparison"])
 
 
+# @router.post("/articles/compare", response_model=CompareResponse)
+# def compare_articles(payload: CompareRequest):
+#     """
+#     This endpoint requests a comparison of two blobs of text using semantic comparison.
+#     The request includes the articles, the languages of the articles, the comparison threshold, and model name.
+#     """
+#     if perform_semantic_comparison is None:
+#         result = {
+#             "comparisons": [
+#                 {
+#                     "left_article_array": [],
+#                     "right_article_array": [],
+#                     "left_article_missing_info_index": [],
+#                     "right_article_extra_info_index": [],
+#                 }
+#             ]
+#         }
+#     else:
+#         result = perform_semantic_comparison(payload.dict())
+#     return result
+
 @router.post("/articles/compare", response_model=CompareResponse)
 def compare_articles(payload: CompareRequest):
     """
@@ -35,9 +56,62 @@ def compare_articles(payload: CompareRequest):
         return CompareResponse(
             missing_info=[],
             extra_info=[],
-            error_message="Semantic comparison service is unavailable.",
-            model_name=payload.model_name,
-            similarity_threshold=payload.similarity_threshold,
+            error_message="Semantic comparison service is unavailable."
+        )
+
+    request_data = {
+        "article_text_blob_1": payload.original_article_content,
+        "article_text_blob_2": payload.translated_article_content,
+        "article_text_blob_1_language": payload.original_language,
+        "article_text_blob_2_language": payload.translated_language,
+        "comparison_threshold": payload.similarity_threshold,
+        "model_name": payload.model_name,
+    }
+
+    result = perform_semantic_comparison(request_data)
+
+    if not result or "comparisons" not in result:
+        return CompareResponse(
+            missing_info=[],
+            extra_info=[],
+            error_message="Comparison failed or returned no results."
+        )
+
+    comparison = result["comparisons"][0]
+
+    missing_info = [
+        SentenceDiff(
+            sentence=comparison["left_article_array"][idx],
+            index=idx,
+        )
+        for idx in comparison["left_article_missing_info_index"]
+    ]
+
+    extra_info = [
+        SentenceDiff(
+            sentence=comparison["right_article_array"][idx],
+            index=idx,
+        )
+        for idx in comparison["right_article_extra_info_index"]
+    ]
+
+    return CompareResponse(
+        missing_info=missing_info,
+        extra_info=extra_info,
+        error_message=None,
+    )
+
+
+
+@router.get("/comparison/llm", response_model=ArticleComparisonResponse)
+def compare_articles_llm(text_a: str, text_b: str):
+    logging.info("Calling LLM semantic comparison endpoint.")
+
+    if text_a is None or text_b is None:
+        logging.info("Invalid input provided to LLM comparison.")
+        raise HTTPException(
+            status_code=400,
+            detail="Either text_a or text_b (or both) was found to be None.",
         )
 
     request_data = {

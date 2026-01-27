@@ -4,20 +4,19 @@ from typing import List, Optional
 
 class Citation(BaseModel):
     model_config = {"frozen": True}
-    label: str = Field()
-    url: Optional[str] = Field(default=None)
+    label: str = Field(max_length=5000)
+    url: Optional[str] = Field(default=None, max_length=2000)
 
 
 class Reference(BaseModel):
     model_config = {"frozen": True}
-    label: str = Field()
-    id: Optional[str] = Field(default=None)
-    url: Optional[str] = Field(default=None)
-
+    label: str = Field(max_length=5000)
+    id: Optional[str] = Field(default=None, max_length=100)
+    url: Optional[str] = Field(default=None, max_length=2000)
 
 
 class Section(BaseModel):
-    title: str = Field()
+    title: str = Field(max_length=5000)
     raw_content: str
     clean_content: str
     citations: Optional[List[Citation]] = None
@@ -25,8 +24,8 @@ class Section(BaseModel):
 
 
 class Article(BaseModel):
-    title: str = Field()
-    lang: str = Field()
-    source: str = Field()
+    title: str = Field(max_length=5000)
+    lang: str = Field(max_length=10)
+    source: str = Field(max_length=100)
     sections: List[Section]
     references: List[Reference]
