@@ -16,7 +16,7 @@ class Reference(BaseModel):
 
 
 class Section(BaseModel):
-    title: str = Field(max_length=500)
+    title: str = Field(max_length=5000)
     raw_content: str
     clean_content: str
     citations: Optional[List[Citation]] = None
@@ -24,7 +24,7 @@ class Section(BaseModel):
 
 
 class Article(BaseModel):
-    title: str = Field(max_length=500)
+    title: str = Field(max_length=5000)
     lang: str = Field(max_length=10)
     source: str = Field(max_length=100)
     sections: List[Section]
