@@ -6,7 +6,7 @@ from app.models.response import (
     MissingInfo,
     ExtraInfo,
 )
-from app.models.comparison import CompareRequest, ComparisonResult, CompareResponse
+from app.models.comparison import CompareRequest, ComparisonResult, CompareResponse, SentenceDiff
 from app.models.structured_response import (
     StructuredArticleResponse,
     StructuredSectionResponse,
