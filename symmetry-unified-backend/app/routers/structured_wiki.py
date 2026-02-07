@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Query, HTTPException
@@ -333,191 +333,55 @@ async def parse_wikipedia_url(url: str) -> tuple[str, str]:
     return lang, title
 
 
-@router.get("/structured-translated-article", response_model=StructuredArticleResponse)
-async def structured_translated_article(
+@router.get(
+    "/structured-translated-article",
+    response_model=StructuredArticleResponse,
+)
+def structured_translated_article(
     source_lang: str = "en",
     target_lang: str = "es",
     url: str | None = None,
     title: str | None = None,
 ):
-    logging.info(
-        "Calling structured translated article endpoint (source='%s', target='%s', url='%s', title='%s')",
-        source_lang,
-        target_lang,
-        url,
-        title,
-    )
-
     # 1. Resolve title
     if url:
-        try:
-            parsed_lang, parsed_title = await parse_wikipedia_url(url)
-            source_lang = parsed_lang
-            title = parsed_title
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
+        match = re.search(r"/wiki/([^#?]*)", url)
+        if not match:
+            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL")
+        title = match.group(1).replace("_", " ")
 
     if not title:
-        raise HTTPException(status_code=400, detail="Title or URL required.")
+        raise HTTPException(status_code=400, detail="Title or URL required")
 
-    try:
-        # 2. Fetch original article
-        article = article_fetcher(title, source_lang)
+    # 2. Fetch original article
+    article: Article = article_fetcher(title, source_lang)
 
-        # 3. Translate + build response (delegated)
-        response = translate_article(article, source_lang, target_lang)
-
-        logging.info(
-            "Successfully translated article: %s (%d sections, %d citations)",
-            title,
-            response.total_sections,
-            response.total_citations,
-        )
-
-        return response
-
-    except Exception as e:
-        logging.error(
-            "Error translating structured article '%s': %s",
-            title,
-            str(e),
-        )
-        raise HTTPException(
-            status_code=500, detail=f"Failed to translate article: {str(e)}"
-        )
-
-
-def translate_article(
-    article,
-    source_lang: str,
-    target_lang: str,
-) -> StructuredArticleResponse:
-    """
-    Translates an Article object and builds a StructuredArticleResponse.
-    """
-
-    translated_sections: List[Section] = []
-
+    # 3. Translate sections (build *Section* models)
+    translated_sections: list[Section] = []
     for section in article.sections:
         translated_sections.append(
             Section(
                 title=translate(section.title, source_lang, target_lang),
                 raw_content=translate(section.raw_content, source_lang, target_lang),
-                clean_content=translate(
-                    section.clean_content, source_lang, target_lang
-                ),
+                clean_content=translate(section.clean_content, source_lang, target_lang),
                 citations=section.citations,
                 citation_position=section.citation_position,
             )
         )
 
+    # 4. Compute totals
     total_citations = sum(
         len(section.citations or []) for section in translated_sections
     )
 
+    # 5. Build response
     return StructuredArticleResponse(
         title=translate(article.title, source_lang, target_lang),
         lang=target_lang,
-        source=f"wikipedia+model({source_lang}->{target_lang})",
+        source=f"wikipedia+model({source_lang}→{target_lang})",
         sections=translated_sections,
         references=article.references,
         total_sections=len(translated_sections),
         total_citations=total_citations,
         total_references=len(article.references),
     )
-
-
-@router.get("/fact-extraction-models", response_model=List[Dict[str, Any]])
-async def get_fact_extraction_models():
-    """
-    Get list of available fact extraction models.
-    Returns model configurations that can be used with the extract-facts endpoint.
-    """
-    logging.info("Calling fact extraction models endpoint")
-    try:
-        models = get_available_models()
-        return models
-    except Exception as e:
-        logging.error("Error fetching fact extraction models: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to fetch models: {str(e)}")
-
-
-@router.get("/fact-extraction-validate")
-async def validate_fact_extraction_model(
-    model_id: str = Query(
-        ..., description="Model ID to validate (predefined or HuggingFace model name)"
-    ),
-):
-    """
-    Validate a fact extraction model ID.
-    Checks if the model exists either in the predefined config or on HuggingFace Hub.
-
-    Args:
-        model_id: The model ID to validate
-
-    Returns:
-        Dictionary with validation result and model info if valid
-    """
-    logging.info("Validating fact extraction model: %s", model_id)
-
-    try:
-        config = validate_model(model_id)
-        return {"valid": True, "model": config}
-    except ValueError as e:
-        logging.warning("Model validation failed for %s: %s", model_id, str(e))
-        return {"valid": False, "error": str(e)}
-    except Exception as e:
-        logging.error("Error validating model %s: %s", model_id, str(e))
-        raise HTTPException(status_code=500, detail=f"Validation error: {str(e)}")
-
-
-@router.post("/extract-facts", response_model=FactExtractionResponse)
-async def extract_facts_endpoint(request: FactExtractionRequest):
-    """
-    Extract facts from a section's content using the specified LLM model.
-
-    - **section_content**: The text content to extract facts from
-    - **model_id**: The ID of the model to use (from /fact-extraction-models endpoint)
-    - **section_title**: The title of the section being processed (optional)
-    - **num_facts**: Number of facts to extract (also determines number of model calls via chunking). Default is 1.
-    """
-    logging.info(
-        "Calling extract facts endpoint (model='%s', content_length=%d, section_title='%s', num_facts=%d)",
-        request.model_id,
-        len(request.section_content),
-        request.section_title,
-        request.num_facts,
-    )
-
-    try:
-        facts, chunks = await extract_facts(
-            request.section_content, request.model_id, num_facts=request.num_facts
-        )
-
-        config = get_model_config(request.model_id)
-        model_name = config["name"]
-
-        response = FactExtractionResponse(
-            facts=facts,
-            model_used=model_name,
-            section_title=request.section_title,
-            chunks=chunks,
-        )
-
-        logging.info(
-            "Successfully extracted %d facts using model %s for section '%s'",
-            len(facts),
-            request.model_id,
-            request.section_title,
-        )
-
-        return response
-
-    except ValueError as e:
-        logging.error("ValueError in fact extraction: %s", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logging.error("Error extracting facts: %s", str(e))
-        raise HTTPException(
-            status_code=500, detail=f"Failed to extract facts: {str(e)}"
-        )
