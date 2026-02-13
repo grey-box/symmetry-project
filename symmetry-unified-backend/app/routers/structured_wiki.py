@@ -325,31 +325,69 @@ async def parse_wikipedia_url(url: str) -> tuple[str, str]:
     return lang, title
 
 
-@router.get(
-    "/structured-translated-article",
-    response_model=StructuredArticleResponse,
-)
-def structured_translated_article(
+@router.get("/structured-translated-article", response_model=StructuredArticleResponse)
+async def structured_translated_article(
     source_lang: str = "en",
     target_lang: str = "es",
     url: str | None = None,
     title: str | None = None,
 ):
+    logging.info(
+        "Calling structured translated article endpoint (source='%s', target='%s', url='%s', title='%s')",
+        source_lang, target_lang, url, title,
+    )
+
     # 1. Resolve title
     if url:
-        match = re.search(r"/wiki/([^#?]*)", url)
-        if not match:
-            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL")
-        title = match.group(1).replace("_", " ")
+        try:
+            parsed_lang, parsed_title = await parse_wikipedia_url(url)
+            source_lang = parsed_lang
+            title = parsed_title
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
 
     if not title:
-        raise HTTPException(status_code=400, detail="Title or URL required")
+        raise HTTPException(status_code=400, detail="Title or URL required.")
 
-    # 2. Fetch original article
-    article: Article = article_fetcher(title, source_lang)
+    try:
+        # 2. Fetch original article
+        article = article_fetcher(title, source_lang)
 
-    # 3. Translate sections (build *Section* models)
-    translated_sections: list[Section] = []
+        # 3. Translate + build response (delegated)
+        response = translate_article(
+            article, source_lang, target_lang
+        )
+
+        logging.info(
+            "Successfully translated article: %s (%d sections, %d citations)",
+            title,
+            response.total_sections,
+            response.total_citations,
+        )
+
+        return response
+
+    except Exception as e:
+        logging.error(
+            "Error translating structured article '%s': %s",
+            title,
+            str(e),
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Failed to translate article: {str(e)}"
+        )
+
+def translate_article(
+    article,
+    source_lang: str,
+    target_lang: str,
+) -> StructuredArticleResponse:
+    """
+    Translates an Article object and builds a StructuredArticleResponse.
+    """
+
+    translated_sections: List[Section] = []
+
     for section in article.sections:
         translated_sections.append(
             Section(
@@ -361,16 +399,14 @@ def structured_translated_article(
             )
         )
 
-    # 4. Compute totals
     total_citations = sum(
         len(section.citations or []) for section in translated_sections
     )
 
-    # 5. Build response
     return StructuredArticleResponse(
         title=translate(article.title, source_lang, target_lang),
         lang=target_lang,
-        source=f"wikipedia+model({source_lang}→{target_lang})",
+        source=f"wikipedia+model({source_lang}->{target_lang})",
         sections=translated_sections,
         references=article.references,
         total_sections=len(translated_sections),
