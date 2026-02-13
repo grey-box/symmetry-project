@@ -7,6 +7,19 @@ import {
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
 
+const TRANSLATION_LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'it', label: 'Italian' },
+  { code: 'pt', label: 'Portuguese' },
+  { code: 'zh', label: 'Chinese' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+];
+
+
 interface StructuredArticleViewerProps {
   initialQuery?: string;
   initialLang?: string;
@@ -21,9 +34,12 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [referenceAnalysis, setReferenceAnalysis] = useState<StructuredReferenceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState(''); // For section search
   const [searchInput, setSearchInput] = useState(''); // For article search input
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [targetLang, setTargetLang] = useState(initialLang);
+  const [translating, setTranslating] = useState(false);
+
+
 
   // Load article data
   const loadArticle = async (query: string, lang: string) => {
@@ -51,8 +67,35 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
-  // Search sections (for section navigation)
-  const filteredSections = article ? structuredWikiService.searchSections(article, searchTerm) : [];
+  const translateArticle = async () => {
+    if (!article) return;
+
+    setTranslating(true);
+    setError(null);
+
+    try {
+      const translatedArticle =
+        await structuredWikiService.getTranslatedStructuredArticle({
+          source_lang: article.lang,
+          target_lang: targetLang,
+          title: article.title,
+        });
+
+      setArticle(translatedArticle);
+      setTargetLang(translatedArticle.lang);
+      setCitationAnalysis(null);
+      setReferenceAnalysis(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to translate article');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+
+  // Get sections for display
+  const sections: Section[] = article?.sections ?? [];
+
 
   // Get article stats
   const articleStats = article ? structuredWikiService.getArticleStats(article) : null;
@@ -66,6 +109,18 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
       loadArticle(initialQuery, initialLang);
     }
   }, [initialQuery, initialLang]);
+
+  useEffect(() => {
+    if (!article) return;
+
+    if (
+      !selectedSection ||
+      !article.sections.some(s => s.title === selectedSection)
+    ) {
+      setSelectedSection(article.sections[0]?.title ?? null);
+    }
+  }, [article, selectedSection]);
+
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,18 +155,36 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         </form>
 
-        {/* Section Search */}
+        {/* Translate Article Button */}      
         {article && (
-          <div className="mb-4">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search within sections..."
-              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-            />
+          <div className="mb-6 flex items-center gap-4">
+            <select
+              value={targetLang}
+              onChange={(e) => setTargetLang(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              disabled={translating}
+            >
+              {TRANSLATION_LANGUAGES.map(lang => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={translateArticle}
+              disabled={translating || targetLang === article.lang}
+              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {translating ? 'Translating...' : 'Translate'}
+            </button>
+
+            <span className="text-sm text-gray-500">
+              {article.lang} → {targetLang}
+            </span>
           </div>
         )}
+
 
         {/* Error Display */}
         {error && (
@@ -166,7 +239,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
             <div className="lg:col-span-1">
               <h3 className="text-lg font-semibold text-gray-800 mb-3">Sections</h3>
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {filteredSections.map((section, index) => (
+                {sections.map((section, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedSection(section.title)}
@@ -190,7 +263,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
               {selectedSection && (
                 <div>
                   {(() => {
-                    const section = filteredSections.find(s => s.title === selectedSection);
+                    const section = sections.find(s => s.title === selectedSection);
                     if (!section) return null;
 
                     return (

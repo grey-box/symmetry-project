@@ -1,8 +1,12 @@
 import logging
+import re
 from typing import Dict, Optional, List
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Query, HTTPException
+
+from app.ai.translations import translate
+from app.models.wiki_structure import Section
 
 from app.models import (
     StructuredArticleResponse,
@@ -319,3 +323,56 @@ async def parse_wikipedia_url(url: str) -> tuple[str, str]:
         raise ValueError("Empty article title")
 
     return lang, title
+
+
+@router.get(
+    "/structured-translated-article",
+    response_model=StructuredArticleResponse,
+    summary="Get Translated Structured Wikipedia Article",
+)
+async def structured_translated_article(
+    source_lang: str = Query("en", description="Source language code"),
+    target_lang: str = Query("es", description="Target language code"),
+    url: Optional[str] = Query(None, description="Wikipedia article URL"),
+    title: Optional[str] = Query(None, description="Wikipedia article title"),
+):
+    # 1. Resolve title
+    if url:
+        match = re.search(r"/wiki/([^#?]*)", url)
+        if not match:
+            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL")
+        title = match.group(1).replace("_", " ")
+
+    if not title:
+        raise HTTPException(status_code=400, detail="Title or URL required")
+
+    # 2. Fetch original article
+    article = article_fetcher(title, source_lang)
+
+    # 3. Translate sections
+    translated_sections: List[Section] = []
+    for section in article.sections:
+        translated_sections.append(
+            Section(
+                title=translate(section.title, source_lang, target_lang),
+                raw_content=translate(section.raw_content, source_lang, target_lang),
+                clean_content=translate(section.clean_content, source_lang, target_lang),
+                citations=section.citations,
+                citation_position=section.citation_position,
+            )
+        )
+
+    # 4. Compute totals
+    total_citations = sum(len(s.citations or []) for s in translated_sections)
+
+    # 5. Build response
+    return StructuredArticleResponse(
+        title=translate(article.title, source_lang, target_lang),
+        lang=target_lang,
+        source=f"wikipedia+model({source_lang}→{target_lang})",
+        sections=translated_sections,
+        references=article.references,
+        total_sections=len(translated_sections),
+        total_citations=total_citations,
+        total_references=len(article.references),
+    )
