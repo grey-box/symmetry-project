@@ -185,11 +185,8 @@ class StructuredWikiService {
   /**
    * Format section content for display
    */
-  formatSectionContent(section: Section, maxLength: number = 500): string {
-    if (section.clean_content.length <= maxLength) {
-      return section.clean_content;
-    }
-    return section.clean_content.substring(0, maxLength) + '...';
+  formatSectionContent(section: Section): string {
+    return section.clean_content;
   }
 
   /**

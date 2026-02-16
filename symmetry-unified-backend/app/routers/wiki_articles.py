@@ -1,7 +1,7 @@
 import logging
 import asyncio
 import urllib.request
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 from urllib.error import URLError
 from typing import Dict, Optional, Annotated
 
@@ -16,14 +16,26 @@ router = APIRouter(prefix="/symmetry/v1/wiki", tags=["wiki"])
 language_cache: Dict[str, bool] = {}
 
 
-@router.get("/articles", response_model=SourceArticleResponse)
+@router.get(
+    "/articles",
+    response_model=SourceArticleResponse,
+    summary="Fetch Wikipedia Article",
+    description="Retrieves a Wikipedia article by URL or title. Supports automatic language detection from URL or explicit language parameter. Returns article content and available translations.",
+)
 async def get_article(
     request: Request,
     query: Annotated[
         Optional[str],
-        Query(description="Either a full Wikipedia URL or a keyword/title"),
+        Query(
+            description="Either a full Wikipedia URL (e.g., https://en.wikipedia.org/wiki/Python) or a keyword/title (e.g., 'Python')"
+        ),
     ] = None,
-    lang: Annotated[Optional[str], Query(description="Article language code")] = None,
+    lang: Annotated[
+        Optional[str],
+        Query(
+            description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided"
+        ),
+    ] = None,
 ):
     logging.info("Calling get Wikipedia article endpoint (query='%s')", query)
 
@@ -121,7 +133,7 @@ def _extract_wiki_title(url: str) -> str:
             title = title[0:index]
             break
 
-    return title.replace("_", " ")
+    return unquote(title.replace("_", " "))
 
 
 async def validate_language_code(language_code: str):

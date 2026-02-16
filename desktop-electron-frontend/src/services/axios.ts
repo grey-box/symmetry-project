@@ -15,18 +15,27 @@ export const getAxiosInstance = async (): Promise<AxiosInstance> => {
   try {
     const AppConstants = await window.electronAPI.getAppConfig();
     console.log('[DEBUG] AppConstants loaded:', AppConstants);
+    
+    if (!AppConstants) {
+      throw new Error('AppConstants is undefined');
+    }
+    
+    if (!AppConstants.BACKEND_BASE_URL) {
+      throw new Error('BACKEND_BASE_URL is not defined in AppConstants');
+    }
+    
     console.log('[DEBUG] Backend base URL:', AppConstants.BACKEND_BASE_URL);
 
     return axios.create({
       baseURL: AppConstants.BACKEND_BASE_URL,
-      timeout: 10000, // 10 second timeout
+      timeout: 30000, // 30 second timeout
     });
   } catch (error) {
     console.error('Failed to load AppConstants:', error);
     // Fallback to default configuration
     return axios.create({
       baseURL: 'http://127.0.0.1:8000',
-      timeout: 10000,
+      timeout: 30000,
     });
   }
 }
@@ -34,7 +43,7 @@ export const getAxiosInstance = async (): Promise<AxiosInstance> => {
 // Create a default instance that will be updated when AppConstants loads
 export const axiosInstance: AxiosInstance = axios.create({
   baseURL: 'http://127.0.0.1:8000', // Default fallback
-  timeout: 10000,
+  timeout: 30000,
 });
 
 // Function to update the axios instance with proper config

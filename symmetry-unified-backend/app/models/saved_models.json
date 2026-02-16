@@ -1,0 +1,18 @@
+{
+  "huggingface": {
+    "comparison": [
+      "sentence-transformers/LaBSE",
+      "xlm-roberta-base",
+      "multi-qa-distilbert-cos-v1",
+      "multi-qa-MiniLM-L6-cos-v1",
+      "multi-qa-mpnet-base-cos-v1"
+    ],
+    "translation": []
+  },
+  "custom": {
+    "comparison": [],
+    "translation": []
+  },
+  "comp_last_selected": "sentence-transformers/LaBSE",
+  "trans_last_selected": "/path/to/T5-custom"
+}

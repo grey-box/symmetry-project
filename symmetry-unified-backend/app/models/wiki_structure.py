@@ -4,13 +4,13 @@ from typing import List, Optional
 
 class Citation(BaseModel):
     model_config = {"frozen": True}
-    label: str = Field(max_length=5000)
+    label: str = Field(max_length=10000)
     url: Optional[str] = Field(default=None, max_length=2000)
 
 
 class Reference(BaseModel):
     model_config = {"frozen": True}
-    label: str = Field(max_length=5000)
+    label: str = Field(max_length=10000)
     id: Optional[str] = Field(default=None, max_length=100)
     url: Optional[str] = Field(default=None, max_length=2000)
 

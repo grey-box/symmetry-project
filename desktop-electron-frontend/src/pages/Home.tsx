@@ -56,7 +56,7 @@ const Home = () => {
             </div>
             :
             <div id="structured-article-section">
-              <StructuredArticleViewer initialQuery=" " initialLang="en" />
+              <StructuredArticleViewer initialLang="en" />
             </div>
       }
     </section>

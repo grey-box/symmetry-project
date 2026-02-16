@@ -79,12 +79,19 @@ def analyze_single_article(title: str, language: str) -> FinalAnalysisResponse:
     "/{source_language}/{title}",
     status_code=status.HTTP_200_OK,
     response_model=AnalysisResultsResponse,
+    summary="Multi-Language Structural Analysis",
+    description="Analyzes the structural quality of a Wikipedia article across 6 supported languages (en, es, fr, de, pt, ar). Returns quality scores, identifies the authority article, and provides detailed structural metrics for each language version.",
 )
-async def get_results(title: str, source_language: str = Path(min_length=1)):
-    """
-    Analyzes the structural quality score for the given article across all 6 supported languages.
-    """
-
+async def get_results(
+    title: str = Path(
+        ...,
+        description="Article title to analyze (spaces will be converted to underscores)",
+    ),
+    source_language: str = Path(
+        ...,
+        description="Source language code (e.g., 'en', 'fr', 'es') - one of the 6 supported languages",
+    ),
+):
     all_scores = []
     normalized_title = title.replace(" ", "_")
     target_languages = list(LANGUAGES.keys())

@@ -9,15 +9,12 @@ export async function fetchArticle(sourceArticleUrl: string): Promise<AxiosRespo
   try {
     const axiosInstance = await getAxiosInstance();
     
-    const fullUrl = axiosInstance.getUri({
-      url: '/symmetry/v1/wiki/articles',
-      params: { query: sourceArticleUrl },
-    });
-    
-    console.log('[DEBUG] Full request URL:', fullUrl);
-    
     return axiosInstance.get<FetchArticleResponse>('/symmetry/v1/wiki/articles', {
       params: { query: sourceArticleUrl },
+      paramsSerializer: (params) => {
+        const { query } = params;
+        return `query=${encodeURIComponent(query)}`;
+      }
     });
   } catch (error) {
     console.error('Failed to get axios instance:', error);

@@ -7,8 +7,12 @@ import * as path from 'path';
 
 // Defining our config json interface for type safety
 interface AppConfig {
-  port: number;
-  backendBaseUrl?: string; // Optional backend URL override
+  BACKEND_BASE_URL?: string;
+  BACKEND_PORT?: number;
+  FRONTEND_PORT?: number;
+  OLLAMA_BASE_URL?: string;
+  DEFAULT_TIMEOUT?: number;
+  SIMILARITY_THRESHOLD?: number;
 }
 
 // Handles the reading of the json file, run by the main process.
@@ -26,14 +30,14 @@ async function initializeConstants(): Promise<any> {
     const json = await fs.readFile(backendPath, 'utf-8');
     const configData = JSON.parse(json) as AppConfig;
 
-    if (typeof configData.port === 'undefined') {
-        throw new Error("Port is not defined in config.json");
-    }
-
-    // Construct and return the constants object
-    let result = {
-      BACKEND_BASE_URL: configData.backendBaseUrl || `http://127.0.0.1:${configData.port}`,
-      BACKEND_PORT: configData.port,
+    // Construct and return the constants object with defaults
+    const result = {
+      BACKEND_BASE_URL: configData.BACKEND_BASE_URL || `http://127.0.0.1:${configData.BACKEND_PORT || 8000}`,
+      BACKEND_PORT: configData.BACKEND_PORT || 8000,
+      FRONTEND_PORT: configData.FRONTEND_PORT || 5173,
+      OLLAMA_BASE_URL: configData.OLLAMA_BASE_URL || 'http://localhost:11434',
+      DEFAULT_TIMEOUT: configData.DEFAULT_TIMEOUT || 30000,
+      SIMILARITY_THRESHOLD: configData.SIMILARITY_THRESHOLD || 0.65,
     }
     return result;
 

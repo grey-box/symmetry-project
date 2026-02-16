@@ -83,15 +83,6 @@ def valid_compare_request():
 
 
 @pytest.fixture
-def valid_llm_compare_request():
-    """Valid LLM comparison request payload"""
-    return {
-        "text_a": "First text to compare",
-        "text_b": "Second text to compare",
-    }
-
-
-@pytest.fixture
 def valid_semantic_compare_request():
     """Valid semantic comparison request payload"""
     return {

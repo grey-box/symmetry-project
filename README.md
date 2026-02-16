@@ -19,28 +19,108 @@
 - [Node.js](https://nodejs.org/) (v18+)
 - [Python](https://www.python.org/) (3.8-3.11)
 - [npm](https://www.npmjs.com/)
+- [Docker](https://www.docker.com/) (optional, for containerized deployment)
+- [Docker Compose](https://docs.docker.com/compose/) (optional)
 
-### Installation
+### Quick Start (Recommended)
+
+The project includes a unified `start.sh` script that handles both local and Docker deployments.
+
+#### Start Everything (Local Development)
+```bash
+# Start both backend and frontend
+./start.sh all
+
+# Start with frontend in development mode
+./start.sh all --dev
+```
+
+#### Using Docker Compose
+```bash
+# Start both services in containers (foreground)
+./start.sh docker
+
+# Start in background (detached)
+./start.sh docker-up
+
+# Stop all containers
+./start.sh docker-down
+```
+
+#### Individual Services
+```bash
+# Backend only
+./start.sh backend
+
+# Frontend only
+./start.sh frontend
+
+# Frontend in development mode
+./start.sh frontend --dev
+```
+
+#### Reset Services
+```bash
+# Reset and restart backend
+./start.sh reset backend
+
+# Reset and restart frontend
+./start.sh reset frontend
+
+# Reset and restart both
+./start.sh reset all
+```
+
+#### Check Status & Stop
+```bash
+# Check status of services
+./start.sh status
+
+# Stop all running services
+./start.sh stop
+
+# Show help
+./start.sh help
+```
+
+#### Custom Ports and Hosts
+```bash
+# Start backend on custom port
+./start.sh backend --port 9000
+
+# Start backend on custom host
+./start.sh backend --host 0.0.0.0
+
+# Start all with custom port
+./start.sh all --port 9000
+```
+
+### Access Points
+
+- **Frontend**: http://localhost:5173
+- **Backend API**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/docs
+- **Interactive Swagger UI**: http://localhost:8000/docs
+
+### Manual Installation (Advanced)
 
 #### Backend
 ```bash
-# Navigate to backend
 cd symmetry-unified-backend
 
-# Quick start (recommended)
-./start.sh
+# Create virtual environment
+python3 -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 
-# This will:
-# 1. Create virtual environment if needed
-# 2. Install dependencies
-# 3. Start server at http://127.0.0.1:8000
+# Install dependencies
+pip install -r requirements.txt
+
+# Start server
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
-
-Access interactive API documentation at: http://127.0.0.1:8000/docs
 
 #### Frontend
 ```bash
-# Navigate to frontend
 cd desktop-electron-frontend
 
 # Install dependencies
@@ -65,9 +145,9 @@ Currently focused on Wikipedia content; future expansion to other internet conte
 - **📊 Gap Analysis**: Detect missing/extra information with color-coded results
 - **🎯 Language Support**: Focus on underrepresented languages
 - **📝 Structured Articles**: Section-by-section content with citations and references
-- **🤖 AI-Powered**: LLM-based semantic understanding with models like LaBSE, XLM-RoBERTa
+- **🤖 AI-Powered**: Semantic understanding with models like LaBSE, XLM-RoBERTa
 - **📈 Analytics**: Translation quality metrics and structural analysis
-- **🧪 Testing**: Comprehensive test suite with 97% coverage
+- **🧪 Testing**: Comprehensive test suite with 100% pass rate (56 tests)
 
 ## 🏗️ Project Structure
 
@@ -77,7 +157,6 @@ symmetry-project-202512/
 │   ├── app/
 │   │   ├── ai/               # AI and ML components
 │   │   │   ├── semantic_comparison.py
-│   │   │   ├── llm_comparison.py
 │   │   │   └── translations.py
 │   │   ├── models/           # Pydantic v2 models
 │   │   ├── routers/          # API route handlers
@@ -272,11 +351,23 @@ Interactive API documentation available at http://127.0.0.1:8000/docs when backe
 - `GET /wiki_translate/source_article` - Get translated article
 
 #### Comparison
-- `POST /symmetry/v1/articles/compare` - Compare two articles (traditional semantic)
-- `GET /symmetry/v1/comparison/llm` - LLM comparison (GET)
-- `POST /symmetry/v1/comparison/llm` - LLM comparison (POST)
+- `POST /symmetry/v1/articles/compare` - Compare two articles (semantic comparison)
 - `GET /symmetry/v1/comparison/semantic` - Semantic comparison (GET)
 - `POST /symmetry/v1/comparison/semantic` - Semantic comparison (POST)
+- `GET /symmetry/v1/comparison/translate_text` - Translate text (GET)
+- `POST /symmetry/v1/comparison/translate_text` - Translate text (POST)
+
+### Models Management
+- `GET /models/translation` - List available translation models
+- `GET /models/translation/selected` - Get selected translation model
+- `GET /models/translation/select?modelname={name}` - Select translation model
+- `GET /models/translation/delete?modelname={name}` - Delete translation model
+- `GET /models/translation/import?model={name}&from_huggingface={bool}` - Import translation model
+- `GET /models/comparison` - List available comparison models
+- `GET /models/comparison/selected` - Get selected comparison model
+- `GET /models/comparison/select?modelname={name}` - Select comparison model
+- `GET /models/comparison/delete?modelname={name}` - Delete comparison model
+- `GET /models/comparison/import?model={name}&from_huggingface={bool}` - Import comparison model
 
 #### Structural Analysis
 - `GET /operations/{source_language}/{title}` - Analyze article across 6 languages with quality scoring
@@ -308,10 +399,10 @@ pytest -v
 
 ### Test Coverage
 
-- **Total Tests**: 60
-- **Passing**: 58 (97%)
+- **Total Tests**: 56
+- **Passing**: 56 (100%)
 - **Test Categories**: Wiki articles, comparison, structured wiki, structural analysis
-- **Test Time**: ~0.07s
+- **Test Time**: ~5s
 
 ### Test Data
 

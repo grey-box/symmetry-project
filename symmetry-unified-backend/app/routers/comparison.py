@@ -1,20 +1,18 @@
 import logging
-from typing import List
+import re
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.models import (
     CompareRequest,
     CompareResponse,
-    ComparisonResult,
     ArticleComparisonResponse,
-    LLMCompareRequest,
     SemanticCompareRequest,
     MissingInfo,
     ExtraInfo,
     SentenceDiff,
 )
-from app.ai.llm_comparison import llm_semantic_comparison
+from app.models.server_model import ServerModel
 
 try:
     from app.ai.semantic_comparison import perform_semantic_comparison
@@ -30,7 +28,6 @@ comparison_models = [
     "multi-qa-MiniLM-L6-cos-v1",
     "multi-qa-mpnet-base-cos-v1",
 ]
-
 
 # @router.post("/articles/compare", response_model=CompareResponse)
 # def compare_articles(payload: CompareRequest):
@@ -109,42 +106,25 @@ def compare_articles(payload: CompareRequest):
     )
 
 
-
-@router.get("/comparison/llm", response_model=ArticleComparisonResponse)
-def compare_articles_llm(text_a: str, text_b: str):
-    logging.info("Calling LLM semantic comparison endpoint.")
-
-    if text_a is None or text_b is None:
-        logging.info("Invalid input provided to LLM comparison.")
-        raise HTTPException(
-            status_code=400,
-            detail="Either text_a or text_b (or both) was found to be None.",
-        )
-
-    output = llm_semantic_comparison(text_a, text_b)
-    return ArticleComparisonResponse(
-        missing_info=output.get("missing_info", []),
-        extra_info=output.get("extra_info", []),
-    )
-
-
-@router.post("/comparison/llm", response_model=ArticleComparisonResponse)
-def compare_articles_llm_post(payload: LLMCompareRequest):
-    logging.info("Calling LLM semantic comparison endpoint (POST).")
-
-    output = llm_semantic_comparison(payload.text_a, payload.text_b)
-    return ArticleComparisonResponse(
-        missing_info=output.get("missing_info", []),
-        extra_info=output.get("extra_info", []),
-    )
-
-
-@router.get("/comparison/semantic", response_model=ArticleComparisonResponse)
+@router.get(
+    "/comparison/semantic",
+    response_model=ArticleComparisonResponse,
+    summary="Semantic Comparison (GET)",
+    description="Performs semantic comparison between two texts using sentence embeddings. Returns sentences that are missing or extra based on similarity threshold.",
+)
 def compare_articles_semantic(
-    text_a: str,
-    text_b: str,
-    similarity_threshold: float = 0.75,
-    model_name: str = "sentence-transformers/LaBSE",
+    text_a: str = Query(..., description="First text to compare"),
+    text_b: str = Query(..., description="Second text to compare"),
+    similarity_threshold: float = Query(
+        0.75,
+        ge=0,
+        le=1,
+        description="Similarity threshold between 0 and 1. Sentences below this threshold are considered different",
+    ),
+    model_name: str = Query(
+        "sentence-transformers/LaBSE",
+        description="Name of the sentence transformer model to use",
+    ),
 ):
     global perform_semantic_comparison
     logging.info("Calling semantic comparison endpoint.")
@@ -201,69 +181,13 @@ def compare_articles_semantic(
         ],
     )
 
-    return ArticleComparisonResponse(missing_info=[], extra_info=[])
 
-    result = perform_semantic_comparison(
-        {
-            "article_text_blob_1": text_a,
-            "article_text_blob_2": text_b,
-            "article_text_blob_1_language": "en",
-            "article_text_blob_2_language": "en",
-            "comparison_threshold": similarity_threshold,
-            "model_name": model_name,
-        }
-    )
-
-    return ArticleComparisonResponse(
-        missing_info=[
-            MissingInfo(sentence=sent, index=idx)
-            for sent, idx in zip(
-                result["comparisons"][0]["left_article_missing_info_index"],
-                result["comparisons"][0]["left_article_missing_info_index"],
-            )
-        ],
-        extra_info=[
-            ExtraInfo(sentence=sent, index=idx)
-            for sent, idx in zip(
-                result["comparisons"][0]["right_article_extra_info_index"],
-                result["comparisons"][0]["right_article_extra_info_index"],
-            )
-        ],
-    )
-
-    from app.ai.semantic_comparison import perform_semantic_comparison
-
-    request_data = {
-        "article_text_blob_1": text_a,
-        "article_text_blob_2": text_b,
-        "article_text_blob_1_language": "en",
-        "article_text_blob_2_language": "en",
-        "comparison_threshold": similarity_threshold,
-        "model_name": model_name,
-    }
-
-    result = perform_semantic_comparison(request_data)
-
-    if result and result.get("comparisons"):
-        comp = result["comparisons"][0]
-        missing_items = [
-            comp["left_article_array"][i]
-            for i in comp["left_article_missing_info_index"]
-        ]
-        extra_items = [
-            comp["right_article_array"][i]
-            for i in comp["right_article_extra_info_index"]
-        ]
-
-        return ArticleComparisonResponse(
-            missing_info=[{"sentence": item, "index": -1} for item in missing_items],
-            extra_info=[{"sentence": item, "index": -1} for item in extra_items],
-        )
-
-    return ArticleComparisonResponse(missing_info=[], extra_info=[])
-
-
-@router.post("/comparison/semantic", response_model=ArticleComparisonResponse)
+@router.post(
+    "/comparison/semantic",
+    response_model=ArticleComparisonResponse,
+    summary="Semantic Comparison (POST)",
+    description="Performs semantic comparison between two texts using sentence embeddings via POST request. Returns sentences that are missing or extra based on similarity threshold.",
+)
 def compare_articles_semantic_post(payload: SemanticCompareRequest):
     logging.info("Calling semantic comparison endpoint (POST).")
 
@@ -316,20 +240,39 @@ def compare_articles_semantic_post(payload: SemanticCompareRequest):
     return ArticleComparisonResponse(missing_info=[], extra_info=[])
 
 
-@router.get("/wiki_translate/source_article", response_model=dict)
-def translate_article(url: str = None, title: str = None, language: str = None):
+@router.get(
+    "/wiki_translate/source_article",
+    response_model=dict,
+    summary="Translate Wikipedia Article",
+    description="Finds and retrieves a translated version of a Wikipedia article in the target language.",
+)
+def translate_article(
+    url: str = Query(None, description="Full Wikipedia URL of the source article"),
+    title: str = Query(
+        None, description="Title of the source article (alternative to URL)"
+    ),
+    language: str = Query(
+        ..., description="Target language code (e.g., 'fr', 'es', 'de')"
+    ),
+):
     import wikipediaapi
+    from app.services.wiki_utils import get_translation
+    from urllib.parse import unquote
 
     logging.info(
         f"Calling translate article endpoint for title: {title}, url: {url} and language: {language}"
     )
 
-    import re
-
+    source_lang = "en"
     if url:
         match = re.search(r"/wiki/([^#?]*)", url)
         if match:
             title = match.group(1).replace("_", " ")
+            title = unquote(title)
+
+            lang_match = re.search(r"https?://([a-z]{2})\.wikipedia\.org", url)
+            if lang_match:
+                source_lang = lang_match.group(1)
         else:
             logging.info("Invalid Wikipedia URL provided.")
             raise HTTPException(
@@ -342,10 +285,26 @@ def translate_article(url: str = None, title: str = None, language: str = None):
             status_code=400, detail="Either 'url' or 'title' must be provided."
         )
 
+    if not language:
+        logging.info("Target language must be provided.")
+        raise HTTPException(status_code=400, detail="Target language must be provided.")
+
+    logging.info(f"Finding translated title from {source_lang}:{title} to {language}")
+    translated_title = get_translation(title, source_lang, language)
+
+    if not translated_title:
+        logging.info(f"Translation not available for the selected language: {language}")
+        raise HTTPException(
+            status_code=404,
+            detail="Translation not available for the selected language.",
+        )
+
+    logging.info(f"Found translated title: {translated_title}")
+
     translated_wiki = wikipediaapi.Wikipedia(
         user_agent="SymmetryUnified/1.0 (contact@grey-box.ca)", language=language
     )
-    translated_page = translated_wiki.page(title)
+    translated_page = translated_wiki.page(translated_title)
 
     if not translated_page.exists():
         logging.info("Translated article not found.")
@@ -354,3 +313,18 @@ def translate_article(url: str = None, title: str = None, language: str = None):
     translated_content = translated_page.text if translated_page.text else ""
 
     return {"translatedArticle": translated_content}
+
+
+@router.get(
+    "/translate_text",
+    response_model=dict,
+    summary="Translate Text",
+    description="Translates text from source language to target language using configured translation model.",
+)
+def translate_text_endpoint(
+    source_language: str = Query(..., description="Source language code (e.g., 'en')"),
+    target_language: str = Query(..., description="Target language code (e.g., 'fr')"),
+    text: str = Query(..., description="Text to translate"),
+):
+    server = ServerModel()
+    return {"response": server.text_translate(text, target_language)}

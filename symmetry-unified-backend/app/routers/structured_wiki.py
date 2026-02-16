@@ -1,8 +1,12 @@
 import logging
+import re
 from typing import Dict, Optional, List
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Query, HTTPException
+
+from app.ai.translations import translate
+from app.models.wiki_structure import Section
 
 from app.models import (
     StructuredArticleResponse,
@@ -17,12 +21,21 @@ router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 structured_cache: Dict[str, Dict] = {}
 
 
-@router.get("/structured-article", response_model=StructuredArticleResponse)
+@router.get(
+    "/structured-article",
+    response_model=StructuredArticleResponse,
+    summary="Get Structured Wikipedia Article",
+    description="Parses a Wikipedia article into structured data including sections, citations, and references. Provides metadata like section counts and citation statistics.",
+)
 async def get_structured_article(
     query: Optional[str] = Query(
-        None, description="Either a full Wikipedia URL or a keyword/title"
+        None,
+        description="Either a full Wikipedia URL (e.g., https://en.wikipedia.org/wiki/Python) or a keyword/title (e.g., 'Python')",
     ),
-    lang: Optional[str] = Query(None, description="Article language code"),
+    lang: Optional[str] = Query(
+        None,
+        description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided",
+    ),
 ):
     logging.info(
         "Calling structured article endpoint (query='%s', lang='%s')", query, lang
@@ -83,12 +96,24 @@ async def get_structured_article(
         )
 
 
-@router.get("/structured-section", response_model=StructuredSectionResponse)
+@router.get(
+    "/structured-section",
+    response_model=StructuredSectionResponse,
+    summary="Get Specific Article Section",
+    description="Retrieves a specific section from a Wikipedia article with metadata including word count, citation count, and citation positions.",
+)
 async def get_structured_section(
-    query: str = Query(..., description="Wikipedia article title or URL"),
-    lang: Optional[str] = Query(None, description="Article language code"),
+    query: str = Query(
+        ...,
+        description="Wikipedia article title or URL (e.g., 'Python' or https://en.wikipedia.org/wiki/Python)",
+    ),
+    lang: Optional[str] = Query(
+        None,
+        description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided",
+    ),
     section_title: str = Query(
-        ..., description="Title of the specific section to retrieve"
+        ...,
+        description="Title of the specific section to retrieve (e.g., 'History', 'Uses')",
     ),
 ):
     logging.info(
@@ -150,10 +175,21 @@ async def get_structured_section(
         )
 
 
-@router.get("/citation-analysis", response_model=StructuredCitationResponse)
+@router.get(
+    "/citation-analysis",
+    response_model=StructuredCitationResponse,
+    summary="Analyze Article Citations",
+    description="Provides detailed analysis of all citations in a Wikipedia article, including total citations, unique citation targets, and most cited articles.",
+)
 async def get_citation_analysis(
-    query: str = Query(..., description="Wikipedia article title or URL"),
-    lang: Optional[str] = Query(None, description="Article language code"),
+    query: str = Query(
+        ...,
+        description="Wikipedia article title or URL (e.g., 'Python' or https://en.wikipedia.org/wiki/Python)",
+    ),
+    lang: Optional[str] = Query(
+        None,
+        description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided",
+    ),
 ):
     logging.info("Calling citation analysis endpoint (query='%s')", query)
 
@@ -207,10 +243,21 @@ async def get_citation_analysis(
         )
 
 
-@router.get("/reference-analysis", response_model=StructuredReferenceResponse)
+@router.get(
+    "/reference-analysis",
+    response_model=StructuredReferenceResponse,
+    summary="Analyze Article References",
+    description="Analyzes reference statistics for a Wikipedia article, including total references, references with URLs, and reference density (references per 1000 words).",
+)
 async def get_reference_analysis(
-    query: str = Query(..., description="Wikipedia article title or URL"),
-    lang: Optional[str] = Query(None, description="Article language code"),
+    query: str = Query(
+        ...,
+        description="Wikipedia article title or URL (e.g., 'Python' or https://en.wikipedia.org/wiki/Python)",
+    ),
+    lang: Optional[str] = Query(
+        None,
+        description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided",
+    ),
 ):
     logging.info("Calling reference analysis endpoint (query='%s')", query)
 
@@ -276,3 +323,93 @@ async def parse_wikipedia_url(url: str) -> tuple[str, str]:
         raise ValueError("Empty article title")
 
     return lang, title
+
+
+@router.get("/structured-translated-article", response_model=StructuredArticleResponse)
+async def structured_translated_article(
+    source_lang: str = "en",
+    target_lang: str = "es",
+    url: str | None = None,
+    title: str | None = None,
+):
+    logging.info(
+        "Calling structured translated article endpoint (source='%s', target='%s', url='%s', title='%s')",
+        source_lang, target_lang, url, title,
+    )
+
+    # 1. Resolve title
+    if url:
+        try:
+            parsed_lang, parsed_title = await parse_wikipedia_url(url)
+            source_lang = parsed_lang
+            title = parsed_title
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
+
+    if not title:
+        raise HTTPException(status_code=400, detail="Title or URL required.")
+
+    try:
+        # 2. Fetch original article
+        article = article_fetcher(title, source_lang)
+
+        # 3. Translate + build response (delegated)
+        response = translate_article(
+            article, source_lang, target_lang
+        )
+
+        logging.info(
+            "Successfully translated article: %s (%d sections, %d citations)",
+            title,
+            response.total_sections,
+            response.total_citations,
+        )
+
+        return response
+
+    except Exception as e:
+        logging.error(
+            "Error translating structured article '%s': %s",
+            title,
+            str(e),
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Failed to translate article: {str(e)}"
+        )
+
+def translate_article(
+    article,
+    source_lang: str,
+    target_lang: str,
+) -> StructuredArticleResponse:
+    """
+    Translates an Article object and builds a StructuredArticleResponse.
+    """
+
+    translated_sections: List[Section] = []
+
+    for section in article.sections:
+        translated_sections.append(
+            Section(
+                title=translate(section.title, source_lang, target_lang),
+                raw_content=translate(section.raw_content, source_lang, target_lang),
+                clean_content=translate(section.clean_content, source_lang, target_lang),
+                citations=section.citations,
+                citation_position=section.citation_position,
+            )
+        )
+
+    total_citations = sum(
+        len(section.citations or []) for section in translated_sections
+    )
+
+    return StructuredArticleResponse(
+        title=translate(article.title, source_lang, target_lang),
+        lang=target_lang,
+        source=f"wikipedia+model({source_lang}->{target_lang})",
+        sections=translated_sections,
+        references=article.references,
+        total_sections=len(translated_sections),
+        total_citations=total_citations,
+        total_references=len(article.references),
+    )
