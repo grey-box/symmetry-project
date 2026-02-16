@@ -1,8 +1,12 @@
 import logging
+import re
 from typing import Dict, Optional, List
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Query, HTTPException
+
+from app.ai.translations import translate
+from app.models.wiki_structure import Section
 
 from app.models import (
     StructuredArticleResponse,
@@ -319,3 +323,93 @@ async def parse_wikipedia_url(url: str) -> tuple[str, str]:
         raise ValueError("Empty article title")
 
     return lang, title
+
+
+@router.get("/structured-translated-article", response_model=StructuredArticleResponse)
+async def structured_translated_article(
+    source_lang: str = "en",
+    target_lang: str = "es",
+    url: str | None = None,
+    title: str | None = None,
+):
+    logging.info(
+        "Calling structured translated article endpoint (source='%s', target='%s', url='%s', title='%s')",
+        source_lang, target_lang, url, title,
+    )
+
+    # 1. Resolve title
+    if url:
+        try:
+            parsed_lang, parsed_title = await parse_wikipedia_url(url)
+            source_lang = parsed_lang
+            title = parsed_title
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
+
+    if not title:
+        raise HTTPException(status_code=400, detail="Title or URL required.")
+
+    try:
+        # 2. Fetch original article
+        article = article_fetcher(title, source_lang)
+
+        # 3. Translate + build response (delegated)
+        response = translate_article(
+            article, source_lang, target_lang
+        )
+
+        logging.info(
+            "Successfully translated article: %s (%d sections, %d citations)",
+            title,
+            response.total_sections,
+            response.total_citations,
+        )
+
+        return response
+
+    except Exception as e:
+        logging.error(
+            "Error translating structured article '%s': %s",
+            title,
+            str(e),
+        )
+        raise HTTPException(
+            status_code=500, detail=f"Failed to translate article: {str(e)}"
+        )
+
+def translate_article(
+    article,
+    source_lang: str,
+    target_lang: str,
+) -> StructuredArticleResponse:
+    """
+    Translates an Article object and builds a StructuredArticleResponse.
+    """
+
+    translated_sections: List[Section] = []
+
+    for section in article.sections:
+        translated_sections.append(
+            Section(
+                title=translate(section.title, source_lang, target_lang),
+                raw_content=translate(section.raw_content, source_lang, target_lang),
+                clean_content=translate(section.clean_content, source_lang, target_lang),
+                citations=section.citations,
+                citation_position=section.citation_position,
+            )
+        )
+
+    total_citations = sum(
+        len(section.citations or []) for section in translated_sections
+    )
+
+    return StructuredArticleResponse(
+        title=translate(article.title, source_lang, target_lang),
+        lang=target_lang,
+        source=f"wikipedia+model({source_lang}->{target_lang})",
+        sections=translated_sections,
+        references=article.references,
+        total_sections=len(translated_sections),
+        total_citations=total_citations,
+        total_references=len(article.references),
+    )
