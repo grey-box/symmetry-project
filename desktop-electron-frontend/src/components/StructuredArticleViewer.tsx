@@ -14,9 +14,15 @@ const TRANSLATION_LANGUAGES = [
   { code: 'de', label: 'German' },
   { code: 'it', label: 'Italian' },
   { code: 'pt', label: 'Portuguese' },
+  { code: 'nl', label: 'Dutch' },
+  { code: 'pl', label: 'Polish' },
+  { code: 'ru', label: 'Russian' },
   { code: 'zh', label: 'Chinese' },
   { code: 'ja', label: 'Japanese' },
   { code: 'ko', label: 'Korean' },
+  { code: 'ar', label: 'Arabic' },
+  { code: 'hi', label: 'Hindi' },
+  { code: 'tr', label: 'Turkish' },
 ];
 
 
