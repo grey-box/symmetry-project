@@ -55,6 +55,16 @@ def compare_articles(payload: CompareRequest):
     """
     Compare original and translated article content using semantic similarity.
     """
+    from app.services.similarity_scoring import (
+    get_language_family,
+    get_family_threshold,
+)
+    # ---- Use language names directly ----
+    family_a = get_language_family(payload.original_language)
+    family_b = get_language_family(payload.translated_language)
+
+    # ---- Compute threshold automatically ----
+    sim_threshold = get_family_threshold(family_a, family_b)
 
     if perform_semantic_comparison is None:
         return CompareResponse(
@@ -68,7 +78,7 @@ def compare_articles(payload: CompareRequest):
         "article_text_blob_2": payload.translated_article_content,
         "article_text_blob_1_language": payload.original_language,
         "article_text_blob_2_language": payload.translated_language,
-        "comparison_threshold": payload.similarity_threshold,
+        "comparison_threshold": sim_threshold,
         "model_name": payload.model_name,
     }
 

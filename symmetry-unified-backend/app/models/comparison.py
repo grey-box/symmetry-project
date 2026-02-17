@@ -25,12 +25,33 @@ from typing import List, Optional
 #     )
 
 class CompareRequest(BaseModel):
-    original_article_content: str
-    translated_article_content: str
-    original_language: str = "en"
-    translated_language: str = "fr"
-    similarity_threshold: float = 0.75
-    model_name: str = "sentence-transformers/LaBSE"
+    original_article_content: str = Field(
+        ...,
+        min_length=1,
+        description="Full text of the original article"
+    )
+    translated_article_content: str = Field(
+        ...,
+        min_length=1,
+        description="Full text of the translated article"
+    )
+    original_language: str = Field(
+        ...,
+        description="Language code or name of original article (e.g., 'en', 'english')",
+        max_length=20
+    )
+
+    translated_language: str = Field(
+        ...,
+        description="Language code or name of translated article (e.g., 'fr', 'french')",
+        max_length=20
+    )
+    
+    model_name: str = Field(
+        default="sentence-transformers/LaBSE",
+        max_length=100,
+        description="Sentence-transformer model name used for semantic comparison",
+    )
 
 
 class SentenceDiff(BaseModel):

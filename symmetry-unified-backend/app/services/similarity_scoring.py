@@ -243,7 +243,7 @@ def get_family_threshold(family_a: LanguageFamily, family_b: LanguageFamily) -> 
     """
     # Same family - very similar, use stricter threshold
     if family_a == family_b and family_a != LanguageFamily.UNKNOWN:
-        return 0.50  # Close family members have high cognate overlap
+        return 0.90  # Close family members have high cognate overlap
     
     # Both Indo-European but different branches
     ie_branches = {
@@ -253,14 +253,14 @@ def get_family_threshold(family_a: LanguageFamily, family_b: LanguageFamily) -> 
     }
     
     if family_a in ie_branches and family_b in ie_branches:
-        return 0.55  # IE languages share some cognates
+        return 0.80  # IE languages share some cognates
     
     # Completely different families
     if family_a != LanguageFamily.UNKNOWN and family_b != LanguageFamily.UNKNOWN:
-        return 0.70  # Strict threshold for unrelated families
+        return 0.75  # Strict threshold for unrelated families
     
     # Unknown - use default
-    return 0.60
+    return 0.90
 
 
 def get_family_threshold_bands(
