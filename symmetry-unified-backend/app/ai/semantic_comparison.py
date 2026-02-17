@@ -1,5 +1,6 @@
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from app.services.chunking import chunk_text
 import spacy
 
 comparison_models = [
@@ -63,8 +64,18 @@ def semantic_compare(
         }
 
     try:
-        original_sentences = preprocess_input(original_blob, source_language)
-        translated_sentences = preprocess_input(translated_blob, target_language)
+        original_sentences = preprocess_input(original_blob, source_language) or []
+        translated_sentences = preprocess_input(translated_blob, target_language) or []
+        if not original_sentences or not translated_sentences:
+            return {
+                "original_sentences": [],
+                "translated_sentences": [],
+                "missing_info": [],
+                "extra_info": [],
+                "missing_info_indices": [],
+                "extra_info_indices": [],
+                "success": False,
+            }
     except Exception as e:
         print(f"Error preprocessing input: {e}")
         success = False
@@ -147,6 +158,8 @@ def preprocess_input(article, language):
         "sentences": [array of preprocessed sentences]
     }
     """
+    if not article:
+        return []
 
     # Define a mapping of languages to spaCy model names
     language_model_map = {
@@ -171,6 +184,11 @@ def preprocess_input(article, language):
     # Restore paragraph breaks as spaces
     cleaned_article = cleaned_article.replace("<DOUBLE_NEWLINE>", " ").strip()
 
+    if len(cleaned_article) > 3500:
+        print("USING CHUNKING")
+        out = chunk_text(cleaned_article, chunk_size=450, overlap=60)
+        return [x for x in out if isinstance(x, str) and x.strip()]
+
     if language in language_model_map:
         try:
             # Load the appropriate spaCy model
@@ -187,7 +205,7 @@ def preprocess_input(article, language):
 
     # Fallback to universal sentence splitting
     sentences = universal_sentences_split(cleaned_article)
-    return sentences
+    return [s for s in sentences if isinstance(s, str) and s.strip()]
 
 
 def sentences_diff(
@@ -221,9 +239,7 @@ def sentences_diff(
     return unmatched_sentences, unmatched_indices
 
         if max_sim < sim_threshold:  # Threshold for similarity
-            diff_info.append(
-                article_sentences[i]
-            )  # This sentence might be missing or extra
+            diff_info.append(article_sentences[i])
             indices.append(i)
 
     return diff_info, indices
@@ -261,9 +277,7 @@ def perform_semantic_comparison(request_data):
     source_language = request_data["article_text_blob_1_language"]
     target_language = request_data["article_text_blob_2_language"]
     sim_threshold = request_data["comparison_threshold"] or 0.65  # Default to 0.65 if 0
-    model_name = (
-        request_data["model_name"] or "sentence-transformers/LaBSE"
-    )  # Default to LaBSE if not specified
+    model_name = request_data["model_name"] or "sentence-transformers/LaBSE"
 
     # Perform semantic comparison
     result = semantic_compare(
@@ -292,7 +306,6 @@ def perform_semantic_comparison(request_data):
 
 
 def main():  # testing the code
-    # Example test request data
     test_request = {
         "article_text_blob_1": "This is the first sentence.\n\nThis is the second sentence\nThis is the third sentence.",
         "article_text_blob_2": "\n\nCeci est la première phrase\nJe vais bien. Ceci est la deuxième phrase.",
