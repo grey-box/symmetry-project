@@ -40,6 +40,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [referenceAnalysis, setReferenceAnalysis] = useState<StructuredReferenceResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState(''); // For section search
   const [searchInput, setSearchInput] = useState(''); // For article search input
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState(initialLang);
@@ -99,9 +100,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   };
 
 
-  // Get sections for display
-  const sections: Section[] = article?.sections ?? [];
-
+  // Search sections (for section navigation)
+  const filteredSections = article ? structuredWikiService.searchSections(article, searchTerm) : [];
 
   // Get article stats
   const articleStats = article ? structuredWikiService.getArticleStats(article) : null;
@@ -161,6 +161,19 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         </form>
 
+        {/* Section Search */}
+        {article && (
+          <div className="mb-4">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search within sections..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+            />
+          </div>
+        )}
+
         {/* Translate Article Button */}      
         {article && (
           <div className="mb-6 flex items-center gap-4">
@@ -191,6 +204,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
+        
 
         {/* Error Display */}
         {error && (
@@ -245,7 +259,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
             <div className="lg:col-span-1">
               <h3 className="text-lg font-semibold text-gray-800 mb-3">Sections</h3>
               <div className="space-y-2 max-h-96 overflow-y-auto">
-                {sections.map((section, index) => (
+                {filteredSections.map((section, index) => (
                   <button
                     key={index}
                     onClick={() => setSelectedSection(section.title)}
@@ -269,7 +283,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
               {selectedSection && (
                 <div>
                   {(() => {
-                    const section = sections.find(s => s.title === selectedSection);
+                    const section = filteredSections.find(s => s.title === selectedSection);
                     if (!section) return null;
 
                     return (
