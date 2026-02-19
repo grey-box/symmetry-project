@@ -8,17 +8,14 @@ ROMANCE_LANGS = ["es", "fr", "it", "pt", "ro", "ca", "co", "fur", "lld", "rm", "
 CONFIG_PATH = Path(__file__).parent / "translation_models.json"
 
 with open(CONFIG_PATH, "r") as f:
-    MODEL_CONFIG = json.load(f)
+    MODEL_CONFIG = {
+        (entry["source_lang"], entry["target_lang"]): entry
+        for entry in json.load(f)
+    }
 
 
 def get_model_config(source_lang: str, target_lang: str):
-    for entry in MODEL_CONFIG:
-        if (
-            entry["source_lang"] == source_lang
-            and entry["target_lang"] == target_lang
-        ):
-            return entry
-    return None
+    return MODEL_CONFIG.get((source_lang, target_lang))
 
 
 def translate(text: str, source_lang: str, target_lang: str) -> str:
@@ -38,8 +35,14 @@ def translate(text: str, source_lang: str, target_lang: str) -> str:
     if not text.strip():
         return text
 
-    tokenizer = MarianTokenizer.from_pretrained(model_name)
-    model = MarianMTModel.from_pretrained(model_name)
+    if not hasattr(translate, "_cache"):
+        translate._cache = {}
+    if model_name in translate._cache:
+        tokenizer, model = translate._cache[model_name]
+    else:
+        tokenizer = MarianTokenizer.from_pretrained(model_name)
+        model = MarianMTModel.from_pretrained(model_name)
+        translate._cache[model_name] = (tokenizer, model)
 
     inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True)
     outputs = model.generate(**inputs)
