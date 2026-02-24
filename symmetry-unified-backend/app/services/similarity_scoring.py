@@ -314,6 +314,30 @@ def classify_band(similarity_percent: float, family_a: Optional[LanguageFamily] 
     else:
         return ("unrelated", "likely unrelated language families or noisy data")
 
+# def compute_strong_match_ratio(
+#     words_a: List[str],
+#     words_b: List[str],
+#     stricter_threshold: float
+# ) -> float:
+#     """
+#     Second-pass stricter lexical validation.
+#     Counts only strong word matches using a higher threshold.
+#     """
+
+#     strong_matches = 0
+
+#     for word_a in words_a:
+#         best_sim = 0.0
+
+#         for word_b in words_b:
+#             sim = normalized_levenshtein_distance(word_a, word_b)
+#             if sim > best_sim:
+#                 best_sim = sim
+
+#         if best_sim >= stricter_threshold:
+#             strong_matches += 1
+
+#     return strong_matches / len(words_a) if words_a else 0.0
 
 def score_article_pair(
     text_a: str,
@@ -395,6 +419,20 @@ def score_article_pair(
     total_words = len(words_a)
     lexical_similarity_percent = (match_count / total_words * 100) if total_words > 0 else 0.0
     
+    # -----------------------
+    # SECOND PASS VALIDATION
+    # -----------------------
+    # if lexical_similarity_percent >= word_match_threshold * 100:
+
+    #     stricter_threshold = word_match_threshold + 0.05  # slightly stricter
+    #     strong_match_ratio = compute_strong_match_ratio(
+    #         words_a, words_b, stricter_threshold
+    #     )
+
+    #     # Require at least 70% strong matches
+    #     if strong_match_ratio < 0.7:
+    #         confidence_flags.append("failed_second_pass")
+
     # Classify band with family awareness
     band_label, band_desc = classify_band(lexical_similarity_percent, family_a, family_b)
     

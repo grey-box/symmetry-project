@@ -80,18 +80,22 @@ def semantic_compare(
             sim_threshold = 0.75
 
         missing_info, missing_info_indices = sentences_diff(
-            original_sentences,
-            original_embeddings,
-            translated_embeddings,
-            sim_threshold,
+        original_sentences,
+        original_embeddings,
+        translated_embeddings,
+        sim_threshold,
         )
 
         extra_info, extra_info_indices = sentences_diff(
-            translated_sentences,
-            translated_embeddings,
-            original_embeddings,
-            sim_threshold,
+        translated_sentences,
+        translated_embeddings,
+        original_embeddings,
+        sim_threshold,
+        target_language,
+        source_language,
+        original_sentences,
         )
+
     except Exception as e:
         print(f"Error during semantic comparison: {e}")
         success = False
@@ -131,6 +135,38 @@ def universal_sentences_split(text):
             sentences.append(sentence.strip())
     return sentences
 
+def extract_keywords_sentence(sentence, language):
+    """
+    Extract meaningful keywords from a sentence using spaCy.
+    Removes stopwords and keeps nouns, proper nouns, and verbs.
+    """
+
+    language_model_map = {
+        "en": "en_core_web_sm",
+        "de": "de_core_news_sm",
+        "fr": "fr_core_news_sm",
+        "es": "es_core_news_sm",
+        "it": "it_core_news_sm",
+        "pt": "pt_core_news_sm",
+        "nl": "nl_core_news_sm",
+    }
+
+    if language not in language_model_map:
+        return set()
+
+    try:
+        nlp = spacy.load(language_model_map[language])
+        doc = nlp(sentence)
+
+        return {
+            token.lemma_.lower()
+            for token in doc
+            if not token.is_stop
+            and token.is_alpha
+            and token.pos_ in {"NOUN", "PROPN", "VERB","ADJ", "ADV"}
+        }
+    except Exception:
+        return set()
 
 def preprocess_input(article, language):
     """
@@ -190,8 +226,18 @@ def preprocess_input(article, language):
     return sentences
 
 
+# def sentences_diff(
+#     article_sentences, first_embeddings, second_embeddings, sim_threshold
+# ):
+
 def sentences_diff(
-    article_sentences, first_embeddings, second_embeddings, sim_threshold
+    article_sentences,
+    first_embeddings,
+    second_embeddings,
+    sim_threshold,
+    source_language=None,
+    target_language=None,
+    second_sentences=None,
 ):
     """
     Compares sentence embeddings to find semantic differences.
@@ -217,12 +263,44 @@ def sentences_diff(
         similarities = cosine_similarity([eng_embedding], second_embeddings)[0]
 
         # Find the best matching sentences
-        max_sim = max(similarities)
+        # max_sim = max(similarities)
 
-        if max_sim < sim_threshold:  # Threshold for similarity
-            diff_info.append(
-                article_sentences[i]
-            )  # This sentence might be missing or extra
+        # if max_sim < sim_threshold:  # Threshold for similarity
+        #     diff_info.append(
+        #         article_sentences[i]
+        #     )  # This sentence might be missing or extra
+        #     indices.append(i)
+
+        max_sim = max(similarities)
+        best_match_index = similarities.argmax()
+
+        if max_sim >= sim_threshold:
+            # ---- SECOND PASS: Keyword overlap validation ----
+            if (
+                source_language
+                and target_language
+                and second_sentences
+                and source_language == target_language
+            ):
+
+                sentence_a = article_sentences[i]
+                sentence_b = second_sentences[best_match_index]
+
+                keywords_a = extract_keywords_sentence(sentence_a, source_language)
+                keywords_b = extract_keywords_sentence(sentence_b, target_language)
+
+                if keywords_a and keywords_b:
+                    # overlap = len(keywords_a & keywords_b) / len(keywords_a)
+                    overlap = len(keywords_a & keywords_b) / max(len(keywords_a), len(keywords_b))
+                    # overlap = len(keywords_a & keywords_b) / len(keywords_a | keywords_b)
+
+                    if overlap < 0.6:  # adjust if needed
+                        diff_info.append(article_sentences[i])
+                        indices.append(i)
+                        continue
+
+        else:
+            diff_info.append(article_sentences[i])
             indices.append(i)
 
     return diff_info, indices

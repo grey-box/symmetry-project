@@ -37,13 +37,13 @@ class CompareRequest(BaseModel):
     )
     original_language: str = Field(
         ...,
-        description="Language code or name of original article (e.g., 'en', 'english')",
+        description="Language code of original article (e.g., 'en')",
         max_length=20
     )
 
     translated_language: str = Field(
         ...,
-        description="Language code or name of translated article (e.g., 'fr', 'french')",
+        description="Language code of translated article (e.g., 'fr')",
         max_length=20
     )
     
