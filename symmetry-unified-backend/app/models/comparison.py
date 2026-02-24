@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, AliasChoices
 from typing import List, Optional
 
 
@@ -25,11 +25,32 @@ from typing import List, Optional
 #     )
 
 class CompareRequest(BaseModel):
-    original_article_content: str
-    translated_article_content: str
-    original_language: str = "en"
-    translated_language: str = "fr"
-    similarity_threshold: float = 0.75
+    text_a: str = Field(
+        validation_alias=AliasChoices(
+            "text_a", "original_article_content", "article_text_blob_1"
+        )
+    )
+    text_b: str = Field(
+        validation_alias=AliasChoices(
+            "text_b", "translated_article_content", "article_text_blob_2"
+        )
+    )
+    language_a: str = Field(
+        default="en",
+        validation_alias=AliasChoices(
+            "language_a", "original_language", "article_text_blob_1_language"
+        ),
+    )
+    language_b: str = Field(
+        default="fr",
+        validation_alias=AliasChoices(
+            "language_b", "translated_language", "article_text_blob_2_language"
+        ),
+    )
+    similarity_threshold: float = Field(
+        default=0.75,
+        validation_alias=AliasChoices("similarity_threshold", "comparison_threshold"),
+    )
     model_name: str = "sentence-transformers/LaBSE"
 
 
@@ -59,3 +80,4 @@ class CompareResponse(BaseModel):
     missing_info: List[SentenceDiff] = Field(default_factory=list)
     extra_info: List[SentenceDiff] = Field(default_factory=list)
     error_message: Optional[str] = None
+    comparisons: List[ComparisonResult] = Field(default_factory=list)

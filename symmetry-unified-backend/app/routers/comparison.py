@@ -60,14 +60,15 @@ def compare_articles(payload: CompareRequest):
         return CompareResponse(
             missing_info=[],
             extra_info=[],
-            error_message="Semantic comparison service is unavailable."
+            error_message="Semantic comparison service is unavailable.",
+            comparisons=[],
         )
 
     request_data = {
-        "article_text_blob_1": payload.original_article_content,
-        "article_text_blob_2": payload.translated_article_content,
-        "article_text_blob_1_language": payload.original_language,
-        "article_text_blob_2_language": payload.translated_language,
+        "article_text_blob_1": payload.text_a,
+        "article_text_blob_2": payload.text_b,
+        "article_text_blob_1_language": payload.language_a,
+        "article_text_blob_2_language": payload.language_b,
         "comparison_threshold": payload.similarity_threshold,
         "model_name": payload.model_name,
     }
@@ -78,7 +79,8 @@ def compare_articles(payload: CompareRequest):
         return CompareResponse(
             missing_info=[],
             extra_info=[],
-            error_message="Comparison failed or returned no results."
+            error_message="Comparison failed or returned no results.",
+            comparisons=[],
         )
 
     comparison = result["comparisons"][0]
@@ -103,6 +105,18 @@ def compare_articles(payload: CompareRequest):
         missing_info=missing_info,
         extra_info=extra_info,
         error_message=None,
+        comparisons=[
+            {
+                "left_article_array": comparison["left_article_array"],
+                "right_article_array": comparison["right_article_array"],
+                "left_article_missing_info_index": comparison[
+                    "left_article_missing_info_index"
+                ],
+                "right_article_extra_info_index": comparison[
+                    "right_article_extra_info_index"
+                ],
+            }
+        ],
     )
 
 
