@@ -23,10 +23,10 @@ export async function compareArticles(
     console.log('[DEBUG] Languages - A:', languageA, 'B:', languageB);
 
     return axiosInstance.post('/symmetry/v1/articles/compare', {
-      text_a: textA,
-      text_b: textB,
-      language_a: languageA,
-      language_b: languageB,
+      original_article_content: textA,
+      translated_article_content: textB,
+      original_language: languageA,
+      translated_language: languageB,
       similarity_threshold: similarityThreshold,
       model_name: 'sentence-transformers/LaBSE'
     });
