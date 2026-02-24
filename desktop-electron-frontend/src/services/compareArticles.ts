@@ -23,17 +23,10 @@ export async function compareArticles(
     console.log('[DEBUG] Languages - original:', originalLanguage, 'translated:', translatedLanguage);
 
     return axiosInstance.post('/symmetry/v1/articles/compare', {
-<<<<<<< HEAD
-      original_article_content: textA,
-      translated_article_content: textB,
-      original_language: languageA,
-      translated_language: languageB,
-=======
       original_article_content: originalArticleContent,
       translated_article_content: translatedArticleContent,
       original_language: originalLanguage,
       translated_language: translatedLanguage,
->>>>>>> c637d6f (adding translation chunking pipeline and frontend integration)
       similarity_threshold: similarityThreshold,
       model_name: 'sentence-transformers/LaBSE'
     });
