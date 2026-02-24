@@ -26,6 +26,7 @@ VALID_LANGUAGE_CODES = {
     if hasattr(lang, "alpha_3") and lang.alpha_3
 }
 
+
 @router.get(
     "/articles",
     response_model=SourceArticleResponse,
