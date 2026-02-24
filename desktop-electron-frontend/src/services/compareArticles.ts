@@ -23,11 +23,11 @@ export async function compareArticles(
     console.log('[DEBUG] Languages - A:', languageA, 'B:', languageB);
 
     return axiosInstance.post('/symmetry/v1/articles/compare', {
-      article_text_blob_1: textA,
-      article_text_blob_2: textB,
-      article_text_blob_1_language: languageA,
-      article_text_blob_2_language: languageB,
-      comparison_threshold: similarityThreshold,
+      original_article_content: textA,
+      translated_article_content: textB,
+      original_language: languageA,
+      translated_language: languageB,
+      similarity_threshold: similarityThreshold,
       model_name: 'sentence-transformers/LaBSE'
     });
   } catch (error) {
