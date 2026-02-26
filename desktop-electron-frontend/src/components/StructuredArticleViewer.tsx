@@ -85,8 +85,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
 
       setArticle(translatedArticle);
       setTargetLang(translatedArticle.lang);
-      setCitationAnalysis(null);
-      setReferenceAnalysis(null);
+      setCitationAnalysis(null); // These are temporarily set to NULL, as we only want content translated.
+      setReferenceAnalysis(null); // In the future, we may use this to compare citations/references between languages.
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to translate article');
     } finally {
