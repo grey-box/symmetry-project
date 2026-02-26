@@ -7,23 +7,18 @@ import {
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
 
-const TRANSLATION_LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'es', label: 'Spanish' },
-  { code: 'fr', label: 'French' },
-  { code: 'de', label: 'German' },
-  { code: 'it', label: 'Italian' },
-  { code: 'pt', label: 'Portuguese' },
-  { code: 'nl', label: 'Dutch' },
-  { code: 'pl', label: 'Polish' },
-  { code: 'ru', label: 'Russian' },
-  { code: 'zh', label: 'Chinese' },
-  { code: 'ja', label: 'Japanese' },
-  { code: 'ko', label: 'Korean' },
-  { code: 'ar', label: 'Arabic' },
-  { code: 'hi', label: 'Hindi' },
-  { code: 'tr', label: 'Turkish' },
+const languageCodes = [
+  'en', 'es', 'fr', 'de', 'it', 'pt',
+  'nl', 'pl', 'ru', 'zh', 'ja',
+  'ko', 'ar', 'hi', 'tr',
 ];
+
+const displayNames = new Intl.DisplayNames(['en'], { type: 'language' });
+const TRANSLATION_LANGUAGES = languageCodes.map(code => ({
+  code,
+  label: displayNames.of(code) ?? code,
+}));
+
 
 
 interface StructuredArticleViewerProps {
