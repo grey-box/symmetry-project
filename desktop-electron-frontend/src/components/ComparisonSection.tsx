@@ -26,7 +26,8 @@ const ComparisonSection = () => {
   const [targetUrl, setTargetUrl] = useState('')
   const [isTargetTextReadOnly, setIsTargetTextReadOnly] = useState(false)
   const [isTargetLanguageReadOnly, setIsTargetLanguageReadOnly] = useState(false)
-  const [similarityThreshold, setSimilarityThreshold] = useState(0.65)
+  const [similarityThreshold, setSimilarityThreshold] = useState<number | null>(null)
+  const [recommendedThreshold, setRecommendedThreshold] = useState<number | null>(null)
 
   const form = useForm({
     defaultValues: {
@@ -77,6 +78,86 @@ const ComparisonSection = () => {
       sessionStorage.removeItem('comparisonData')
     }
   }, [form])
+
+  // Calculate recommended threshold based on language families
+  useEffect(() => {
+    const calculateRecommendedThreshold = () => {
+      // Language family mapping (simplified)
+      const languageFamilies: Record<string, string> = {
+        // Germanic
+        'en': 'germanic',
+        'de': 'germanic',
+        'nl': 'germanic',
+        'sv': 'germanic',
+        'da': 'germanic',
+        // Romance
+        'fr': 'romance',
+        'es': 'romance',
+        'it': 'romance',
+        'pt': 'romance',
+        'ro': 'romance',
+        'ca': 'romance',
+        // Slavic
+        'ru': 'slavic',
+        'uk': 'slavic',
+        'pl': 'slavic',
+        'cs': 'slavic',
+        'sk': 'slavic',
+        'bg': 'slavic',
+        'sr': 'slavic',
+        'hr': 'slavic',
+        'sl': 'slavic',
+        'be': 'slavic',
+        'mk': 'slavic',
+        // Sino-Tibetan
+        'zh': 'sino-tibetan',
+        'my': 'sino-tibetan',
+        'bo': 'sino-tibetan',
+        // Afro-Asiatic
+        'ar': 'afro-asiatic',
+        'he': 'afro-asiatic',
+        'am': 'afro-asiatic',
+        // Altaic/Turkic
+        'tr': 'altaic',
+        'mn': 'altaic',
+        'ko': 'altaic',
+        // Dravidian
+        'ta': 'dravidian',
+        'te': 'dravidian',
+        'kn': 'dravidian',
+        'ml': 'dravidian',
+        // Austronesian
+        'tl': 'austronesian',
+        'id': 'austronesian',
+        'ms': 'austronesian',
+        'jv': 'austronesian',
+        // Niger-Congo
+        'sw': 'niger-congo',
+        'yo': 'niger-congo',
+      }
+
+      const familyA = languageFamilies[sourceLanguage] || 'unknown'
+      const familyB = languageFamilies[targetLanguage] || 'unknown'
+
+      let recommended = 0.65 // default
+      const ieLanguages = ['germanic', 'romance', 'slavic']
+
+      if (familyA === familyB && familyA !== 'unknown') {
+        // Same family - stricter threshold
+        recommended = 0.90
+      } else if (ieLanguages.includes(familyA) && ieLanguages.includes(familyB)) {
+        // Both Indo-European but different branches
+        recommended = 0.80
+      } else if (familyA !== 'unknown' && familyB !== 'unknown') {
+        // Completely different families
+        recommended = 0.75
+      }
+
+      setRecommendedThreshold(recommended)
+    }
+
+    calculateRecommendedThreshold()
+  }, [sourceLanguage, targetLanguage])
 
   // Timer effect
   useEffect(() => {
@@ -290,12 +371,29 @@ const ComparisonSection = () => {
                 min="0"
                 max="1"
                 step="0.01"
-                value={similarityThreshold}
-                onChange={(e) => setSimilarityThreshold(parseFloat(e.target.value) || 0.65)}
+                value={similarityThreshold ?? ''}
+                onChange={(e) => setSimilarityThreshold(e.target.value ? parseFloat(e.target.value) : null)}
                 className="w-24"
+                placeholder="Auto"
               />
+              {recommendedThreshold !== null && (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-500">
+                    Recommended: <span className="font-semibold">{recommendedThreshold.toFixed(2)}</span>
+                  </span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSimilarityThreshold(recommendedThreshold)}
+                    className="text-xs"
+                  >
+                    Apply
+                  </Button>
+                </div>
+              )}
               <span className="text-sm text-gray-500">
-                Lower values = more sensitive (detects more differences)
+                {similarityThreshold === null ? 'Auto-adjusted by language family' : 'Lower = more sensitive'}
               </span>
             </div>
           </div>

@@ -52,6 +52,13 @@ class CompareRequest(BaseModel):
         max_length=100,
         description="Sentence-transformer model name used for semantic comparison",
     )
+    
+    comparison_threshold: float = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Optional override for similarity threshold. If not provided, auto-calculated based on language families."
+    )
 
 
 class SentenceDiff(BaseModel):

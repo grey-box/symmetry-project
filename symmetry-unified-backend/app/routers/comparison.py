@@ -54,6 +54,7 @@ comparison_models = [
 def compare_articles(payload: CompareRequest):
     """
     Compare original and translated article content using semantic similarity.
+    Automatically adjusts threshold based on language families, or uses user-provided threshold.
     """
     from app.services.similarity_scoring import (
     get_language_family,
@@ -63,8 +64,11 @@ def compare_articles(payload: CompareRequest):
     family_a = get_language_family(payload.original_language)
     family_b = get_language_family(payload.translated_language)
 
-    # ---- Compute threshold automatically ----
-    sim_threshold = get_family_threshold(family_a, family_b)
+    # ---- Use user threshold if provided, otherwise compute automatically ----
+    if payload.comparison_threshold is not None:
+        sim_threshold = payload.comparison_threshold
+    else:
+        sim_threshold = get_family_threshold(family_a, family_b)
 
     if perform_semantic_comparison is None:
         return CompareResponse(
