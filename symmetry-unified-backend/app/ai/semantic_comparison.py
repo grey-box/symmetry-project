@@ -45,11 +45,19 @@ def semantic_compare(
     """
     success = True
 
-    # Load a multilingual sentence transformer model (LaBSE or similar)
     try:
         if model_name is None:
             model_name = "sentence-transformers/LaBSE"
-        model = SentenceTransformer(model_name)
+
+        if not hasattr(semantic_compare, "_cache"):
+            semantic_compare._cache = {}
+
+        if model_name in semantic_compare._cache:
+            model = semantic_compare._cache[model_name]
+        else:
+            model = SentenceTransformer(model_name)
+            semantic_compare._cache[model_name] = model
+
     except Exception as e:
         print(f"Error loading model {model_name}: {e}")
         return {
