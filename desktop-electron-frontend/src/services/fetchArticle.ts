@@ -3,7 +3,7 @@ import { getAxiosInstance } from '@/services/axios';
 import { FetchArticleResponse } from '@/models/apis/FetchArticleResponse';
 
 function parseWikipediaUrl(url: string): { title: string; lang: string } | null {
-  const urlPattern = /https?:\/\/([a-z]{2})\.wikipedia\.org\/wiki\/(.+)/;
+  const urlPattern = /https?:\/\/([a-z-]{2,})\.wikipedia\.org\/wiki\/(.+)/;
   const match = url.match(urlPattern);
   
   if (match) {
