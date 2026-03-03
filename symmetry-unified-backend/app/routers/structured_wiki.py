@@ -618,5 +618,3 @@ def _fetch_revisions(title: str, lang: str, limit: int = 20) -> List[Revision]:
             )
         )
     return revisions
-
-

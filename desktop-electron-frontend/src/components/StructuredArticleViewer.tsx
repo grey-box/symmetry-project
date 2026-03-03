@@ -7,6 +7,20 @@ import {
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
 
+const languageCodes = [
+  'en', 'es', 'fr', 'de', 'it', 'pt',
+  'nl', 'pl', 'ru', 'zh', 'ja',
+  'ko', 'ar', 'hi', 'tr',
+];
+
+const displayNames = new Intl.DisplayNames(['en'], { type: 'language' });
+const TRANSLATION_LANGUAGES = languageCodes.map(code => ({
+  code,
+  label: displayNames.of(code) ?? code,
+}));
+
+
+
 interface StructuredArticleViewerProps {
   initialQuery?: string;
   initialLang?: string;
@@ -24,6 +38,10 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [searchTerm, setSearchTerm] = useState(''); // For section search
   const [searchInput, setSearchInput] = useState(''); // For article search input
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
+  const [targetLang, setTargetLang] = useState(initialLang);
+  const [translating, setTranslating] = useState(false);
+
+
 
   // Load article data
   const loadArticle = async (query: string, lang: string) => {
@@ -51,6 +69,32 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
+  const translateArticle = async () => {
+    if (!article) return;
+
+    setTranslating(true);
+    setError(null);
+
+    try {
+      const translatedArticle =
+        await structuredWikiService.getTranslatedStructuredArticle({
+          source_lang: article.lang,
+          target_lang: targetLang,
+          title: article.title,
+        });
+
+      setArticle(translatedArticle);
+      setTargetLang(translatedArticle.lang);
+      setCitationAnalysis(null); // These are temporarily set to NULL, as we only want content translated.
+      setReferenceAnalysis(null); // In the future, we may use this to compare citations/references between languages.
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to translate article');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
+
   // Search sections (for section navigation)
   const filteredSections = article ? structuredWikiService.searchSections(article, searchTerm) : [];
 
@@ -66,6 +110,18 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
       loadArticle(initialQuery, initialLang);
     }
   }, [initialQuery, initialLang]);
+
+  useEffect(() => {
+    if (!article) return;
+
+    if (
+      !selectedSection ||
+      !article.sections.some(s => s.title === selectedSection)
+    ) {
+      setSelectedSection(article.sections[0]?.title ?? null);
+    }
+  }, [article, selectedSection]);
+
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,6 +168,38 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
             />
           </div>
         )}
+
+        {/* Translate Article Button */}      
+        {article && (
+          <div className="mb-6 flex items-center gap-4">
+            <select
+              value={targetLang}
+              onChange={(e) => setTargetLang(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              disabled={translating}
+            >
+              {TRANSLATION_LANGUAGES.map(lang => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={translateArticle}
+              disabled={translating || targetLang === article.lang}
+              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {translating ? 'Translating...' : 'Translate'}
+            </button>
+
+            <span className="text-sm text-gray-500">
+              {article.lang} → {targetLang}
+            </span>
+          </div>
+        )}
+
+        
 
         {/* Error Display */}
         {error && (
