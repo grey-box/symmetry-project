@@ -49,6 +49,32 @@ class StructuredWikiService {
   }
 
   /**
+   * Get a translated version of a structured article
+   */
+  async getTranslatedStructuredArticle(params: {
+    source_lang: string;
+    target_lang: string;
+    title?: string;
+    url?: string;
+  }): Promise<StructuredArticleResponse> {
+    const searchParams = new URLSearchParams();
+
+    searchParams.append('source_lang', params.source_lang);
+    searchParams.append('target_lang', params.target_lang);
+
+    if (params.title) {
+      searchParams.append('title', params.title);
+    }
+    if (params.url) {
+      searchParams.append('url', params.url);
+    }
+
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/structured-translated-article?${searchParams.toString()}`;
+    return this.fetchWithErrorHandling<StructuredArticleResponse>(url);
+  }
+
+
+  /**
    * Get a specific section from a structured article
    */
   async getStructuredSection(request: StructuredSectionRequest): Promise<StructuredSectionResponse> {
