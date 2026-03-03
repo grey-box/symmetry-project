@@ -24,6 +24,20 @@ const TRANSLATION_LANGUAGES = languageCodes.map(code => ({
 
 
 
+const languageCodes = [
+  'en', 'es', 'fr', 'de', 'it', 'pt',
+  'nl', 'pl', 'ru', 'zh', 'ja',
+  'ko', 'ar', 'hi', 'tr',
+];
+
+const displayNames = new Intl.DisplayNames(['en'], { type: 'language' });
+const TRANSLATION_LANGUAGES = languageCodes.map(code => ({
+  code,
+  label: displayNames.of(code) ?? code,
+}));
+
+
+
 interface StructuredArticleViewerProps {
   initialQuery?: string;
   initialLang?: string;
@@ -43,26 +57,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState(initialLang);
   const [translating, setTranslating] = useState(false);
-  
-  // Fact extraction states
-  const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
-  const [selectedFactModel, setSelectedFactModel] = useState<string>('');
-  const [customFactModel, setCustomFactModel] = useState<string>('');
-  const [customModelValidation, setCustomModelValidation] = useState<{valid: boolean; error?: string} | null>(null);
-  const [validatingCustomModel, setValidatingCustomModel] = useState<boolean>(false);
-  const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
-  const [extractingSection, setExtractingSection] = useState<string | null>(null);
-  const [factError, setFactError] = useState<string | null>(null);
-  const [numFacts, setNumFacts] = useState<number>(1);
-  const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
-  const [hoveredChunk, setHoveredChunk] = useState<string | null>(null);
-  const [clickedChunk, setClickedChunk] = useState<string | null>(null);
-
-  // Section comparison state
-  const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
-  const [compareLang, setCompareLang] = useState('es');
-  const [comparing, setComparing] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
 
 
 
@@ -118,30 +112,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   };
 
 
-  /** Run section-by-section comparison against another language */
-  const runSectionComparison = async () => {
-    if (!article) return;
-
-    setComparing(true);
-    setError(null);
-
-    try {
-      const result = await structuredWikiService.compareSections({
-        source_query: article.title,
-        target_query: article.title, // same article, different language
-        source_lang: article.lang,
-        similarity_threshold: 0.5,
-      });
-
-      setComparisonResult(result);
-      setShowComparison(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Section comparison failed');
-    } finally {
-      setComparing(false);
-    }
-  };
-
   // Search sections (for section navigation)
   const filteredSections = article ? structuredWikiService.searchSections(article, searchTerm) : [];
 
@@ -169,36 +139,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   }, [article, selectedSection]);
 
-  // Auto-calculate num_facts based on selected section word count
-  useEffect(() => {
-    if (!autoNumFacts || !article || !selectedSection) return;
-    
-    const section = article.sections.find(s => s.title === selectedSection);
-    if (section) {
-      const wordCount = section.clean_content.split(' ').length;
-      // Calculate: roughly 1 fact per 50 words, minimum 1, maximum 20
-      const calculated = Math.max(1, Math.min(20, Math.ceil(wordCount / 50)));
-      setNumFacts(calculated);
-    }
-  }, [autoNumFacts, selectedSection, article]);
-
-  // Load available fact extraction models on mount
-  useEffect(() => {
-    const loadFactModels = async () => {
-      try {
-        const models = await structuredWikiService.getFactExtractionModels();
-        setFactModels(models);
-        if (models.length > 0 && !selectedFactModel) {
-          setSelectedFactModel(models[0].id);
-        }
-      } catch (err) {
-        console.error('Failed to load fact extraction models:', err);
-        setFactError('Failed to load fact extraction models');
-      }
-    };
-    
-    loadFactModels();
-  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -360,166 +300,37 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Translate Button Row */}
+        {/* Translate Article Button */}      
         {article && (
-          <div className="mb-6 flex flex-wrap items-center gap-4">
-            {/* Translation Controls */}
-            <div className="flex items-center gap-4">
-              <select
-                value={targetLang}
-                onChange={(e) => setTargetLang(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                disabled={translating}
-              >
-                {TRANSLATION_LANGUAGES.map(lang => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.label}
-                  </option>
-                ))}
-              </select>
+          <div className="mb-6 flex items-center gap-4">
+            <select
+              value={targetLang}
+              onChange={(e) => setTargetLang(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              disabled={translating}
+            >
+              {TRANSLATION_LANGUAGES.map(lang => (
+                <option key={lang.code} value={lang.code}>
+                  {lang.label}
+                </option>
+              ))}
+            </select>
 
-              <button
-                onClick={translateArticle}
-                disabled={translating || targetLang === article.lang}
-                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {translating ? 'Translating...' : 'Translate'}
-              </button>
+            <button
+              onClick={translateArticle}
+              disabled={translating || targetLang === article.lang}
+              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {translating ? 'Translating...' : 'Translate'}
+            </button>
 
-              <span className="text-sm text-gray-500">
-                {article.lang} → {targetLang}
-              </span>
-            </div>
+            <span className="text-sm text-gray-500">
+              {article.lang} → {targetLang}
+            </span>
           </div>
         )}
 
-        {/* Fact Extraction Model Selection & Options - with Extract Facts button */}
-        {article && (
-          <div className="mb-6 flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-lg">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">Model:</span>
-                <select
-                  value={selectedFactModel}
-                  onChange={(e) => setSelectedFactModel(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  disabled={factModels.length === 0}
-                >
-                  {factModels.map(model => (
-                    <option key={model.id} value={model.id}>
-                      {model.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              {/* Custom Model Input */}
-              <div className="flex items-center gap-2">
-                <div className="flex-1 max-w-md">
-                  <input
-                    type="text"
-                    value={customFactModel}
-                    onChange={(e) => setCustomFactModel(e.target.value)}
-                    placeholder="Or paste HuggingFace model name (e.g., google/flan-t5-large)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleValidateCustomModel();
-                      }
-                    }}
-                  />
-                </div>
-                <button
-                  onClick={handleValidateCustomModel}
-                  disabled={validatingCustomModel || !customFactModel.trim()}
-                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                >
-                  {validatingCustomModel ? 'Validating...' : 'Validate & Use'}
-                </button>
-              </div>
-              
-              {/* Custom Model Validation Feedback */}
-              {customModelValidation && (
-                <div className={`text-sm ${customModelValidation.valid ? 'text-green-600' : 'text-red-600'}`}>
-                  {customModelValidation.valid ? (
-                    <span>✓ Model validated and selected: {selectedFactModel}</span>
-                  ) : (
-                    <span>✗ {customModelValidation.error || 'Validation failed'}</span>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            {/* Number of Facts Control */}
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-2 text-sm text-gray-700">
-                <input
-                  type="checkbox"
-                  checked={autoNumFacts}
-                  onChange={(e) => setAutoNumFacts(e.target.checked)}
-                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                />
-                Auto
-              </label>
-              
-              {!autoNumFacts && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="1"
-                    max="50"
-                    value={numFacts}
-                    onChange={(e) => setNumFacts(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    title="Number of facts to extract"
-                  />
-                  <span className="text-sm text-gray-500">facts</span>
-                </div>
-              )}
-              
-              {autoNumFacts && (
-                <span className="text-sm text-gray-500">
-                  (auto: based on section length)
-                </span>
-              )}
-            </div>
-
-            {/* Extract Facts Button - inside the model selection box */}
-            <div className="flex items-center gap-2 ml-4 border-l border-gray-300 pl-4">
-              <button
-                onClick={() => {
-                  if (selectedSection) {
-                    const section = filteredSections.find(s => s.title === selectedSection);
-                    if (section) {
-                      handleExtractFacts(section.title, section.clean_content);
-                    }
-                  }
-                }}
-                disabled={extractingSection !== null || !selectedFactModel || !selectedSection}
-                className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                {extractingSection ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    Extracting...
-                  </>
-                ) : (
-                  'Extract Facts'
-                )}
-              </button>
-              
-              {/* Show which section is being extracted */}
-              {extractingSection && (
-                <span className="text-sm text-gray-500">
-                  from "{extractingSection}"
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-
-
+        
 
         {/* Error Display */}
         {error && (
