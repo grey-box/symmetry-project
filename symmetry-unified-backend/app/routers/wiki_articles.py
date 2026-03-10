@@ -6,6 +6,7 @@ from urllib.error import URLError
 from typing import Dict, Optional, Annotated
 
 import wikipediaapi
+import pycountry
 from fastapi import APIRouter, Query, HTTPException, Request
 
 from app.models import SourceArticleResponse
@@ -14,6 +15,16 @@ from app.services.cache import get_cached_article, set_cached_article
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["wiki"])
 
 language_cache: Dict[str, bool] = {}
+
+VALID_LANGUAGE_CODES = {
+    lang.alpha_2
+    for lang in pycountry.languages
+    if hasattr(lang, "alpha_2") and lang.alpha_2
+} | {
+    lang.alpha_3
+    for lang in pycountry.languages
+    if hasattr(lang, "alpha_3") and lang.alpha_3
+}
 
 
 @router.get(
@@ -141,29 +152,12 @@ async def validate_language_code(language_code: str):
         logging.info(f"Using cached validation for language code: {language_code}")
         return language_cache[language_code]
 
-    url = f"https://{language_code}.wikipedia.org/wiki/Main_Page"
-
-    try:
-        response = await asyncio.to_thread(urllib.request.urlopen, url)
-
-        if response.status == 200:
-            logging.info(f"Valid language code: {language_code}")
-            language_cache[language_code] = True
-            return True
-        else:
-            language_cache[language_code] = False
-            raise HTTPException(
-                status_code=400, detail=f"Invalid language code '{language_code}'."
-            )
-
-    except URLError:
+    if language_code not in VALID_LANGUAGE_CODES:
         language_cache[language_code] = False
         raise HTTPException(
             status_code=400, detail=f"Invalid language code '{language_code}'."
         )
-    except Exception as e:
-        language_cache[language_code] = False
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error occurred during language code validation: {str(e)}",
-        )
+
+    logging.info(f"Valid language code (whitelist): {language_code}")
+    language_cache[language_code] = True
+    return True
