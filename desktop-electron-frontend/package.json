@@ -6,6 +6,7 @@
   "description": "Cross language wikipedia article gap analysis tool",
   "main": ".vite/build/main.js",
   "scripts": {
+    "dev": "vite --config vite.renderer.config.mjs --host",
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",

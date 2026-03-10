@@ -132,7 +132,10 @@ start_backend() {
     source venv/bin/activate
     export PORT=$BACKEND_PORT
     export HOST=${HOST:-127.0.0.1}
-    uvicorn app.main:app --host $HOST --port $BACKEND_PORT --reload
+    uvicorn app.main:app --host $HOST --port $BACKEND_PORT --reload \
+        --reload-exclude "venv/*" \
+        --reload-exclude "venv/**" \
+        --reload-exclude "**/site-packages/*"
 }
 
 start_frontend() {
