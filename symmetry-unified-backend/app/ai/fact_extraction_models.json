@@ -1,0 +1,34 @@
+[
+  {
+    "id": "flan-t5-small",
+    "name": "Google FLAN-T5 Small",
+    "provider": "huggingface",
+    "model_name": "google/flan-t5-small",
+    "description": "Lightweight fact extraction using FLAN-T5 small (fast, ~80MB)",
+    "task": "text-generation"
+  },
+  {
+    "id": "flan-t5-base",
+    "name": "Google FLAN-T5 Base",
+    "provider": "huggingface",
+    "model_name": "google/flan-t5-base",
+    "description": "Medium fact extraction using FLAN-T5 base (balanced, ~250MB)",
+    "task": "text-generation"
+  },
+  {
+    "id": "bart-large-cnn",
+    "name": "Facebook BART Large CNN",
+    "provider": "huggingface",
+    "model_name": "facebook/bart-large-cnn",
+    "description": "High-quality fact extraction using BART large (accurate, ~1.5GB)",
+    "task": "summarization"
+  },
+  {
+    "id": "pegasus-xsum",
+    "name": "Google Pegasus XSum",
+    "provider": "huggingface",
+    "model_name": "google/pegasus-xsum",
+    "description": "Extractive summarization for fact extraction (balanced, ~2.3GB)",
+    "task": "summarization"
+  }
+]

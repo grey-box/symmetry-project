@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Query, HTTPException
@@ -13,8 +13,11 @@ from app.models import (
     StructuredSectionResponse,
     StructuredCitationResponse,
     StructuredReferenceResponse,
+    FactExtractionRequest,
+    FactExtractionResponse,
 )
 from app.services.article_parser import article_fetcher
+from app.ai.fact_extraction import extract_facts, get_available_models
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
@@ -413,3 +416,64 @@ def translate_article(
         total_citations=total_citations,
         total_references=len(article.references),
     )
+
+
+@router.get("/fact-extraction-models", response_model=List[Dict[str, Any]])
+async def get_fact_extraction_models():
+    """
+    Get list of available fact extraction models.
+    Returns model configurations that can be used with the extract-facts endpoint.
+    """
+    logging.info("Calling fact extraction models endpoint")
+    try:
+        models = get_available_models()
+        return models
+    except Exception as e:
+        logging.error("Error fetching fact extraction models: %s", str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch models: {str(e)}"
+        )
+
+
+@router.post("/extract-facts", response_model=FactExtractionResponse)
+async def extract_facts_endpoint(request: FactExtractionRequest):
+    """
+    Extract facts from a section's content using the specified LLM model.
+    
+    - **section_content**: The text content to extract facts from
+    - **model_id**: The ID of the model to use (from /fact-extraction-models endpoint)
+    """
+    logging.info(
+        "Calling extract facts endpoint (model='%s', content_length=%d)",
+        request.model_id,
+        len(request.section_content),
+    )
+    
+    try:
+        facts = extract_facts(request.section_content, request.model_id)
+        
+        config = get_model_config(request.model_id)
+        model_name = config["name"]
+        
+        response = FactExtractionResponse(
+            facts=facts,
+            model_used=model_name,
+            section_title=request.section_title or ""
+        )
+        
+        logging.info(
+            "Successfully extracted %d facts using model %s",
+            len(facts),
+            request.model_id,
+        )
+        
+        return response
+        
+    except ValueError as e:
+        logging.error("ValueError in fact extraction: %s", str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logging.error("Error extracting facts: %s", str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to extract facts: {str(e)}"
+        )

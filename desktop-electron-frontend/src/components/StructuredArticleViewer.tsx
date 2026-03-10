@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Loader2 } from 'lucide-react';
 import {
   StructuredArticleResponse,
   StructuredCitationResponse,
@@ -6,6 +7,7 @@ import {
   Section
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
+import { FactExtractionModel, FactExtractionResponse } from '../models/FactExtraction';
 
 const languageCodes = [
   'en', 'es', 'fr', 'de', 'it', 'pt',
@@ -40,6 +42,13 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState(initialLang);
   const [translating, setTranslating] = useState(false);
+  
+  // Fact extraction states
+  const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
+  const [selectedFactModel, setSelectedFactModel] = useState<string>('');
+  const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
+  const [extractingSection, setExtractingSection] = useState<string | null>(null);
+  const [factError, setFactError] = useState<string | null>(null);
 
 
 
@@ -122,11 +131,56 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   }, [article, selectedSection]);
 
+  // Load available fact extraction models on mount
+  useEffect(() => {
+    const loadFactModels = async () => {
+      try {
+        const models = await structuredWikiService.getFactExtractionModels();
+        setFactModels(models);
+        if (models.length > 0 && !selectedFactModel) {
+          setSelectedFactModel(models[0].id);
+        }
+      } catch (err) {
+        console.error('Failed to load fact extraction models:', err);
+        setFactError('Failed to load fact extraction models');
+      }
+    };
+    
+    loadFactModels();
+  }, []);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchInput.trim()) {
       loadArticle(searchInput.trim(), initialLang);
+    }
+  };
+
+  const handleExtractFacts = async (sectionTitle: string, content: string) => {
+    if (!selectedFactModel) {
+      setFactError('Please select a fact extraction model');
+      return;
+    }
+
+    setExtractingSection(sectionTitle);
+    setFactError(null);
+
+    try {
+      const response = await structuredWikiService.extractFacts({
+        section_content: content,
+        model_id: selectedFactModel,
+        section_title: sectionTitle
+      });
+      
+      setSectionFacts(prev => ({
+        ...prev,
+        [sectionTitle]: response
+      }));
+    } catch (err) {
+      console.error('Error extracting facts:', err);
+      setFactError(err instanceof Error ? err.message : 'Failed to extract facts');
+    } finally {
+      setExtractingSection(null);
     }
   };
 
@@ -169,33 +223,56 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Translate Article Button */}      
+        {/* Translate Article Button & Fact Extraction Model Selection */}
         {article && (
-          <div className="mb-6 flex items-center gap-4">
-            <select
-              value={targetLang}
-              onChange={(e) => setTargetLang(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-              disabled={translating}
-            >
-              {TRANSLATION_LANGUAGES.map(lang => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.label}
-                </option>
-              ))}
-            </select>
+          <div className="mb-6 flex flex-wrap items-center gap-4">
+            {/* Translation Controls */}
+            <div className="flex items-center gap-4">
+              <select
+                value={targetLang}
+                onChange={(e) => setTargetLang(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                disabled={translating}
+              >
+                {TRANSLATION_LANGUAGES.map(lang => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
 
-            <button
-              onClick={translateArticle}
-              disabled={translating || targetLang === article.lang}
-              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {translating ? 'Translating...' : 'Translate'}
-            </button>
+              <button
+                onClick={translateArticle}
+                disabled={translating || targetLang === article.lang}
+                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {translating ? 'Translating...' : 'Translate'}
+              </button>
 
-            <span className="text-sm text-gray-500">
-              {article.lang} → {targetLang}
-            </span>
+              <span className="text-sm text-gray-500">
+                {article.lang} → {targetLang}
+              </span>
+            </div>
+
+            {/* Fact Extraction Model Selection */}
+            <div className="flex items-center gap-4">
+              <select
+                value={selectedFactModel}
+                onChange={(e) => setSelectedFactModel(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                disabled={factModels.length === 0}
+              >
+                {factModels.map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+              
+              <span className="text-sm text-gray-500">
+                Fact Extraction Model:
+              </span>
+            </div>
           </div>
         )}
 
@@ -205,6 +282,13 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         {error && (
           <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
             {error}
+          </div>
+        )}
+
+        {/* Fact Extraction Error Display */}
+        {factError && (
+          <div className="mb-6 p-4 bg-orange-100 border border-orange-400 text-orange-700 rounded">
+            {factError}
           </div>
         )}
 
@@ -329,15 +413,61 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                           </div>
                         )}
 
-                        {/* Citation Positions */}
-                        {section.citation_position && section.citation_position.length > 0 && (
-                          <div className="mt-4 p-3 bg-yellow-50 rounded">
-                            <h5 className="font-medium text-yellow-800 mb-2">Citation Positions</h5>
-                            <p className="text-sm text-yellow-700">
-                              {structuredWikiService.formatCitationPositions(section.citation_position)}
-                            </p>
-                          </div>
-                        )}
+                       {/* Citation Positions */}
+                       {section.citation_position && section.citation_position.length > 0 && (
+                         <div className="mt-4 p-3 bg-yellow-50 rounded">
+                           <h5 className="font-medium text-yellow-800 mb-2">Citation Positions</h5>
+                           <p className="text-sm text-yellow-700">
+                             {structuredWikiService.formatCitationPositions(section.citation_position)}
+                           </p>
+                         </div>
+                       )}
+
+                       {/* Extract Facts Button */}
+                       <div className="mt-6">
+                         <button
+                           onClick={() => handleExtractFacts(section.title, section.clean_content)}
+                           disabled={extractingSection === section.title || !selectedFactModel}
+                           className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                         >
+                           {extractingSection === section.title ? (
+                             <>
+                               <Loader2 size={16} className="animate-spin" />
+                               Extracting...
+                             </>
+                           ) : (
+                             'Extract Facts'
+                           )}
+                         </button>
+                       </div>
+
+                       {/* Display Extracted Facts */}
+                       {sectionFacts[section.title] && (
+                         <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                           <div className="flex items-center gap-2 mb-3">
+                             <h5 className="font-semibold text-purple-900">
+                               Extracted Facts
+                             </h5>
+                             <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                               {sectionFacts[section.title].model_used}
+                             </span>
+                           </div>
+                           {sectionFacts[section.title].facts.length > 0 ? (
+                             <ul className="space-y-2">
+                               {sectionFacts[section.title].facts.map((fact, index) => (
+                                 <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
+                                   <span className="text-purple-500 mt-1">•</span>
+                                   <span>{fact}</span>
+                                 </li>
+                               ))}
+                             </ul>
+                           ) : (
+                             <p className="text-sm text-gray-600 italic">
+                               No facts could be extracted from this section.
+                             </p>
+                           )}
+                         </div>
+                       )}
                       </div>
                     );
                   })()}

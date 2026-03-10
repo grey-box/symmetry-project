@@ -36,6 +36,8 @@ from app.models.api_models import (
     ArticleResponse,
     ModelSelectionResponse,
     ListResponse,
+    FactExtractionRequest,
+    FactExtractionResponse,
 )
 
 __all__ = [
@@ -73,4 +75,6 @@ __all__ = [
     "ArticleResponse",
     "ModelSelectionResponse",
     "ListResponse",
+    "FactExtractionRequest",
+    "FactExtractionResponse",
 ]

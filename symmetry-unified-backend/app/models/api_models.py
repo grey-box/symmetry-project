@@ -33,3 +33,14 @@ class ListResponse(BaseModel):
     response: List[str]
 
 
+class FactExtractionRequest(BaseModel):
+    section_content: str
+    model_id: str
+
+
+class FactExtractionResponse(BaseModel):
+    facts: List[str]
+    model_used: str
+    section_title: str = ""
+
+
