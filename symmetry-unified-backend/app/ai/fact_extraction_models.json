@@ -1,34 +1,32 @@
 [
   {
     "id": "flan-t5-small",
-    "name": "Google FLAN-T5 Small",
+    "name": "Flan-T5 Small",
     "provider": "huggingface",
     "model_name": "google/flan-t5-small",
-    "description": "Lightweight fact extraction using FLAN-T5 small (fast, ~80MB)",
-    "task": "text-generation"
+    "description": "Instruction-tuned small model, strong CPU performance",
+    "task": "text2text-generation",
+    "prompt_style": "instruction",
+    "use_chat_template": false
   },
   {
-    "id": "flan-t5-base",
-    "name": "Google FLAN-T5 Base",
+    "id": "nu-extract-tiny",
+    "name": "NuExtract Tiny",
     "provider": "huggingface",
-    "model_name": "google/flan-t5-base",
-    "description": "Medium fact extraction using FLAN-T5 base (balanced, ~250MB)",
-    "task": "text-generation"
+    "model_name": "numind/NuExtract-tiny",
+    "description": "Designed for structured extraction, lightweight compared to LLMs",
+    "task": "text-generation",
+    "prompt_style": "json",
+    "use_chat_template": false
   },
   {
-    "id": "bart-large-cnn",
-    "name": "Facebook BART Large CNN",
+    "id": "phi-1_5",
+    "name": "Microsoft Phi-1.5",
     "provider": "huggingface",
-    "model_name": "facebook/bart-large-cnn",
-    "description": "High-quality fact extraction using BART large (accurate, ~1.5GB)",
-    "task": "summarization"
-  },
-  {
-    "id": "pegasus-xsum",
-    "name": "Google Pegasus XSum",
-    "provider": "huggingface",
-    "model_name": "google/pegasus-xsum",
-    "description": "Extractive summarization for fact extraction (balanced, ~2.3GB)",
-    "task": "summarization"
+    "model_name": "microsoft/phi-1_5",
+    "description": "Small (~1B) general language model, CPU-possible but heavier",
+    "task": "text-generation",
+    "prompt_style": "numbered",
+    "use_chat_template": true
   }
 ]

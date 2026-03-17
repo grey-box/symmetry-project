@@ -36,6 +36,7 @@ class ListResponse(BaseModel):
 class FactExtractionRequest(BaseModel):
     section_content: str
     model_id: str
+    section_title: str = ""
 
 
 class FactExtractionResponse(BaseModel):
