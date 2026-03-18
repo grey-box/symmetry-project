@@ -4,6 +4,8 @@ services:
   backend:
     build:
       context: ./symmetry-unified-backend
+      args: 
+        HF_TOKEN: ${HF_TOKEN}
       dockerfile: Dockerfile
     container_name: symmetry-backend
     ports:
@@ -12,6 +14,7 @@ services:
       - PORT=8000
       - HOST=0.0.0.0
       - PYTHONUNBUFFERED=1
+      - HF_TOKEN=${HF_TOKEN}
     volumes:
       - ./symmetry-unified-backend:/app
       - /app/venv
