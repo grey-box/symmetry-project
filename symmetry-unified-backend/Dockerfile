@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+ARG HF_TOKEN
+ENV HF_TOKEN=$HF_TOKEN
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
