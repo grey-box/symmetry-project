@@ -443,16 +443,22 @@ async def extract_facts_endpoint(request: FactExtractionRequest):
     - **section_content**: The text content to extract facts from
     - **model_id**: The ID of the model to use (from /fact-extraction-models endpoint)
     - **section_title**: The title of the section being processed (optional)
+    - **num_facts**: Number of facts to extract (also determines number of model calls via chunking). Default is 1.
     """
     logging.info(
-        "Calling extract facts endpoint (model='%s', content_length=%d, section_title='%s')",
+        "Calling extract facts endpoint (model='%s', content_length=%d, section_title='%s', num_facts=%d)",
         request.model_id,
         len(request.section_content),
         request.section_title,
+        request.num_facts,
     )
     
     try:
-        facts = extract_facts(request.section_content, request.model_id)
+        facts = extract_facts(
+            request.section_content,
+            request.model_id,
+            num_facts=request.num_facts
+        )
         
         config = get_model_config(request.model_id)
         model_name = config["name"]

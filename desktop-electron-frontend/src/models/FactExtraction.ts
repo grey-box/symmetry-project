@@ -12,6 +12,7 @@ export interface FactExtractionRequest {
   section_content: string;
   model_id: string;
   section_title?: string;
+  num_facts?: number;
 }
 
 export interface FactExtractionResponse {

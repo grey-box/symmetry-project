@@ -49,6 +49,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
   const [extractingSection, setExtractingSection] = useState<string | null>(null);
   const [factError, setFactError] = useState<string | null>(null);
+  const [numFacts, setNumFacts] = useState<number>(1);
+  const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
 
 
 
@@ -131,6 +133,19 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   }, [article, selectedSection]);
 
+  // Auto-calculate num_facts based on selected section word count
+  useEffect(() => {
+    if (!autoNumFacts || !article || !selectedSection) return;
+    
+    const section = article.sections.find(s => s.title === selectedSection);
+    if (section) {
+      const wordCount = section.clean_content.split(' ').length;
+      // Calculate: roughly 1 fact per 50 words, minimum 1, maximum 20
+      const calculated = Math.max(1, Math.min(20, Math.ceil(wordCount / 50)));
+      setNumFacts(calculated);
+    }
+  }, [autoNumFacts, selectedSection, article]);
+
   // Load available fact extraction models on mount
   useEffect(() => {
     const loadFactModels = async () => {
@@ -169,7 +184,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
       const response = await structuredWikiService.extractFacts({
         section_content: content,
         model_id: selectedFactModel,
-        section_title: sectionTitle
+        section_title: sectionTitle,
+        num_facts: numFacts
       });
       
       setSectionFacts(prev => ({
@@ -272,6 +288,40 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
               <span className="text-sm text-gray-500">
                 Fact Extraction Model:
               </span>
+            </div>
+            
+            {/* Number of Facts Control */}
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={autoNumFacts}
+                  onChange={(e) => setAutoNumFacts(e.target.checked)}
+                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                Auto
+              </label>
+              
+              {!autoNumFacts && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={numFacts}
+                    onChange={(e) => setNumFacts(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    title="Number of facts to extract"
+                  />
+                  <span className="text-sm text-gray-500">facts</span>
+                </div>
+              )}
+              
+              {autoNumFacts && (
+                <span className="text-sm text-gray-500">
+                  (auto: based on section length)
+                </span>
+              )}
             </div>
           </div>
         )}

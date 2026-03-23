@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 
@@ -26,6 +27,89 @@ with open(CONFIG_PATH, "r") as f:
 _model_cache: Dict[str, Tuple[Any, Any]] = {}
 
 
+def _split_into_sentences(text: str) -> List[str]:
+    """
+    Split text into sentences using regex.
+    Handles sentence boundaries: . ! ?
+    """
+    # Replace multiple whitespace with single space
+    text = re.sub(r'\s+', ' ', text.strip())
+    
+    # Split on sentence endings
+    # Pattern: look for . ! ? followed by space or end of string
+    sentences = re.split(r'(?<=[.!?])\s+', text)
+    
+    # Filter out empty sentences
+    return [s.strip() for s in sentences if s.strip()]
+
+
+def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str]]:
+    """
+    Divide sentences into approximately equal chunks by word count.
+    
+    Args:
+        sentences: List of sentences to chunk
+        num_chunks: Number of chunks to create (will be capped by len(sentences))
+    
+    Returns:
+        List of chunks, where each chunk is a list of sentences
+    """
+    if not sentences:
+        return []
+    
+    # Cap num_chunks to number of sentences
+    num_chunks = min(num_chunks, len(sentences))
+    
+    # Calculate word count for each sentence
+    sentence_word_counts = [len(s.split()) for s in sentences]
+    total_words = sum(sentence_word_counts)
+    
+    if total_words == 0:
+        return [[s] for s in sentences[:num_chunks]]
+    
+    # Target words per chunk
+    target_words_per_chunk = total_words / num_chunks
+    
+    chunks: List[List[str]] = []
+    current_chunk: List[str] = []
+    current_word_count = 0
+    
+    for sentence, word_count in zip(sentences, sentence_word_counts):
+        # If adding this sentence would exceed the target and we still have chunks to allocate
+        if current_word_count + word_count > target_words_per_chunk and len(chunks) < num_chunks - 1:
+            if current_chunk:  # Don't add empty chunks
+                chunks.append(current_chunk)
+            current_chunk = [sentence]
+            current_word_count = word_count
+        else:
+            current_chunk.append(sentence)
+            current_word_count += word_count
+    
+    # Add the last chunk
+    if current_chunk:
+        chunks.append(current_chunk)
+    
+    # If we have fewer chunks than requested, redistribute some sentences
+    # This can happen if sentences are very large
+    while len(chunks) < num_chunks and chunks:
+        # Find the largest chunk
+        largest_idx = max(range(len(chunks)), key=lambda i: len(chunks[i]))
+        largest_chunk = chunks[largest_idx]
+        
+        if len(largest_chunk) <= 1:
+            break  # Can't split further
+            
+        # Split the largest chunk in half
+        mid = len(largest_chunk) // 2
+        new_chunk1 = largest_chunk[:mid]
+        new_chunk2 = largest_chunk[mid:]
+        
+        chunks[largest_idx] = new_chunk1
+        chunks.append(new_chunk2)
+    
+    return chunks
+
+
 def get_model_config(model_id: str) -> Dict[str, Any]:
     config = MODEL_CONFIG.get(model_id)
     if not config:
@@ -41,14 +125,22 @@ def get_available_models() -> List[Dict[str, Any]]:
 # Main extraction function (simplified)
 # ---------------------------------------------------------------------
 
-def extract_facts(text: str, model_id: str) -> str:
+def extract_facts(text: str, model_id: str, num_facts: int = 1) -> List[str]:
     """
-    Sends text + prompt to model and returns RAW output.
-    No parsing, no cleaning.
+    Extract facts from text using the specified model.
+    
+    Args:
+        text: The text content to extract facts from
+        model_id: The ID of the model to use
+        num_facts: Number of facts to extract (also determines number of model calls).
+                  The text will be chunked and each chunk sent to the model.
+                  Default is 1 (no chunking).
+    
+    Returns:
+        List of extracted facts (strings). Empty list if no text.
     """
-
     if not text.strip():
-        return ""
+        return []
 
     config = get_model_config(model_id)
     model_name = config["model_name"]
@@ -69,31 +161,95 @@ def extract_facts(text: str, model_id: str) -> str:
 
     model, tokenizer = _model_cache[model_name]
 
-    # Simple prompt
-    prompt = (
-        "Extract all explicit facts from the text below.\n\n"
-        "Return them as bullet points.\n\n"
-        f"Text:\n{text}\n\n"
-        "Facts:"
-    )
+    # If num_facts is 1, process the whole text at once (backward compatible)
+    if num_facts == 1:
+        chunks = [text]
+    else:
+        # Split text into sentences and chunk
+        sentences = _split_into_sentences(text)
+        if not sentences:
+            return []
+        chunks_sentences = _chunk_by_word_count(sentences, num_facts)
+        chunks = [" ".join(chunk_sentences) for chunk_sentences in chunks_sentences]
 
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
+    all_facts: List[str] = []
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
-    inputs = {k: v.to(device) for k, v in inputs.items()}
+    for chunk in chunks:
+        if not chunk.strip():
+            continue
 
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
-        model.config.pad_token_id = tokenizer.pad_token_id
+        # Build prompt based on prompt_style in model config
+        prompt_style = config.get("prompt_style", "plain")
 
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=256,
-            do_sample=False,
-            eos_token_id=tokenizer.eos_token_id,
-            pad_token_id=tokenizer.pad_token_id,
-        )
+        if prompt_style == "prefix":
+            # T5-style models expect a task prefix rather than an instruction wrapper
+            prefix = config.get("prompt_prefix", "")
+            prompt = f"{prefix}{chunk}"
 
-    return [tokenizer.decode(outputs[0], skip_special_tokens=True)]
+        elif prompt_style == "plain":
+            # Summarization models (e.g. distilbart) were trained on raw text
+            prompt = chunk
+
+        else:
+            prompt = (
+                "Extract all explicit facts from the text below.\n\n"
+                "Return them as bullet points.\n\n"
+                f"Text:\n{chunk}\n\n"
+                "Facts:"
+            )
+
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        model.to(device)
+        inputs = {k: v.to(device) for k, v in inputs.items()}
+
+        if tokenizer.pad_token_id is None:
+            tokenizer.pad_token = tokenizer.eos_token
+            model.config.pad_token_id = tokenizer.pad_token_id
+
+        with torch.no_grad():
+            outputs = model.generate(
+                **inputs,
+                max_new_tokens=256,
+                do_sample=False,
+                eos_token_id=tokenizer.eos_token_id,
+                pad_token_id=tokenizer.pad_token_id,
+            )
+
+        raw_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
+        # Parse the output into individual facts (handle bullet points and newlines)
+        facts_from_chunk = _parse_facts(raw_output)
+        all_facts.extend(facts_from_chunk)
+
+    return all_facts
+
+
+def _parse_facts(raw_output: str) -> List[str]:
+    """
+    Parse raw model output into a list of individual facts.
+    Handles bullet points, numbered lists, and newline-separated facts.
+    """
+    # Split by newlines
+    lines = raw_output.strip().split('\n')
+    
+    facts = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Remove bullet point markers and numbering
+        # Handles: -, *, •, 1., 1), etc.
+        cleaned = re.sub(r'^[\s]*([-*•]|\d+[.)])\s+', '', line)
+        cleaned = cleaned.strip()
+        
+        if cleaned:
+            facts.append(cleaned)
+    
+    # If no bullet points found, treat the whole output as one fact
+    if not facts and raw_output.strip():
+        return [raw_output.strip()]
+    
+    return facts
