@@ -20,7 +20,9 @@ services:
       - /app/__pycache__
       - spacy_models:/spacy_models
     working_dir: /app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: >
+      python -c "import os, spacy; [spacy.cli.download(m.strip()) for m in os.getenv('SPACY_MODELS', '').split(',') if m.strip()]" &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     networks:
       - symmetry-network
     healthcheck:
