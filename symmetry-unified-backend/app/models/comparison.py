@@ -59,3 +59,5 @@ class CompareResponse(BaseModel):
     missing_info: List[SentenceDiff] = Field(default_factory=list)
     extra_info: List[SentenceDiff] = Field(default_factory=list)
     error_message: Optional[str] = None
+    model_name: str = Field(default="sentence-transformers/LaBSE", description="Name of the model used for comparison")
+    similarity_threshold: float = Field(default=0.75, ge=0.0, le=1.0, description="Similarity threshold used for comparison")
