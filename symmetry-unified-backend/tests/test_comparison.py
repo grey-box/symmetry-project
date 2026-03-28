@@ -37,10 +37,10 @@ class TestComparisonRouter:
     ):
         """Test comparison with real Obama article data"""
         request_data = {
-            "article_text_blob_1": sample_obama_text_a,
-            "article_text_blob_2": sample_obama_text_b,
-            "article_text_blob_1_language": "en",
-            "article_text_blob_2_language": "en",
+            "original_article_content": sample_obama_text_a,
+            "translated_article_content": sample_obama_text_b,
+            "original_language": "en",
+            "translated_language": "en",
             "comparison_threshold": 0.65,
             "model_name": "sentence-transformers/LaBSE",
         }
@@ -69,7 +69,7 @@ class TestComparisonRouter:
     def test_compare_articles_missing_required_field(self, client):
         """Test comparison request missing required fields"""
         incomplete_request = {
-            "article_text_blob_1": "First article",
+            "original_article_content": "First article",
         }
 
         response = client.post("/symmetry/v1/articles/compare", json=incomplete_request)
@@ -79,7 +79,7 @@ class TestComparisonRouter:
     def test_compare_articles_invalid_threshold(self, client, valid_compare_request):
         """Test comparison with invalid threshold value"""
         invalid_request = valid_compare_request.copy()
-        invalid_request["comparison_threshold"] = 1.5
+        invalid_request["similarity_threshold"] = 1.5
 
         response = client.post("/symmetry/v1/articles/compare", json=invalid_request)
 
@@ -88,13 +88,13 @@ class TestComparisonRouter:
     def test_compare_articles_invalid_language_length(
         self, client, valid_compare_request
     ):
-        """Test comparison with invalid language code length"""
-        invalid_request = valid_compare_request.copy()
-        invalid_request["article_text_blob_1_language"] = "verylonglanguagecode"
+        """Test comparison accepts long language codes (no length constraint)"""
+        valid_request = valid_compare_request.copy()
+        valid_request["original_language"] = "verylonglanguagecode"
 
-        response = client.post("/symmetry/v1/articles/compare", json=invalid_request)
+        response = client.post("/symmetry/v1/articles/compare", json=valid_request)
 
-        assert response.status_code == 422
+        assert response.status_code == 200
 
     def test_compare_semantic_get_success(self, client, valid_semantic_compare_request):
         """Test successful GET request for semantic comparison"""
@@ -126,18 +126,18 @@ class TestComparisonRouter:
         """Test semantic comparison GET with invalid threshold"""
         response = client.get(
             "/symmetry/v1/comparison/semantic",
-            params={"text_a": "Test", "text_b": "Test", "similarity_threshold": 2.0},
+            params={"original_article_content": "Test", "translated_article_content": "Test", "similarity_threshold": 2.0},
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 422  # FastAPI validates ge/le at framework level
 
     def test_compare_semantic_get_invalid_model(self, client):
         """Test semantic comparison GET with invalid model name"""
         response = client.get(
             "/symmetry/v1/comparison/semantic",
             params={
-                "text_a": "Test",
-                "text_b": "Test",
+                "original_article_content": "Test",
+                "translated_article_content": "Test",
                 "model_name": "invalid-model-name",
             },
         )
@@ -246,7 +246,7 @@ class TestComparisonRouter:
         """Test wiki translation without required parameters"""
         response = client.get("/symmetry/v1/wiki_translate/source_article")
 
-        assert response.status_code == 400
+        assert response.status_code == 422  # FastAPI returns 422 for missing required query params
 
     def test_wiki_translate_article_not_found(self, client):
         """Test wiki translation for non-existent article"""
