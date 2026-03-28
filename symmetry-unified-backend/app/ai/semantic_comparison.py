@@ -53,8 +53,8 @@ def semantic_compare(
     success = True
 
     try:
-        if model_name is None:
-            model_name = "sentence-transformers/LaBSE"
+        if not model_name:
+            model_name = DEFAULT_MODEL
 
         if not hasattr(semantic_compare, "_cache"):
             semantic_compare._cache = {}
@@ -271,8 +271,8 @@ def perform_semantic_comparison(request_data):
     target_article = request_data["translated_article_content"]
     source_language = request_data["original_language"]
     target_language = request_data["translated_language"]
-    sim_threshold = request_data["comparison_threshold"] or 0.65  # default to 0.65 if 0
-    model_name = request_data["model_name"] or "sentence-transformers/LaBSE"
+    sim_threshold = request_data.get("comparison_threshold", 0.65)
+    model_name = request_data.get("model_name", DEFAULT_MODEL)
 
     # perform semantic comparison
     result = semantic_compare(
