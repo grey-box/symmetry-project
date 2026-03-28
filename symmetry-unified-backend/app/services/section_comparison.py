@@ -33,7 +33,7 @@ _model_cache: dict = {}
 
 # When two paragraph embeddings have similarity scores within this margin,
 # Levenshtein distance is used as a tiebreaker for matching.
-LEVENSHTEIN_DISAMBIGUATION_MARGIN = 0.08
+LEVENSHTEIN_DISAMBIGUATION_MARGIN = 0.08 # Consider moving to a central config or making configurable
 
 
 def _get_model(model_name: str) -> SentenceTransformer:
