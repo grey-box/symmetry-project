@@ -37,6 +37,8 @@ from app.models.comparison_request import (
 from app.models.api_models import (
     ModelSelectionResponse,
     ListResponse,
+    FactExtractionRequest,
+    FactExtractionResponse,
 )
 from app.models.section_comparison import (
     SectionCompareRequest,
@@ -81,4 +83,6 @@ __all__ = [
     "SectionCompareResponse",
     "SectionDiff",
     "ParagraphDiff",
+    "FactExtractionRequest",
+    "FactExtractionResponse",
 ]

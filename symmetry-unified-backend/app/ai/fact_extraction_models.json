@@ -1,0 +1,73 @@
+[
+  {
+    "id": "flan-t5-small",
+    "name": "Flan-T5 Small",
+    "provider": "huggingface",
+    "model_name": "google/flan-t5-small",
+    "description": "Instruction-tuned small model, strong CPU performance",
+    "task": "text2text-generation",
+    "prompt_style": "instruction",
+    "use_chat_template": false
+  },
+  {
+    "id": "nu-extract-tiny",
+    "name": "NuExtract Tiny",
+    "provider": "huggingface",
+    "model_name": "numind/NuExtract-tiny",
+    "description": "Designed for structured extraction, lightweight compared to LLMs",
+    "task": "text-generation",
+    "prompt_style": "json",
+    "use_chat_template": false
+  },
+  {
+    "id": "phi-1_5",
+    "name": "Microsoft Phi-1.5",
+    "provider": "huggingface",
+    "model_name": "microsoft/phi-1_5",
+    "description": "Small (~1B) general language model, CPU-possible but heavier",
+    "task": "text-generation",
+    "prompt_style": "numbered",
+    "use_chat_template": true
+  },
+  {
+    "id": "pegasus-xsum",
+    "name": "Pegasus XSum",
+    "provider": "huggingface",
+    "model_name": "google/pegasus-xsum",
+    "description": "Summarization model fine-tuned on XSum dataset, good for abstractive summarization",
+    "task": "text2text-generation",
+    "prompt_style": "instruction",
+    "use_chat_template": false
+  },
+  {
+    "id": "distilbart-cnn-12-6",
+    "name": "DistilBART CNN 12-6",
+    "provider": "huggingface",
+    "model_name": "sshleifer/distilbart-cnn-12-6",
+    "description": "Distilled BART model fine-tuned on CNN/DailyMail, good for extractive-style summarization on CPU",
+    "task": "summarization",
+    "prompt_style": "plain",
+    "use_chat_template": false
+  },
+  {
+    "id": "distilbart-cnn-6-6",
+    "name": "DistilBART CNN 6-6",
+    "provider": "huggingface",
+    "model_name": "sshleifer/distilbart-cnn-6-6",
+    "description": "Smaller distilled BART trained on CNN/DailyMail, produces 2-3 sentence abstractive summaries. Faster and lighter than the 12-6 variant with modest quality tradeoff.",
+    "task": "summarization",
+    "prompt_style": "plain",
+    "use_chat_template": false
+  },
+  {
+    "id": "t5-small",
+    "name": "T5 Small",
+    "provider": "huggingface",
+    "model_name": "google-t5/t5-small",
+    "description": "Lightweight T5 model at ~240MB, requires instruction prefix. Good CPU performance for summarization tasks.",
+    "task": "summarization",
+    "prompt_style": "prefix",
+    "use_chat_template": false,
+    "prompt_prefix": "summarize: "
+  }
+]

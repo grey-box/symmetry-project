@@ -11,6 +11,7 @@ import {
   SectionCompareResponse,
   Section
 } from '../models/structured-wiki';
+import { FactExtractionModel, FactExtractionRequest, FactExtractionResponse } from '../models/FactExtraction';
 
 // Get API base URL from constants
 const API_BASE_URL = 'http://127.0.0.1:8000';
@@ -244,6 +245,35 @@ class StructuredWikiService {
       return 'No citations found';
     }
     return positions.slice(0, 5).join(', ') + (positions.length > 5 ? '...' : '');
+  }
+
+  /**
+   * Get available fact extraction models
+   */
+  async getFactExtractionModels(): Promise<FactExtractionModel[]> {
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/fact-extraction-models`;
+    return this.fetchWithErrorHandling<FactExtractionModel[]>(url);
+  }
+
+  /**
+   * Extract facts from a section's content using a specific model
+   */
+  async extractFacts(request: FactExtractionRequest): Promise<FactExtractionResponse> {
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/extract-facts`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+    
+    return await response.json();
   }
 }
 
