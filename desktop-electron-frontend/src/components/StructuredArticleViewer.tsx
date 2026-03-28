@@ -60,6 +60,12 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [comparing, setComparing] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
 
+  // Section comparison state
+  const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
+  const [compareLang, setCompareLang] = useState('es');
+  const [comparing, setComparing] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+
 
 
   // Load article data

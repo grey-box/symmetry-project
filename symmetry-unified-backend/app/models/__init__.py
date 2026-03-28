@@ -46,6 +46,12 @@ from app.models.section_comparison import (
     SectionDiff,
     ParagraphDiff,
 )
+from app.models.section_comparison import (
+    SectionCompareRequest,
+    SectionCompareResponse,
+    SectionDiff,
+    ParagraphDiff,
+)
 
 __all__ = [
     "Citation",
