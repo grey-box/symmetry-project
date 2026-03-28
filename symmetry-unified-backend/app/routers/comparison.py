@@ -37,7 +37,8 @@ def compare_articles(payload: CompareRequest):
             missing_info=[],
             extra_info=[],
             error_message="Semantic comparison service is unavailable.",
-            comparisons=[],
+            model_name=payload.model_name,
+            similarity_threshold=payload.similarity_threshold
         )
 
     request_data = {
@@ -56,7 +57,8 @@ def compare_articles(payload: CompareRequest):
             missing_info=[],
             extra_info=[],
             error_message="Comparison failed or returned no results.",
-            comparisons=[],
+            model_name=payload.model_name,
+            similarity_threshold=payload.similarity_threshold
         )
 
     comparison = result["comparisons"][0]
@@ -81,18 +83,8 @@ def compare_articles(payload: CompareRequest):
         missing_info=missing_info,
         extra_info=extra_info,
         error_message=None,
-        comparisons=[
-            {
-                "left_article_array": comparison["left_article_array"],
-                "right_article_array": comparison["right_article_array"],
-                "left_article_missing_info_index": comparison[
-                    "left_article_missing_info_index"
-                ],
-                "right_article_extra_info_index": comparison[
-                    "right_article_extra_info_index"
-                ],
-            }
-        ],
+        model_name=payload.model_name,
+        similarity_threshold=payload.similarity_threshold
     )
 
 
@@ -143,7 +135,12 @@ def compare_articles_semantic(
         )
 
     if perform_semantic_comparison is None:
-        return ArticleComparisonResponse(missing_info=[], extra_info=[])
+        return ArticleComparisonResponse(
+            missing_info=[], 
+            extra_info=[],
+            model_name=model_name,
+            similarity_threshold=similarity_threshold
+        )
 
     result = perform_semantic_comparison(
         {
@@ -169,6 +166,8 @@ def compare_articles_semantic(
             )
             for idx in result["comparisons"][0]["right_article_extra_info_index"]
         ],
+        model_name=model_name,
+        similarity_threshold=similarity_threshold
     )
 
 
@@ -198,7 +197,12 @@ def compare_articles_semantic_post(payload: SemanticCompareRequest):
         )
 
     if perform_semantic_comparison is None:
-        return ArticleComparisonResponse(missing_info=[], extra_info=[])
+        return ArticleComparisonResponse(
+            missing_info=[], 
+            extra_info=[],
+            model_name=payload.model_name,
+            similarity_threshold=payload.similarity_threshold
+        )
 
     request_data = {
         "original_article_content": payload.original_article_content,
@@ -223,11 +227,18 @@ def compare_articles_semantic_post(payload: SemanticCompareRequest):
         ]
 
         return ArticleComparisonResponse(
-            missing_info=[{"sentence": item, "index": -1} for item in missing_items],
-            extra_info=[{"sentence": item, "index": -1} for item in extra_items],
+            missing_info=[MissingInfo(sentence=item, index=-1) for item in missing_items],
+            extra_info=[ExtraInfo(sentence=item, index=-1) for item in extra_items],
+            model_name=payload.model_name,
+            similarity_threshold=payload.similarity_threshold
         )
 
-    return ArticleComparisonResponse(missing_info=[], extra_info=[])
+    return ArticleComparisonResponse(
+        missing_info=[], 
+        extra_info=[],
+        model_name=payload.model_name,
+        similarity_threshold=payload.similarity_threshold
+    )
 
 
 @router.get(
