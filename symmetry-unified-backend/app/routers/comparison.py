@@ -24,6 +24,10 @@ except Exception:
 
 router = APIRouter(prefix="/symmetry/v1", tags=["comparison"])
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 7ef4d44 (Summary of Changes (#17))
 
 @router.post("/articles/compare", response_model=CompareResponse)
 def compare_articles(payload: CompareRequest):
@@ -428,6 +432,36 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
         raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 
 
+<<<<<<< HEAD
+=======
+# ---------------------------------------------------------------------------
+# Section-level structured comparison
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+
+from app.models.section_comparison import (
+    SectionCompareRequest,
+    SectionCompareResponse,
+)
+from app.services.article_parser import article_fetcher
+from app.services.section_comparison import compare_article_sections
+
+
+def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
+    """Extract Wikipedia title and language from a URL or plain title string."""
+    if "://" in query:
+        match = re.search(r"https?://([a-z]{2,3})\.wikipedia\.org/wiki/([^#?]*)", query)
+        if match:
+            from urllib.parse import unquote
+
+            lang = match.group(1)
+            title = unquote(match.group(2).replace("_", " "))
+            return title, lang
+        raise ValueError(f"Invalid Wikipedia URL: {query}")
+    return query, default_lang
+
+
+>>>>>>> 7ef4d44 (Summary of Changes (#17))
 @router.post(
     "/articles/compare-sections",
     response_model=SectionCompareResponse,
@@ -478,6 +512,7 @@ def compare_article_sections_endpoint(payload: SectionCompareRequest):
         similarity_threshold=payload.similarity_threshold,
         model_name=payload.model_name,
     )
+<<<<<<< HEAD
 =======
 @router.post(
     "/wiki_translate/chunked_text",
@@ -517,3 +552,5 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
         logging.exception("Chunked translation failed: %s", str(e))
         raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 >>>>>>> a01ec0d (progress indicator for translation)
+=======
+>>>>>>> 7ef4d44 (Summary of Changes (#17))
