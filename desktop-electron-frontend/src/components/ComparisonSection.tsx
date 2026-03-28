@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { Loader2, FileText, Globe, BarChart3 } from 'lucide-react'
 import { compareArticles } from '@/services/compareArticles'
@@ -27,6 +27,7 @@ const ComparisonSection = () => {
   const [isTargetTextReadOnly, setIsTargetTextReadOnly] = useState(false)
   const [isTargetLanguageReadOnly, setIsTargetLanguageReadOnly] = useState(false)
   const [similarityThreshold, setSimilarityThreshold] = useState(0.65)
+  const sourceUrlRef = useRef<HTMLInputElement>(null)
 
   const form = useForm({
     defaultValues: {
@@ -188,13 +189,13 @@ const ComparisonSection = () => {
                  type="url"
                  placeholder="Enter Wikipedia URL"
                  className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                 id="source-url"
+                 ref={sourceUrlRef}
                />
                <Button
                  type="button"
                  variant="outline"
                  onClick={() => {
-                   const url = (document.getElementById('source-url') as HTMLInputElement)?.value
+                   const url = sourceUrlRef.current?.value
                    if (url) {
                      fetchFromUrl(url, setSourceText, setSourceLanguage)
                    }

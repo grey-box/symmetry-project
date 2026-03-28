@@ -1,62 +1,41 @@
-/*
-This file is critical as it handles all the rendering work on frontend.
-Whether rendering source article from API call, providing translation languages in dropdown or
-providing translated article, all the logic is handled here.
-*/
-
-
 import { useForm } from 'react-hook-form'
-import { ChevronRight, Info, Play, Loader2 } from 'lucide-react'
+import { ChevronRight, Info } from 'lucide-react'
 import { useCallback, useState, useEffect } from 'react'
 
-// Importing UI components and necessary services
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { SelectData } from '@/models/SelectData'
 import { fetchArticle } from '@/services/fetchArticle'
 import { translateArticle } from '@/services/translateArticle'
-import { compareArticles } from '@/services/compareArticles'
 import { useAppContext } from '@/context/AppContext'
 import { TranslationFormType } from '@/models/TranslationFormType'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 
-// Translation languages available for selection
-const TRANSLATION_LANGUAGES = [
-  { value: 'english', label: 'English' },
-  { value: 'french', label: 'French' },
-  { value: 'hindi', label: 'Hindi' },
-  { value: 'arabic', label: 'Arabic' },
-]
+/** Maps display type to background color. */
+const getHighlightClass = (displayType: string): string => {
+  switch (displayType) {
+    case 'source':
+      return 'bg-green-50';
+    case 'translated':
+      return 'bg-blue-50';
+    default:
+      return '';
+  }
+};
 
+interface ArticleDisplayBlock {
+  label: string;
+  content: string;
+  displayType: 'source' | 'translated' | '';
+}
 
 const TranslationSection = () => {
-  // Function to assign background color based on suggestion type
-  const getColorClass = (type: any) => {
-    switch (type) {
-      case 'change':
-        return 'bg-green-100';
-      case 'addition':
-        return 'bg-red-100';
-      default:
-        return '';
-    }
-  };
-  
-  // State variables for storing available translation languages and article data
   const [availableTranslationLanguages, setAvailableTranslationLanguages] = useState<SelectData<string>[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
-  const [texts, setTexts] = useState([
-    {
-      editing: "",
-      reference: "",
-      suggestedContribution: "",
-      suggestionType: ""
-    }
-  ]);
+  const [articleBlocks, setArticleBlocks] = useState<ArticleDisplayBlock[]>([]);
 
-  // Setting up form handling with default values
   const form = useForm<TranslationFormType>({
     defaultValues: {
       sourceArticleUrl: '',
@@ -66,24 +45,19 @@ const TranslationSection = () => {
     },
   })
 
-  // Accessing global context values
   const { translationTool, APIKey } = useAppContext()
   
-  // Function to handle compare button click
   const handleCompare = useCallback(() => {
-    // Get the form values
     const sourceContent = form.getValues('sourceArticleContent')
     const translatedContent = form.getValues('translatedArticleContent')
     const sourceUrl = form.getValues('sourceArticleUrl')
     const targetLanguage = form.getValues('targetArticleLanguage')
     
-    // Navigate to comparison section using phase navigation
     const comparisonButton = document.querySelector('button[onClick*="Phase.AI_COMPARISON"]') as HTMLElement
     if (comparisonButton) {
       comparisonButton.click()
     }
     
-    // Store the data in sessionStorage for the comparison section to access
     sessionStorage.setItem('comparisonData', JSON.stringify({
       sourceContent,
       translatedContent,
@@ -92,13 +66,11 @@ const TranslationSection = () => {
     }))
   }, [form])
 
-  // Extracting form methods
   const {
     handleSubmit,
     setValue,
   } = form
   
-  // Function to check backend status using health endpoint
   const checkBackendStatus = useCallback(async () => {
     try {
       const { getAxiosInstance } = await import('@/services/axios');
@@ -110,41 +82,28 @@ const TranslationSection = () => {
     }
   }, [])
 
-  // Check backend status when component mounts
   useEffect(() => {
     checkBackendStatus()
-    
-    // Set up periodic status check every 30 seconds
     const interval = setInterval(checkBackendStatus, 30000)
     
     return () => clearInterval(interval)
   }, [checkBackendStatus])
 
-  // Function to handle form submission and fetch article data
   const onSubmit = useCallback(async (data: TranslationFormType) => {
-    console.log("Translate button is hit")
-    
     try {
       setIsLoading(true)
-      // Check backend status before making request
       await checkBackendStatus()
-      
-      // Fetch the article content from the given URL
       const response = await fetchArticle(data.sourceArticleUrl)
       setValue('sourceArticleContent', response.data.sourceArticle)
-      
-      // Store fetched article content in texts array
-      setTexts(prevTexts => [
-        ...prevTexts,
+      setValue('translatedArticleContent', '')
+      setArticleBlocks([
         {
-          editing: response.data.sourceArticle,
-          reference: response.data.sourceArticle,
-          suggestedContribution: '',
-          suggestionType: 'change',
+          label: 'Source Content',
+          content: response.data.sourceArticle,
+          displayType: 'source',
         },
       ]);
 
-      // Set available translation languages
       setAvailableTranslationLanguages(
         response.data.articleLanguages.map(lang => ({
           value: lang,
@@ -155,7 +114,6 @@ const TranslationSection = () => {
       console.error('Error fetching article:', error)
       setIsLoading(false)
       
-      // Provide user-friendly error messages based on error type
       let errorMessage = 'Failed to fetch article. Please try again.'
       
       if (error instanceof Error) {
@@ -178,39 +136,72 @@ const TranslationSection = () => {
     }
   }, [setValue, translationTool, APIKey])
   
-  // Function to handle language selection and translation
   const onLanguageChange = useCallback(async (language: string) => {
     try {
       setIsLoading(true)
-      
-      // Get the source article title from the URL
+
+      const sourceText = form.getValues('sourceArticleContent')
       const sourceUrl = form.getValues('sourceArticleUrl')
-      const title = new URL(sourceUrl).pathname.split('/').pop() || sourceUrl
-      
-      const response = await translateArticle(title, language)
-      console.log(response.data.translatedArticle)
-      setValue('translatedArticleContent', response.data.translatedArticle)
+      const sourceLangMatch = sourceUrl.match(/https?:\/\/([a-z]{2})\.wikipedia\.org/)
+      const sourceLanguage = sourceLangMatch ? sourceLangMatch[1] : 'en'
+
+      if (!sourceText || !sourceText.trim()) {
+        throw new Error('Source article content is empty.')
+      }
+
+      setValue('translatedArticleContent', '')
+      setArticleBlocks([
+        {
+          label: 'Source Content',
+          content: sourceText,
+          displayType: 'source',
+        },
+      ])
+
+      const response = await translateArticle(sourceText, sourceLanguage, language)
+      const translatedArticle = typeof response.data?.translatedArticle === 'string'
+        ? response.data.translatedArticle
+        : ''
+
+      if (!translatedArticle.trim()) {
+        throw new Error('Translated content is empty.')
+      }
+
+      setValue('translatedArticleContent', translatedArticle)
+      setArticleBlocks([
+        {
+          label: 'Source Content',
+          content: sourceText,
+          displayType: 'source',
+        },
+        {
+          label: 'Translated Content',
+          content: translatedArticle,
+          displayType: 'translated',
+        },
+      ]);
     } catch (error) {
       console.error('Error translating article:', error)
       setIsLoading(false)
-      
-      // Provide user-friendly error messages based on error type
+
+      const axiosError = error as any
       let errorMessage = 'Failed to translate article. Please try again.'
-      
-      if (error instanceof Error) {
-        if (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED')) {
-          errorMessage = 'Backend server is not running. Please start the backend server first.'
-        } else if (error.message.includes('timeout')) {
-          errorMessage = 'Request timed out. Please check your internet connection and try again.'
-        } else if (error.message.includes('404')) {
-          errorMessage = 'Translation not available for the selected language.'
-        } else if (error.message.includes('400')) {
-          errorMessage = 'Invalid translation request. Please try again.'
-        } else {
-          errorMessage = `Error: ${error.message}`
-        }
+
+      if (axiosError?.response?.data?.detail) {
+        const detail = axiosError.response.data.detail
+        errorMessage = typeof detail === 'string' ? detail : JSON.stringify(detail)
+      } else if (axiosError?.message?.includes('Network Error') || axiosError?.message?.includes('ECONNREFUSED')) {
+        errorMessage = 'Backend server is not running. Please start the backend server first.'
+      } else if (axiosError?.message?.includes('timeout')) {
+        errorMessage = 'Request timed out. Please check your internet connection and try again.'
+      } else if (axiosError?.message?.includes('404')) {
+        errorMessage = 'Translation not available for the selected language.'
+      } else if (axiosError?.message?.includes('400')) {
+        errorMessage = 'Invalid translation request. Please try again.'
+      } else if (axiosError?.message) {
+        errorMessage = `Error: ${axiosError.message}`
       }
-      
+
       alert(errorMessage)
     } finally {
       setIsLoading(false)
@@ -221,7 +212,6 @@ const TranslationSection = () => {
     <section className="bg-white mt-6 rounded-xl shadow-md">
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          {/* Top section with instructions and buttons */}
           <div className="flex items-center justify-between p-4">
             <div className="flex items-center gap-x-4">
               <div className="inline-flex items-center gap-x-2">
@@ -231,7 +221,6 @@ const TranslationSection = () => {
                 </span>
               </div>
               
-              {/* Backend Status Indicator */}
               <div className="flex items-center gap-x-2">
                 <div className={`w-2 h-2 rounded-full ${
                   backendStatus === 'online' ? 'bg-green-500' :
@@ -249,8 +238,7 @@ const TranslationSection = () => {
                 type="button" 
                 variant="outline" 
                 onClick={() => { 
-                  console.log("Clear button clicked")
-                  setTexts([]) // Clear the texts state
+                  setArticleBlocks([])
                   form.setValue('sourceArticleUrl', '')
                   form.setValue('sourceArticleContent', '')
                   form.setValue('translatedArticleContent', '')
@@ -269,7 +257,6 @@ const TranslationSection = () => {
             </div>
           </div>
 
-          {/* Input fields for source article URL and target language selection */}
           <div className="flex justify-between py-2 px-5 mt-2 h-fit">
             <FormField
               control={form.control}
@@ -295,7 +282,6 @@ const TranslationSection = () => {
                     <Select
                       onValueChange={(value) => {
                         field.onChange(value);
-                        // Trigger translation when language changes
                         onLanguageChange(value);
                       }}
                       defaultValue={field.value}
@@ -319,9 +305,12 @@ const TranslationSection = () => {
             />
           </div>
           <div>
-            {texts.map((text, index) => (
-              <div key={index} className={getColorClass(text.suggestionType)}>
-                <p className="font-medium">{text.reference}</p>
+            {articleBlocks.map((block, index) => (
+              <div key={index} className={getHighlightClass(block.displayType)}>
+                <p className="text-xs text-zinc-600 px-2 pt-2">{block.label}</p>
+                <p className="font-medium whitespace-pre-wrap break-words px-2 pb-2 max-h-[28rem] overflow-y-auto">
+                  {block.content}
+                </p>
               </div>
             ))}
           </div>
