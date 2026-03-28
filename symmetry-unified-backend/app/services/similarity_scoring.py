@@ -22,7 +22,6 @@ from app.core.settings import (
     BAND_UNKNOWN,
 )
 
-
 # Latinate suffixes for loanword detection (no leading hyphens)
 LOANWORD_SUFFIXES = {
     "tion",
@@ -415,8 +414,9 @@ def get_family_threshold(family_a: LanguageFamily, family_b: LanguageFamily) -> 
         Recommended word_match_threshold (0-1)
     """
     if family_a == family_b and family_a != LanguageFamily.UNKNOWN:
-        return FAMILY_THRESHOLD_SAME
+        return 0.50  # Close family members have high cognate overlap
 
+    # Both Indo-European but different branches
     ie_branches = {
         LanguageFamily.GERMANIC,
         LanguageFamily.ROMANCE,
@@ -424,12 +424,14 @@ def get_family_threshold(family_a: LanguageFamily, family_b: LanguageFamily) -> 
     }
 
     if family_a in ie_branches and family_b in ie_branches:
-        return FAMILY_THRESHOLD_IE_BRANCHES
+        return 0.60  # IE languages share some cognates; use slightly stricter threshold
 
+    # Completely different families
     if family_a != LanguageFamily.UNKNOWN and family_b != LanguageFamily.UNKNOWN:
-        return FAMILY_THRESHOLD_UNRELATED
+        return 0.70  # Strict threshold for unrelated families
 
-    return FAMILY_THRESHOLD_UNKNOWN
+    # Unknown - use default stricter threshold
+    return 0.70
 
 
 def get_family_threshold_bands(
@@ -442,20 +444,23 @@ def get_family_threshold_bands(
         (very_close_threshold, same_branch_high, same_family_low, unrelated_threshold)
     """
     if family_a == family_b and family_a != LanguageFamily.UNKNOWN:
-        return BAND_SAME_FAMILY
+        return (0.75, 0.55, 0.30, 0.15)  # More lenient for same family
 
+    # Both Indo-European
     ie_branches = {
         LanguageFamily.GERMANIC,
         LanguageFamily.ROMANCE,
         LanguageFamily.SLAVIC,
     }
     if family_a in ie_branches and family_b in ie_branches:
-        return BAND_IE_BRANCHES
+        return (0.80, 0.60, 0.35, 0.20)  # Moderately lenient
 
+    # Completely different families
     if family_a != LanguageFamily.UNKNOWN and family_b != LanguageFamily.UNKNOWN:
-        return BAND_DIFFERENT_FAMILIES
+        return (0.85, 0.65, 0.40, 0.25)  # Standard thresholds
 
-    return BAND_UNKNOWN
+    # One or both unknown - use default
+    return (0.85, 0.60, 0.25, 0.10)
 
 
 def classify_band(
@@ -496,7 +501,7 @@ def score_article_pair(
     use_swadesh_filter: bool = False,
     downweight_loanwords: bool = True,
     original_language: Optional[str] = None,
-    translated_language: Optional[str] = None
+    translated_language: Optional[str] = None,
 ) -> SimilarityScore:
     """
     Compute lexical similarity between two articles.
@@ -509,25 +514,33 @@ def score_article_pair(
         downweight_loanwords: If True, count loanword matches as 0.5 instead of 1.0
         original_language: Optional language of original_text (e.g., 'english', 'russian')
         translated_language: Optional language of translated_text (e.g., 'french', 'spanish')
-    
+
     Returns:
         SimilarityScore with similarity %, band, and confidence flags
     """
     # Detect language families
-    family_a = get_language_family(original_language) if original_language else LanguageFamily.UNKNOWN
-    family_b = get_language_family(translated_language) if translated_language else LanguageFamily.UNKNOWN
-    
+    family_a = (
+        get_language_family(original_language)
+        if original_language
+        else LanguageFamily.UNKNOWN
+    )
+    family_b = (
+        get_language_family(translated_language)
+        if translated_language
+        else LanguageFamily.UNKNOWN
+    )
+
     # Normalize scripts for cross-script comparison
     original_text = normalize_script(original_text, original_language)
     translated_text = normalize_script(translated_text, translated_language)
-    
+
     # Auto-determine word_match_threshold if not provided
     if word_match_threshold is None:
         word_match_threshold = get_family_threshold(family_a, family_b)
     # Tokenize to words (simple split on whitespace + punctuation)
-    words_original = re.findall(r'\b\w+\b', original_text.lower())
-    words_translated = re.findall(r'\b\w+\b', translated_text.lower())
-    
+    words_original = re.findall(r"\b\w+\b", original_text.lower())
+    words_translated = re.findall(r"\b\w+\b", translated_text.lower())
+
     if not words_original or not words_translated:
         return SimilarityScore(
             similarity_percent=0.0,
@@ -535,29 +548,29 @@ def score_article_pair(
             confidence_flags=["empty_text"],
             word_match_count=0,
             total_words=len(words_original) + len(words_translated),
-            loanword_risk="unknown"
+            loanword_risk="unknown",
         )
 
     # Filter to Swadesh-100 if requested
     if use_swadesh_filter:
         words_original = [w for w in words_original if w in SWADESH_100]
         words_translated = [w for w in words_translated if w in SWADESH_100]
-    
+
     # Build multiset of word pairs to compare
     # For simplicity, we'll compare each word in original_text to the best match in translated_text
     match_count = 0.0
     loanword_match_count = 0.0
-    
+
     for word_orig in words_original:
         best_sim = 0.0
         best_is_loanword = False
-        
+
         for word_trans in words_translated:
             sim = normalized_levenshtein_distance(word_orig, word_trans)
             if sim > best_sim:
                 best_sim = sim
                 best_is_loanword = is_loanword_pair(word_orig, word_trans)
-        
+
         # Count as match if above threshold
         if best_sim >= word_match_threshold:
             weight = 1.0
@@ -565,10 +578,12 @@ def score_article_pair(
                 weight = 0.5
                 loanword_match_count += 1
             match_count += weight
-    
+
     total_words = len(words_original)
-    lexical_similarity_percent = (match_count / total_words * 100) if total_words > 0 else 0.0
-    
+    lexical_similarity_percent = (
+        (match_count / total_words * 100) if total_words > 0 else 0.0
+    )
+
     # Classify band with family awareness
     band_label, band_desc = classify_band(
         lexical_similarity_percent, family_a, family_b
@@ -597,8 +612,12 @@ def score_article_pair(
         loanword_risk=loanword_risk,
         original_language=original_language,
         translated_language=translated_language,
-        original_language_family=family_a.value if family_a != LanguageFamily.UNKNOWN else None,
-        translated_language_family=family_b.value if family_b != LanguageFamily.UNKNOWN else None
+        original_language_family=family_a.value
+        if family_a != LanguageFamily.UNKNOWN
+        else None,
+        translated_language_family=family_b.value
+        if family_b != LanguageFamily.UNKNOWN
+        else None,
     )
 
 
@@ -616,24 +635,25 @@ def score_articles_batch(
         word_match_threshold: Threshold for word similarity. If None, auto-determined per pair.
         use_swadesh_filter: Filter to Swadesh-100 vocabulary
         language_pairs: Optional list of (original_language, translated_language) tuples matching article_pairs
-    
+
     Returns:
         List of SimilarityScore results
     """
     results = []
     language_pairs = language_pairs or []
-    
+
     for i, (original_text, translated_text) in enumerate(article_pairs):
         original_language, translated_language = None, None
         if i < len(language_pairs):
             original_language, translated_language = language_pairs[i]
-        
+
         score = score_article_pair(
-            original_text, translated_text,
+            original_text,
+            translated_text,
             word_match_threshold=word_match_threshold,
             use_swadesh_filter=use_swadesh_filter,
             original_language=original_language,
-            translated_language=translated_language
+            translated_language=translated_language,
         )
         results.append(score)
     return results
