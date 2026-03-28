@@ -6,7 +6,12 @@ from app.models.response import (
     MissingInfo,
     ExtraInfo,
 )
-from app.models.comparison import CompareRequest, ComparisonResult, CompareResponse, SentenceDiff
+from app.models.comparison import (
+    CompareRequest,
+    ComparisonResult,
+    CompareResponse,
+    SentenceDiff,
+)
 from app.models.structured_response import (
     StructuredArticleResponse,
     StructuredSectionResponse,
@@ -26,18 +31,30 @@ from app.models.structural_analysis import (
     InfoBoxAttribute,
 )
 from app.models.comparison_request import (
-    LLMCompareRequest,
     SemanticCompareRequest,
     BaseCompareRequest,
 )
 from app.models.api_models import (
-    ComparisonResponse,
-    TranslationResponse,
-    ArticleResponse,
     ModelSelectionResponse,
     ListResponse,
+    FactExtractionRequest,
+    FactExtractionResponse,
 )
-from app.models.revision import Revision, SectionDiff, Flag, DiffResponse, LagReport, SectionChange, RevisionDiffResponse
+from app.models.section_comparison import (
+    SectionCompareRequest,
+    SectionCompareResponse,
+    SectionDiff as SectionComparisonDiff,
+    ParagraphDiff,
+)
+from app.models.revision import (
+    Revision,
+    SectionDiff as RevisionSectionDiff,
+    Flag,
+    DiffResponse,
+    LagReport,
+    SectionChange,
+    RevisionDiffResponse,
+)
 
 __all__ = [
     "Citation",
@@ -52,6 +69,7 @@ __all__ = [
     "CompareRequest",
     "ComparisonResult",
     "CompareResponse",
+    "SentenceDiff",
     "StructuredArticleResponse",
     "StructuredSectionResponse",
     "StructuredCitationResponse",
@@ -66,16 +84,18 @@ __all__ = [
     "AnalysisResultsResponse",
     "TableInfo",
     "InfoBoxAttribute",
-    "LLMCompareRequest",
     "SemanticCompareRequest",
     "BaseCompareRequest",
-    "ComparisonResponse",
-    "TranslationResponse",
-    "ArticleResponse",
     "ModelSelectionResponse",
     "ListResponse",
+    "SectionCompareRequest",
+    "SectionCompareResponse",
+    "SectionComparisonDiff",
+    "ParagraphDiff",
+    "FactExtractionRequest",
+    "FactExtractionResponse",
     "Revision",
-    "SectionDiff",
+    "RevisionSectionDiff",
     "Flag",
     "DiffResponse",
     "LagReport",

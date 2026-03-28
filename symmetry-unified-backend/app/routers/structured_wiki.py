@@ -1,11 +1,14 @@
 import logging
-from typing import Dict, Optional, List
+from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
 import requests
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, Query, HTTPException
 
 from app.ai.translations import translate
+from app.ai.fact_extraction import extract_facts, get_available_models, get_model_config
+from app.ai.similarity_scoring import score_article_pair
 from app.models.wiki_structure import Section
 
 from app.models import (
@@ -13,6 +16,8 @@ from app.models import (
     StructuredSectionResponse,
     StructuredCitationResponse,
     StructuredReferenceResponse,
+    FactExtractionRequest,
+    FactExtractionResponse,
     Revision,
     LagReport,
     SectionChange,
@@ -20,7 +25,6 @@ from app.models import (
 )
 from app.services.article_parser import article_fetcher, revision_fetcher
 from app.services.wiki_utils import detect_language_lag
-from app.ai.similarity_scoring import score_article_pair
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 

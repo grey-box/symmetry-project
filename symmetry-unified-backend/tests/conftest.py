@@ -73,10 +73,10 @@ In the 2008 presidential election, after a close primary campaign against Hillar
 def valid_compare_request():
     """Valid comparison request payload"""
     return {
-        "article_text_blob_1": "First article text",
-        "article_text_blob_2": "Second article text",
-        "article_text_blob_1_language": "en",
-        "article_text_blob_2_language": "en",
+        "original_article_content": "First article text",
+        "translated_article_content": "Second article text",
+        "original_language": "en",
+        "translated_language": "en",
         "comparison_threshold": 0.65,
         "model_name": "sentence-transformers/LaBSE",
     }
@@ -86,8 +86,8 @@ def valid_compare_request():
 def valid_semantic_compare_request():
     """Valid semantic comparison request payload"""
     return {
-        "text_a": "First text to compare",
-        "text_b": "Second text to compare",
+        "original_article_content": "First text to compare",
+        "translated_article_content": "Second text to compare",
         "similarity_threshold": 0.75,
         "model_name": "sentence-transformers/LaBSE",
     }
