@@ -21,19 +21,12 @@ export async function compareArticles(
 }>> {
   const axiosInstance = await getAxiosInstance()
 
-    console.log('[DEBUG] compareArticles called with original length:', originalArticleContent.length, 'translated length:', translatedArticleContent.length);
-    console.log('[DEBUG] Languages - original:', originalLanguage, 'translated:', translatedLanguage);
-
-    return axiosInstance.post('/symmetry/v1/articles/compare', {
-      original_article_content: originalArticleContent,
-      translated_article_content: translatedArticleContent,
-      original_language: originalLanguage,
-      translated_language: translatedLanguage,
-      similarity_threshold: similarityThreshold,
-      model_name: 'sentence-transformers/LaBSE'
-    });
-  } catch (error) {
-    console.error('Failed to get axios instance:', error);
-    throw error;
-  }
+  return axiosInstance.post('/symmetry/v1/articles/compare', {
+    original_article_content: sourceArticleContent,
+    translated_article_content: targetArticleContent,
+    original_language: sourceLanguage,
+    translated_language: targetLanguage,
+    similarity_threshold: similarityThreshold,
+    model_name: 'sentence-transformers/LaBSE'
+  });
 }

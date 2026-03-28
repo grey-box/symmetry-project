@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   StructuredArticleResponse,
@@ -8,6 +8,7 @@ import {
   Section
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
+import SectionComparisonView from './SectionComparisonView';
 import { FactExtractionModel, FactExtractionResponse } from '../models/FactExtraction';
 
 const languageCodes = [
@@ -47,16 +48,17 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   // Fact extraction states
   const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
   const [selectedFactModel, setSelectedFactModel] = useState<string>('');
-  const [customFactModel, setCustomFactModel] = useState<string>('');
-  const [customModelValidation, setCustomModelValidation] = useState<{valid: boolean; error?: string} | null>(null);
-  const [validatingCustomModel, setValidatingCustomModel] = useState<boolean>(false);
   const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
   const [extractingSection, setExtractingSection] = useState<string | null>(null);
   const [factError, setFactError] = useState<string | null>(null);
   const [numFacts, setNumFacts] = useState<number>(1);
   const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
-  const [hoveredChunk, setHoveredChunk] = useState<string | null>(null);
-  const [clickedChunk, setClickedChunk] = useState<string | null>(null);
+
+  // Section comparison state
+  const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
+  const [compareLang, setCompareLang] = useState('es');
+  const [comparing, setComparing] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
 
   // Section comparison state
   const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
@@ -130,6 +132,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         source_query: article.title,
         target_query: article.title, // same article, different language
         source_lang: article.lang,
+        similarity_threshold: 0.65,
         similarity_threshold: 0.5,
       });
 
@@ -236,91 +239,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
-  const handleValidateCustomModel = async () => {
-    if (!customFactModel.trim()) {
-      setCustomModelValidation({valid: false, error: 'Please enter a model name'});
-      return;
-    }
-
-    setValidatingCustomModel(true);
-    setCustomModelValidation(null);
-    setFactError(null);
-
-    try {
-      const result = await structuredWikiService.validateFactExtractionModel(customFactModel.trim());
-      setCustomModelValidation(result);
-      
-      if (result.valid && result.model) {
-        // Auto-select the custom model
-        setSelectedFactModel(result.model.id);
-      }
-    } catch (err) {
-      console.error('Error validating custom model:', err);
-      setCustomModelValidation({
-        valid: false,
-        error: err instanceof Error ? err.message : 'Validation failed'
-      });
-    } finally {
-      setValidatingCustomModel(false);
-    }
-  };
-
-  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
-  // Helper to highlight hovered/clicked chunk in content
-  const highlightChunk = (content: string, chunk: string | null, isClickHighlight = false): React.ReactNode => {
-    if (!chunk) return content;
-    const escapedChunk = normalize(chunk).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const normalizedContent = normalize(content);
-    const parts = normalizedContent.split(new RegExp(`(${escapedChunk})`, 'gi'));
-    if (parts.length === 1) return content;
-    
-    return (
-      <>
-        {parts.map((part, index) => {
-          // Check if this part matches the chunk (case-insensitive)
-          if (part.toLowerCase() === chunk.toLowerCase()) {
-            return (
-              <mark
-                key={index}
-                className={`${isClickHighlight ? 'bg-orange-200 outline outline-2 outline-orange-400' : 'bg-yellow-200 outline outline-1 outline-yellow-400'} px-0.5 rounded`}
-              >
-                {part}
-              </mark>
-            );
-          }
-          return part;
-        })}
-      </>
-    );
-  };
-
-  // Handle fact click - scroll to chunk in passage
-  const handleFactClick = (chunk: string) => {
-    // Toggle off if already clicked
-    if (clickedChunk === chunk) {
-      setClickedChunk(null);
-    } else {
-      setClickedChunk(chunk);
-      // Scroll to the highlighted chunk after re-render
-      setTimeout(() => {
-        // Find the first mark element with the clicked chunk
-        const marks = document.querySelectorAll('mark');
-        for (const mark of marks) {
-          if (mark.textContent?.toLowerCase() === chunk.toLowerCase()) {
-            mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            break;
-          }
-        }
-      }, 50);
-    }
-  };
-
-  // Clear clicked highlight when section changes
-  useEffect(() => {
-    setClickedChunk(null);
-    setHoveredChunk(null);
-  }, [selectedSection]);
-
   return (
     <div className="structured-article-viewer p-6 max-w-7xl mx-auto">
       <div className="bg-white rounded-lg shadow-lg p-6">
@@ -360,9 +278,9 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Translate Button Row */}
+        {/* Actions bar: Translate + Compare Sections + Fact Extraction */}
         {article && (
-          <div className="mb-6 flex flex-wrap items-center gap-4">
+          <div className="mb-6 space-y-3">
             {/* Translation Controls */}
             <div className="flex items-center gap-4">
               <select
@@ -389,6 +307,97 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
               <span className="text-sm text-gray-500">
                 {article.lang} → {targetLang}
               </span>
+            </div>
+
+            {/* Compare sections row */}
+            <div className="flex items-center gap-4">
+              <select
+                value={compareLang}
+                onChange={(e) => setCompareLang(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                disabled={comparing}
+              >
+                {TRANSLATION_LANGUAGES.filter(l => l.code !== article.lang).map(lang => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={runSectionComparison}
+                disabled={comparing}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {comparing ? 'Comparing...' : 'Compare Sections'}
+              </button>
+
+              <span className="text-sm text-gray-500">
+                Compare {article.lang} → {compareLang} section-by-section
+              </span>
+
+              {comparisonResult && (
+                <button
+                  onClick={() => setShowComparison(!showComparison)}
+                  className="ml-auto px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  {showComparison ? 'Show Article' : 'Show Comparison'}
+                </button>
+              )}
+            </div>
+
+            {/* Fact Extraction Model Selection */}
+            <div className="flex items-center gap-4">
+              <select
+                value={selectedFactModel}
+                onChange={(e) => setSelectedFactModel(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                disabled={factModels.length === 0}
+              >
+                {factModels.map(model => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+
+              <span className="text-sm text-gray-500">
+                Fact Extraction Model:
+              </span>
+            </div>
+
+            {/* Number of Facts Control */}
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={autoNumFacts}
+                  onChange={(e) => setAutoNumFacts(e.target.checked)}
+                  className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                />
+                Auto
+              </label>
+
+              {!autoNumFacts && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min="1"
+                    max="50"
+                    value={numFacts}
+                    onChange={(e) => setNumFacts(Math.max(1, parseInt(e.target.value) || 1))}
+                    className="w-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    title="Number of facts to extract"
+                  />
+                  <span className="text-sm text-gray-500">facts</span>
+                </div>
+              )}
+
+              {autoNumFacts && (
+                <span className="text-sm text-gray-500">
+                  (auto: based on section length)
+                </span>
+              )}
             </div>
           </div>
         )}
@@ -528,6 +537,11 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
+        {/* Section Comparison View (shown when comparison is active) */}
+        {showComparison && comparisonResult && (
+          <SectionComparisonView comparisonResult={comparisonResult} />
+        )}
+
         {/* Fact Extraction Error Display */}
         {factError && (
           <div className="mb-6 p-4 bg-orange-100 border border-orange-400 text-orange-700 rounded">
@@ -535,8 +549,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Article Statistics */}
-        {articleStats && (
+        {/* Article Statistics (hidden when comparison is shown) */}
+        {!showComparison && articleStats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-blue-50 p-4 rounded-lg">
               <h3 className="text-sm font-medium text-blue-600">Sections</h3>
@@ -700,33 +714,61 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                           </div>
                         )}
 
-                        {/* Citation Positions */}
-                        {section.citation_position && section.citation_position.length > 0 && (
-                          <div className="mt-4 p-3 bg-yellow-50 rounded">
-                            <h5 className="font-medium text-yellow-800 mb-2">Citation Positions</h5>
-                            <p className="text-sm text-yellow-700">
-                              {structuredWikiService.formatCitationPositions(section.citation_position)}
-                            </p>
-                          </div>
-                        )}
+                       {/* Citation Positions */}
+                       {section.citation_position && section.citation_position.length > 0 && (
+                         <div className="mt-4 p-3 bg-yellow-50 rounded">
+                           <h5 className="font-medium text-yellow-800 mb-2">Citation Positions</h5>
+                           <p className="text-sm text-yellow-700">
+                             {structuredWikiService.formatCitationPositions(section.citation_position)}
+                           </p>
+                         </div>
+                       )}
 
-                        {/* Extract Facts Button */}
-                        <div className="mt-6">
-                          <button
-                            onClick={() => handleExtractFacts(section.title, section.clean_content)}
-                            disabled={extractingSection === section.title || !selectedFactModel}
-                            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                          >
-                            {extractingSection === section.title ? (
-                              <>
-                                <Loader2 size={16} className="animate-spin" />
-                                Extracting...
-                              </>
-                            ) : (
-                              'Extract Facts'
-                            )}
-                          </button>
-                        </div>
+                       {/* Extract Facts Button */}
+                       <div className="mt-6">
+                         <button
+                           onClick={() => handleExtractFacts(section.title, section.clean_content)}
+                           disabled={extractingSection === section.title || !selectedFactModel}
+                           className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                         >
+                           {extractingSection === section.title ? (
+                             <>
+                               <Loader2 size={16} className="animate-spin" />
+                               Extracting...
+                             </>
+                           ) : (
+                             'Extract Facts'
+                           )}
+                         </button>
+                       </div>
+
+                       {/* Display Extracted Facts */}
+                       {sectionFacts[section.title] && (
+                         <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                           <div className="flex items-center gap-2 mb-3">
+                             <h5 className="font-semibold text-purple-900">
+                               Extracted Facts
+                             </h5>
+                             <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                               {sectionFacts[section.title].model_used}
+                             </span>
+                           </div>
+                           {sectionFacts[section.title].facts.length > 0 ? (
+                             <ul className="space-y-2">
+                               {sectionFacts[section.title].facts.map((fact, index) => (
+                                 <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
+                                   <span className="text-purple-500 mt-1">•</span>
+                                   <span>{fact}</span>
+                                 </li>
+                               ))}
+                             </ul>
+                           ) : (
+                             <p className="text-sm text-gray-600 italic">
+                               No facts could be extracted from this section.
+                             </p>
+                           )}
+                         </div>
+                       )}
                       </div>
                     );
                   })()}

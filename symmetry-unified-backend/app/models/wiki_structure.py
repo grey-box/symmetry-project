@@ -10,9 +10,9 @@ class Citation(BaseModel):
 
 class Reference(BaseModel):
     model_config = {"frozen": True}
-    label: str = Field(max_length=10000)
-    id: Optional[str] = Field(default=None, max_length=300)
-    url: Optional[str] = Field(default=None, max_length=2000)
+    label: str = Field()
+    id: Optional[str] = Field(default=None)
+    url: Optional[str] = Field(default=None)
 
 
 class Section(BaseModel):

@@ -41,11 +41,17 @@ from app.models.api_models import (
     FactExtractionRequest,
     FactExtractionResponse,
 )
-from app.models.api_models import (
-    ModelSelectionResponse,
-    ListResponse,
-    FactExtractionRequest,
-    FactExtractionResponse,
+from app.models.section_comparison import (
+    SectionCompareRequest,
+    SectionCompareResponse,
+    SectionDiff,
+    ParagraphDiff,
+)
+from app.models.section_comparison import (
+    SectionCompareRequest,
+    SectionCompareResponse,
+    SectionDiff,
+    ParagraphDiff,
 )
 
 __all__ = [

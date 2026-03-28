@@ -14,7 +14,6 @@ except ModuleNotFoundError:
     from app.services.chunking import chunk_text
 
 from app.ai.model_registry import COMPARISON_MODELS, DEFAULT_MODEL
-from app.core.settings import SIMILARITY_THRESHOLD as _DEFAULT_SIMILARITY_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -272,8 +271,8 @@ def perform_semantic_comparison(request_data):
     target_article = request_data["translated_article_content"]
     source_language = request_data["original_language"]
     target_language = request_data["translated_language"]
-    sim_threshold = request_data.get("comparison_threshold", _DEFAULT_SIMILARITY_THRESHOLD)
-    model_name = request_data.get("model_name", DEFAULT_MODEL)
+    sim_threshold = request_data["comparison_threshold"] or 0.65  # default to 0.65 if 0
+    model_name = request_data["model_name"] or "sentence-transformers/LaBSE"
 
     # perform semantic comparison
     result = semantic_compare(

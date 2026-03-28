@@ -3,43 +3,14 @@
 ## Project Overview
 
 Project Symmetry is a cross-language Wikipedia article gap analysis tool with:
-
 - **Frontend**: Electron 26 + React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui (`desktop-electron-frontend/`)
 - **Backend**: Python FastAPI + sentence-transformers + spaCy + MarianMT (`symmetry-unified-backend/`)
 
 The primary feature is **section-by-section, paragraph-by-paragraph semantic comparison** of Wikipedia articles across languages.
 
-## Changelog & Versioning
-
-The project uses **Semantic Versioning** (`vMAJOR.MINOR.PATCH`). All notable changes are recorded in [`CHANGELOG.md`](./CHANGELOG.md).
-
-### Changelog conventions
-
-- Add items under `## [Unreleased]` while work is in progress.
-- When releasing: rename `[Unreleased]` → `## [vX.Y.Z] – YYYY-MM-DD`, then create and push the git tag:
-
-  ```bash
-  git tag -a vX.Y.Z -m "vX.Y.Z"
-  git push origin vX.Y.Z
-  ```
-
-- Bump rules: **major** = breaking change; **minor** = new feature; **patch** = fix / refactor / docs / chore.
-
-### LLM agent instructions for changelog
-
-When asked to bump the version, generate release notes, or assess what changed since the last tag:
-
-1. Read `CHANGELOG.md` in full (it includes an LLM Ingestion Instructions section with a JSON schema and example prompt).
-2. Parse all `## [vX.Y.Z]` sections and apply the bump rules defined there.
-3. Output structured JSON matching the schema before any prose summary.
-4. Do **not** modify `CHANGELOG.md` directly — propose the diff and let the maintainer confirm.
-
----
-
 ## Quick Commands
 
 ### Backend
-
 ```bash
 cd symmetry-unified-backend
 source venv/bin/activate
@@ -49,7 +20,6 @@ pytest -v --tb=short      # verbose with short tracebacks
 ```
 
 ### Frontend
-
 ```bash
 cd desktop-electron-frontend
 yarn install
@@ -60,7 +30,6 @@ yarn build                # production build
 ## Architecture
 
 ### Backend Key Paths
-
 - `app/main.py` - FastAPI app with CORS, exception handlers, router registration
 - `app/routers/comparison.py` - Article comparison endpoints (both legacy and section-level)
 - `app/routers/structured_wiki.py` - Structured article parsing, citation/reference analysis
@@ -75,7 +44,6 @@ yarn build                # production build
 - `app/models/wiki_structure.py` - Core Article/Section/Citation/Reference models
 
 ### Frontend Key Paths
-
 - `src/pages/Home.tsx` - Tab-based layout (Structured Article first, then Legacy tabs)
 - `src/components/StructuredArticleViewer.tsx` - Main article viewer + comparison trigger
 - `src/components/SectionComparisonView.tsx` - Paragraph-level diff visualization
@@ -85,7 +53,6 @@ yarn build                # production build
 - `src/models/structured-wiki.ts` - TypeScript interfaces matching backend Pydantic models
 
 ### API Base URL
-
 The frontend `structuredWikiService.ts` hardcodes `API_BASE_URL = 'http://127.0.0.1:8000'`. The legacy services use Axios with IPC config from `src/services/axios.ts`.
 
 ## Key Design Decisions
@@ -107,7 +74,6 @@ The frontend `structuredWikiService.ts` hardcodes `API_BASE_URL = 'http://127.0.
 ## Conventions
 
 ### Python
-
 - PEP 8 with 88 char max line length
 - Type hints on all function signatures
 - Docstrings on public functions
@@ -115,7 +81,6 @@ The frontend `structuredWikiService.ts` hardcodes `API_BASE_URL = 'http://127.0.
 - Pydantic v2 models with Field descriptions
 
 ### TypeScript
-
 - 2-space indentation
 - `PascalCase` for components and types
 - `camelCase` for functions, variables, services
