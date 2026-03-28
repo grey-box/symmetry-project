@@ -28,5 +28,5 @@ export async function compareArticles(
     translated_language: targetLanguage,
     similarity_threshold: similarityThreshold,
     model_name: 'sentence-transformers/LaBSE'
-  });
+  })
 }
