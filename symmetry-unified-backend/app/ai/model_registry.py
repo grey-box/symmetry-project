@@ -1,9 +1,6 @@
 """
 Central registry of supported sentence-transformer models.
 
-"""
-Central registry of supported sentence-transformer models.
-
 Loads COMPARISON_MODELS and DEFAULT_MODEL from config.json at the
 repository root when available. Falls back to the original hardcoded
 defaults when the config file or keys are missing.
