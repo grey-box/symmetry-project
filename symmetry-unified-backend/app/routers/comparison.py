@@ -23,6 +23,7 @@ except Exception:
 router = APIRouter(prefix="/symmetry/v1", tags=["comparison"])
 
 
+
 @router.post("/articles/compare", response_model=CompareResponse)
 def compare_articles(payload: CompareRequest):
     """
@@ -38,10 +39,10 @@ def compare_articles(payload: CompareRequest):
         )
 
     request_data = {
-        "article_text_blob_1": payload.original_article_content,
-        "article_text_blob_2": payload.translated_article_content,
-        "article_text_blob_1_language": payload.original_language,
-        "article_text_blob_2_language": payload.translated_language,
+        "original_article_content": payload.original_article_content,
+        "translated_article_content": payload.translated_article_content,
+        "original_language": payload.original_language,
+        "translated_language": payload.translated_language,
         "comparison_threshold": payload.similarity_threshold,
         "model_name": payload.model_name,
     }
@@ -100,8 +101,8 @@ def compare_articles(payload: CompareRequest):
     description="Performs semantic comparison between two texts using sentence embeddings. Returns sentences that are missing or extra based on similarity threshold.",
 )
 def compare_articles_semantic(
-    text_a: str = Query(..., description="First text to compare"),
-    text_b: str = Query(..., description="Second text to compare"),
+    original_article_content: str = Query(..., description="Original article text"),
+    translated_article_content: str = Query(..., description="Translated article text"),
     similarity_threshold: float = Query(
         0.75,
         ge=0,
@@ -132,11 +133,11 @@ def compare_articles_semantic(
             detail=f"Invalid model selected. {model_name} does not exist.",
         )
 
-    if text_a is None or text_b is None:
+    if original_article_content is None or translated_article_content is None:
         logging.info("Invalid input provided to semantic comparison.")
         raise HTTPException(
             status_code=400,
-            detail="Either text_a or text_b (or both) was found to be None.",
+            detail="Either original_article_content or translated_article_content (or both) was found to be None.",
         )
 
     if perform_semantic_comparison is None:
@@ -144,10 +145,10 @@ def compare_articles_semantic(
 
     result = perform_semantic_comparison(
         {
-            "article_text_blob_1": text_a,
-            "article_text_blob_2": text_b,
-            "article_text_blob_1_language": "en",
-            "article_text_blob_2_language": "en",
+            "original_article_content": original_article_content,
+            "translated_article_content": translated_article_content,
+            "original_language": "en",
+            "translated_language": "en",
             "comparison_threshold": similarity_threshold,
             "model_name": model_name,
         }
@@ -198,10 +199,10 @@ def compare_articles_semantic_post(payload: SemanticCompareRequest):
         return ArticleComparisonResponse(missing_info=[], extra_info=[])
 
     request_data = {
-        "article_text_blob_1": payload.original_article_content,
-        "article_text_blob_2": payload.translated_article_content,
-        "article_text_blob_1_language": "en",
-        "article_text_blob_2_language": "en",
+        "original_article_content": payload.original_article_content,
+        "translated_article_content": payload.translated_article_content,
+        "original_language": "en",
+        "translated_language": "en",
         "comparison_threshold": payload.similarity_threshold,
         "model_name": payload.model_name,
     }

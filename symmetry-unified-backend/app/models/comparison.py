@@ -1,36 +1,15 @@
-from __future__ import annotations
-
-from pydantic import BaseModel, Field, AliasChoices
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
 class CompareRequest(BaseModel):
     """Request to compare two article text blobs using semantic similarity."""
 
-    original_article_content: str = Field(
-        validation_alias=AliasChoices("original_article_content", "article_text_blob_1")
-    )
-    translated_article_content: str = Field(
-        validation_alias=AliasChoices(
-            "translated_article_content", "article_text_blob_2"
-        )
-    )
-    original_language: str = Field(
-        default="en",
-        validation_alias=AliasChoices(
-            "original_language", "article_text_blob_1_language"
-        ),
-    )
-    translated_language: str = Field(
-        default="fr",
-        validation_alias=AliasChoices(
-            "translated_language", "article_text_blob_2_language"
-        ),
-    )
-    similarity_threshold: float = Field(
-        default=0.75,
-        validation_alias=AliasChoices("similarity_threshold", "comparison_threshold"),
-    )
+    original_article_content: str
+    translated_article_content: str
+    original_language: str = Field(default="en")
+    translated_language: str = Field(default="fr")
+    similarity_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
     model_name: str = "sentence-transformers/LaBSE"
 
 

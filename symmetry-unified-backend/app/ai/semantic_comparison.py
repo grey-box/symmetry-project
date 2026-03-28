@@ -246,10 +246,10 @@ def perform_semantic_comparison(request_data):
 
     Expected JSON format:
     {
-        "article_text_blob_1": "string",
-        "article_text_blob_2": "string",
-        "article_text_blob_1_language": "string",
-        "article_text_blob_2_language": "string",
+        "original_article_content": "string",
+        "translated_article_content": "string",
+        "original_language": "string",
+        "translated_language": "string",
         "comparison_threshold": 0,
         "model_name": "string"
     }
@@ -267,10 +267,10 @@ def perform_semantic_comparison(request_data):
     }
     """
     # extract values from request data
-    source_article = request_data["article_text_blob_1"]
-    target_article = request_data["article_text_blob_2"]
-    source_language = request_data["article_text_blob_1_language"]
-    target_language = request_data["article_text_blob_2_language"]
+    source_article = request_data["original_article_content"]
+    target_article = request_data["translated_article_content"]
+    source_language = request_data["original_language"]
+    target_language = request_data["translated_language"]
     sim_threshold = request_data["comparison_threshold"] or 0.65  # default to 0.65 if 0
     model_name = request_data["model_name"] or "sentence-transformers/LaBSE"
 

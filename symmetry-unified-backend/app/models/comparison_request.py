@@ -4,8 +4,12 @@ from pydantic import BaseModel, Field
 class BaseCompareRequest(BaseModel):
     """Base request for text comparison endpoints."""
 
-    text_a: str = Field(..., description="First text to compare", min_length=1)
-    text_b: str = Field(..., description="Second text to compare", min_length=1)
+    original_article_content: str = Field(
+        ..., description="Original article text", min_length=1
+    )
+    translated_article_content: str = Field(
+        ..., description="Translated article text", min_length=1
+    )
 
 
 class SemanticCompareRequest(BaseCompareRequest):
