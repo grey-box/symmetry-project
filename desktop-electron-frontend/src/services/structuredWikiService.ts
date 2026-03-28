@@ -7,6 +7,8 @@ import {
   StructuredSectionRequest,
   CitationAnalysisRequest,
   ReferenceAnalysisRequest,
+  SectionCompareRequest,
+  SectionCompareResponse,
   Section
 } from '../models/structured-wiki';
 
@@ -115,6 +117,25 @@ class StructuredWikiService {
 
     const url = `${API_BASE_URL}/symmetry/v1/wiki/reference-analysis?${params.toString()}`;
     return this.fetchWithErrorHandling<StructuredReferenceResponse>(url);
+  }
+
+  /**
+   * Compare two Wikipedia articles section-by-section using semantic + Levenshtein analysis.
+   * Returns paragraph-level diffs for each matched/missing/added section.
+   */
+  async compareSections(request: SectionCompareRequest): Promise<SectionCompareResponse> {
+    const response = await fetch(`${API_BASE_URL}/symmetry/v1/articles/compare-sections`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Section comparison failed (${response.status}): ${errorBody}`);
+    }
+
+    return response.json();
   }
 
   /**

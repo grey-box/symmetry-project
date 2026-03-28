@@ -3,9 +3,11 @@ import {
   StructuredArticleResponse,
   StructuredCitationResponse,
   StructuredReferenceResponse,
+  SectionCompareResponse,
   Section
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
+import SectionComparisonView from './SectionComparisonView';
 
 const languageCodes = [
   'en', 'es', 'fr', 'de', 'it', 'pt',
@@ -40,6 +42,12 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState(initialLang);
   const [translating, setTranslating] = useState(false);
+
+  // Section comparison state
+  const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
+  const [compareLang, setCompareLang] = useState('es');
+  const [comparing, setComparing] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
 
 
 
@@ -94,6 +102,31 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
+
+  /** Run section-by-section comparison against another language */
+  const runSectionComparison = async () => {
+    if (!article) return;
+
+    setComparing(true);
+    setError(null);
+
+    try {
+      const result = await structuredWikiService.compareSections({
+        source_query: article.title,
+        target_query: article.title, // same article, different language
+        source_lang: article.lang,
+        target_lang: compareLang,
+        similarity_threshold: 0.5,
+      });
+
+      setComparisonResult(result);
+      setShowComparison(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Section comparison failed');
+    } finally {
+      setComparing(false);
+    }
+  };
 
   // Search sections (for section navigation)
   const filteredSections = article ? structuredWikiService.searchSections(article, searchTerm) : [];
@@ -169,33 +202,73 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Translate Article Button */}      
+        {/* Actions bar: Translate + Compare */}
         {article && (
-          <div className="mb-6 flex items-center gap-4">
-            <select
-              value={targetLang}
-              onChange={(e) => setTargetLang(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-              disabled={translating}
-            >
-              {TRANSLATION_LANGUAGES.map(lang => (
-                <option key={lang.code} value={lang.code}>
-                  {lang.label}
-                </option>
-              ))}
-            </select>
+          <div className="mb-6 space-y-3">
+            {/* Translate row */}
+            <div className="flex items-center gap-4">
+              <select
+                value={targetLang}
+                onChange={(e) => setTargetLang(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                disabled={translating}
+              >
+                {TRANSLATION_LANGUAGES.map(lang => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
 
-            <button
-              onClick={translateArticle}
-              disabled={translating || targetLang === article.lang}
-              className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {translating ? 'Translating...' : 'Translate'}
-            </button>
+              <button
+                onClick={translateArticle}
+                disabled={translating || targetLang === article.lang}
+                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {translating ? 'Translating...' : 'Translate'}
+              </button>
 
-            <span className="text-sm text-gray-500">
-              {article.lang} → {targetLang}
-            </span>
+              <span className="text-sm text-gray-500">
+                {article.lang} → {targetLang}
+              </span>
+            </div>
+
+            {/* Compare sections row */}
+            <div className="flex items-center gap-4">
+              <select
+                value={compareLang}
+                onChange={(e) => setCompareLang(e.target.value)}
+                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                disabled={comparing}
+              >
+                {TRANSLATION_LANGUAGES.filter(l => l.code !== article.lang).map(lang => (
+                  <option key={lang.code} value={lang.code}>
+                    {lang.label}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                onClick={runSectionComparison}
+                disabled={comparing}
+                className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {comparing ? 'Comparing...' : 'Compare Sections'}
+              </button>
+
+              <span className="text-sm text-gray-500">
+                Compare {article.lang} → {compareLang} section-by-section
+              </span>
+
+              {comparisonResult && (
+                <button
+                  onClick={() => setShowComparison(!showComparison)}
+                  className="ml-auto px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  {showComparison ? 'Show Article' : 'Show Comparison'}
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -208,8 +281,13 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Article Statistics */}
-        {articleStats && (
+        {/* Section Comparison View (shown when comparison is active) */}
+        {showComparison && comparisonResult && (
+          <SectionComparisonView comparisonResult={comparisonResult} />
+        )}
+
+        {/* Article Statistics (hidden when comparison is shown) */}
+        {!showComparison && articleStats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-blue-50 p-4 rounded-lg">
               <h3 className="text-sm font-medium text-blue-600">Sections</h3>
@@ -231,7 +309,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Most Cited Articles */}
-        {mostCited.length > 0 && (
+        {!showComparison && mostCited.length > 0 && (
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Most Cited Articles</h3>
             <div className="space-y-2">
@@ -248,7 +326,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Article Content */}
-        {article && (
+        {!showComparison && article && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Section Navigation */}
             <div className="lg:col-span-1">
@@ -348,7 +426,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* References Section */}
-        {referenceAnalysis && referenceAnalysis.references.length > 0 && (
+        {!showComparison && referenceAnalysis && referenceAnalysis.references.length > 0 && (
           <div className="mt-8 pt-8 border-t border-gray-200">
             <h3 className="text-xl font-bold text-gray-800 mb-4">
               References ({referenceAnalysis.total_references})
