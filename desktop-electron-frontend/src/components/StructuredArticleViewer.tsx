@@ -132,7 +132,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         source_query: article.title,
         target_query: article.title, // same article, different language
         source_lang: article.lang,
-        target_lang: compareLang,
+        similarity_threshold: 0.65,
         similarity_threshold: 0.5,
       });
 
