@@ -19,8 +19,7 @@ export async function compareArticles(
     right_article_extra_info_index: number[]
   }>
 }>> {
-  try {
-    const axiosInstance = await getAxiosInstance();
+  const axiosInstance = await getAxiosInstance()
 
   return axiosInstance.post('/symmetry/v1/articles/compare', {
     original_article_content: sourceArticleContent,
@@ -29,5 +28,5 @@ export async function compareArticles(
     translated_language: targetLanguage,
     similarity_threshold: similarityThreshold,
     model_name: 'sentence-transformers/LaBSE'
-  });
+  })
 }
