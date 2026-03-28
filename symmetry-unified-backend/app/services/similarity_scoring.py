@@ -144,10 +144,10 @@ class SimilarityScore:
     word_match_count: int
     total_words: int
     loanword_risk: str
-    language_a: Optional[str] = None
-    language_b: Optional[str] = None
-    language_family_a: Optional[str] = None
-    language_family_b: Optional[str] = None
+    original_language: Optional[str] = None
+    translated_language: Optional[str] = None
+    original_language_family: Optional[str] = None
+    translated_language_family: Optional[str] = None
 
 
 def normalized_levenshtein_distance(s1: str, s2: str) -> float:
@@ -316,73 +316,73 @@ def classify_band(similarity_percent: float, family_a: Optional[LanguageFamily] 
 
 
 def score_article_pair(
-    text_a: str,
-    text_b: str,
+    original_text: str,
+    translated_text: str,
     word_match_threshold: Optional[float] = None,
     use_swadesh_filter: bool = False,
     downweight_loanwords: bool = True,
-    language_a: Optional[str] = None,
-    language_b: Optional[str] = None
+    original_language: Optional[str] = None,
+    translated_language: Optional[str] = None
 ) -> SimilarityScore:
     """
     Compute lexical similarity between two articles.
     
     Args:
-        text_a: First article text
-        text_b: Second article text
+        original_text: Original article text
+        translated_text: Translated article text
         word_match_threshold: Threshold for word similarity (0-1). If None, auto-determined by language families.
         use_swadesh_filter: If True, only match Swadesh-100 core vocabulary
         downweight_loanwords: If True, count loanword matches as 0.5 instead of 1.0
-        language_a: Optional language of text_a (e.g., 'english', 'russian')
-        language_b: Optional language of text_b (e.g., 'french', 'spanish')
+        original_language: Optional language of original_text (e.g., 'english', 'russian')
+        translated_language: Optional language of translated_text (e.g., 'french', 'spanish')
     
     Returns:
         SimilarityScore with similarity %, band, and confidence flags
     """
     # Detect language families
-    family_a = get_language_family(language_a) if language_a else LanguageFamily.UNKNOWN
-    family_b = get_language_family(language_b) if language_b else LanguageFamily.UNKNOWN
+    family_a = get_language_family(original_language) if original_language else LanguageFamily.UNKNOWN
+    family_b = get_language_family(translated_language) if translated_language else LanguageFamily.UNKNOWN
     
     # Normalize scripts for cross-script comparison
-    text_a = normalize_script(text_a, language_a)
-    text_b = normalize_script(text_b, language_b)
+    original_text = normalize_script(original_text, original_language)
+    translated_text = normalize_script(translated_text, translated_language)
     
     # Auto-determine word_match_threshold if not provided
     if word_match_threshold is None:
         word_match_threshold = get_family_threshold(family_a, family_b)
     # Tokenize to words (simple split on whitespace + punctuation)
-    words_a = re.findall(r'\b\w+\b', text_a.lower())
-    words_b = re.findall(r'\b\w+\b', text_b.lower())
+    words_original = re.findall(r'\b\w+\b', original_text.lower())
+    words_translated = re.findall(r'\b\w+\b', translated_text.lower())
     
-    if not words_a or not words_b:
+    if not words_original or not words_translated:
         return SimilarityScore(
             similarity_percent=0.0,
             band_label="unknown",
             confidence_flags=["empty_text"],
             word_match_count=0,
-            total_words=len(words_a) + len(words_b),
+            total_words=len(words_original) + len(words_translated),
             loanword_risk="unknown"
         )
     
     # Filter to Swadesh-100 if requested
     if use_swadesh_filter:
-        words_a = [w for w in words_a if w in SWADESH_100]
-        words_b = [w for w in words_b if w in SWADESH_100]
+        words_original = [w for w in words_original if w in SWADESH_100]
+        words_translated = [w for w in words_translated if w in SWADESH_100]
     
     # Build multiset of word pairs to compare
-    # For simplicity, we'll compare each word in A to the best match in B
+    # For simplicity, we'll compare each word in original_text to the best match in translated_text
     match_count = 0.0
     loanword_match_count = 0.0
     
-    for word_a in words_a:
+    for word_orig in words_original:
         best_sim = 0.0
         best_is_loanword = False
         
-        for word_b in words_b:
-            sim = normalized_levenshtein_distance(word_a, word_b)
+        for word_trans in words_translated:
+            sim = normalized_levenshtein_distance(word_orig, word_trans)
             if sim > best_sim:
                 best_sim = sim
-                best_is_loanword = is_loanword_pair(word_a, word_b)
+                best_is_loanword = is_loanword_pair(word_orig, word_trans)
         
         # Count as match if above threshold
         if best_sim >= word_match_threshold:
@@ -392,7 +392,7 @@ def score_article_pair(
                 loanword_match_count += 1
             match_count += weight
     
-    total_words = len(words_a)
+    total_words = len(words_original)
     lexical_similarity_percent = (match_count / total_words * 100) if total_words > 0 else 0.0
     
     # Classify band with family awareness
@@ -403,10 +403,10 @@ def score_article_pair(
     
     # Confidence flags
     confidence_flags = []
-    if len(words_a) < 20:
-        confidence_flags.append("low_data_a")
-    if len(words_b) < 20:
-        confidence_flags.append("low_data_b")
+    if len(words_original) < 20:
+        confidence_flags.append("low_data_original")
+    if len(words_translated) < 20:
+        confidence_flags.append("low_data_translated")
     if loanword_risk == "high":
         confidence_flags.append("loanword_risk_high")
     if use_swadesh_filter:
@@ -419,10 +419,10 @@ def score_article_pair(
         word_match_count=int(match_count),
         total_words=total_words,
         loanword_risk=loanword_risk,
-        language_a=language_a,
-        language_b=language_b,
-        language_family_a=family_a.value if family_a != LanguageFamily.UNKNOWN else None,
-        language_family_b=family_b.value if family_b != LanguageFamily.UNKNOWN else None
+        original_language=original_language,
+        translated_language=translated_language,
+        original_language_family=family_a.value if family_a != LanguageFamily.UNKNOWN else None,
+        translated_language_family=family_b.value if family_b != LanguageFamily.UNKNOWN else None
     )
 
 
@@ -436,10 +436,10 @@ def score_articles_batch(
     Score multiple article pairs in batch.
     
     Args:
-        article_pairs: List of (text_a, text_b) tuples
+        article_pairs: List of (original_text, translated_text) tuples
         word_match_threshold: Threshold for word similarity. If None, auto-determined per pair.
         use_swadesh_filter: Filter to Swadesh-100 vocabulary
-        language_pairs: Optional list of (language_a, language_b) tuples matching article_pairs
+        language_pairs: Optional list of (original_language, translated_language) tuples matching article_pairs
     
     Returns:
         List of SimilarityScore results
@@ -447,17 +447,17 @@ def score_articles_batch(
     results = []
     language_pairs = language_pairs or []
     
-    for i, (text_a, text_b) in enumerate(article_pairs):
-        lang_a, lang_b = None, None
+    for i, (original_text, translated_text) in enumerate(article_pairs):
+        original_language, translated_language = None, None
         if i < len(language_pairs):
-            lang_a, lang_b = language_pairs[i]
+            original_language, translated_language = language_pairs[i]
         
         score = score_article_pair(
-            text_a, text_b,
+            original_text, translated_text,
             word_match_threshold=word_match_threshold,
             use_swadesh_filter=use_swadesh_filter,
-            language_a=lang_a,
-            language_b=lang_b
+            original_language=original_language,
+            translated_language=translated_language
         )
         results.append(score)
     return results

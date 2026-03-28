@@ -95,17 +95,17 @@ class TestArticlePairScoring:
     
     def test_completely_different_articles(self):
         """Completely different text should score low."""
-        text_a = "one two three four five"
-        text_b = "alpha beta gamma delta epsilon"
-        score = score_article_pair(text_a, text_b)
+        original_text = "one two three four five"
+        translated_text = "alpha beta gamma delta epsilon"
+        score = score_article_pair(original_text, translated_text)
         assert score.similarity_percent < 25
         assert score.band_label == "unrelated"
     
     def test_partially_similar_articles(self):
         """Articles with some overlap should get intermediate scores."""
-        text_a = "the cat sat on the mat"
-        text_b = "the dog sat on the floor"
-        score = score_article_pair(text_a, text_b)
+        original_text = "the cat sat on the mat"
+        translated_text = "the dog sat on the floor"
+        score = score_article_pair(original_text, translated_text)
         assert 25 <= score.similarity_percent <= 85
         assert score.band_label in ["same_branch", "same_family_distant"]
     
@@ -119,18 +119,18 @@ class TestArticlePairScoring:
         """Articles with < 20 words should get low_data flag."""
         text = "one two three"
         score = score_article_pair(text, "four five six")
-        assert "low_data_a" in score.confidence_flags or "low_data_b" in score.confidence_flags
+        assert "low_data_original" in score.confidence_flags or "low_data_translated" in score.confidence_flags
     
     def test_loanword_downweighting(self):
         """Articles with loanwords should be downweighted."""
-        text_a = "nation action position"
-        text_b = "nation action position"
+        original_text = "nation action position"
+        translated_text = "nation action position"
         
         score_no_dw = score_article_pair(
-            text_a, text_b, downweight_loanwords=False
+            original_text, translated_text, downweight_loanwords=False
         )
         score_with_dw = score_article_pair(
-            text_a, text_b, downweight_loanwords=True
+            original_text, translated_text, downweight_loanwords=True
         )
         
         # Both should exist and have values
@@ -139,21 +139,21 @@ class TestArticlePairScoring:
     
     def test_swadesh_filter(self):
         """Swadesh filter should only use core vocabulary."""
-        text_a = "I you he we they hand foot head"
-        text_b = "I you he we they hand foot head"
+        original_text = "I you he we they hand foot head"
+        translated_text = "I you he we they hand foot head"
         
         score = score_article_pair(
-            text_a, text_b, use_swadesh_filter=True
+            original_text, translated_text, use_swadesh_filter=True
         )
         assert "swadesh_filtered" in score.confidence_flags
     
     def test_word_match_threshold(self):
         """Different thresholds should affect match counts."""
-        text_a = "cat"
-        text_b = "car dog bird"
+        original_text = "cat"
+        translated_text = "car dog bird"
         
-        score_low = score_article_pair(text_a, text_b, word_match_threshold=0.5)
-        score_high = score_article_pair(text_a, text_b, word_match_threshold=0.9)
+        score_low = score_article_pair(original_text, translated_text, word_match_threshold=0.5)
+        score_high = score_article_pair(original_text, translated_text, word_match_threshold=0.9)
         
         # Lower threshold should find cat~car, higher threshold should not
         assert score_low.word_match_count >= score_high.word_match_count
@@ -255,8 +255,8 @@ class TestCrossLanguageComparison:
         
         score = score_article_pair(
             text_en, text_es,
-            language_a="english",
-            language_b="spanish"
+            original_language="english",
+            translated_language="spanish"
         )
         assert score.similarity_percent >= 0
     
@@ -267,11 +267,11 @@ class TestCrossLanguageComparison:
         
         score = score_article_pair(
             text_en, text_ru,
-            language_a="english",
-            language_b="russian"
+            original_language="english",
+            translated_language="russian"
         )
-        assert score.language_family_a == "germanic"
-        assert score.language_family_b == "slavic"
+        assert score.original_language_family == "germanic"
+        assert score.translated_language_family == "slavic"
         assert score.similarity_percent >= 0
     
     def test_french_spanish_similarity(self):
@@ -295,9 +295,9 @@ class TestCrossLanguageComparison:
             language_pairs=language_pairs
         )
         assert len(scores) == 2
-        assert scores[0].language_a == "english"
-        assert scores[0].language_b == "english"
-        assert scores[1].language_a == "russian"
+        assert scores[0].original_language == "english"
+        assert scores[0].translated_language == "english"
+        assert scores[1].original_language == "russian"
 
 
 if __name__ == "__main__":
