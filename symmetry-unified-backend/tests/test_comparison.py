@@ -37,8 +37,8 @@ class TestComparisonRouter:
     ):
         """Test comparison with real Obama article data"""
         request_data = {
-            "original_article_content": sample_obama_text_a,
-            "translated_article_content": sample_obama_text_b,
+            "original_article_content": sample_obama_original_text,
+            "translated_article_content": sample_obama_translated_text,
             "original_language": "en",
             "translated_language": "en",
             "comparison_threshold": 0.65,
