@@ -19,7 +19,8 @@ export async function compareArticles(
     right_article_extra_info_index: number[]
   }>
 }>> {
-  const axiosInstance = await getAxiosInstance();
+  try {
+    const axiosInstance = await getAxiosInstance();
 
   return axiosInstance.post('/symmetry/v1/articles/compare', {
     original_article_content: sourceArticleContent,
