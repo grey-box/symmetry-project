@@ -25,6 +25,7 @@ Commands:
     
     docker          Start services with Docker Compose
     docker-up       Start services with Docker Compose (detached)
+    docker-up-rebuild  Rebuild and start Docker services
     docker-down     Stop Docker Compose services
     
     help            Show this help message
@@ -132,7 +133,10 @@ start_backend() {
     source venv/bin/activate
     export PORT=$BACKEND_PORT
     export HOST=${HOST:-127.0.0.1}
-    uvicorn app.main:app --host $HOST --port $BACKEND_PORT --reload
+    uvicorn app.main:app --host $HOST --port $BACKEND_PORT --reload \
+        --reload-exclude "venv/*" \
+        --reload-exclude "venv/**" \
+        --reload-exclude "**/site-packages/*"
 }
 
 start_frontend() {
@@ -202,6 +206,13 @@ docker_up() {
 }
 
 docker_up_detached() {
+    echo "Starting services with Docker Compose (detached)..."
+    docker-compose up -d
+}
+
+docker_up_rebuild() {
+    echo "Rebuilding Docker images..."
+    docker-compose build
     echo "Starting services with Docker Compose (detached)..."
     docker-compose up -d
 }
@@ -291,6 +302,9 @@ case $COMMAND in
         ;;
     docker-up-detached|up)
         docker_up_detached
+        ;;
+    docker-up-rebuild|rebuild)
+        docker_up_rebuild
         ;;
     docker-down|down)
         docker_down

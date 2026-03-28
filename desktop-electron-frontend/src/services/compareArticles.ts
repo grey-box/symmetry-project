@@ -1,12 +1,15 @@
 import { AxiosResponse } from 'axios'
 import { getAxiosInstance } from '@/services/axios'
 
-// API call for semantic comparison of articles
+/**
+ * Compare two article texts using semantic similarity (legacy plain-text comparison).
+ * Calls POST /symmetry/v1/articles/compare with LaBSE embeddings.
+ */
 export async function compareArticles(
-  textA: string,
-  textB: string,
-  languageA: string,
-  languageB: string,
+  sourceArticleContent: string,
+  targetArticleContent: string,
+  sourceLanguage: string,
+  targetLanguage: string,
   similarityThreshold: number = 0.65
 ): Promise<AxiosResponse<{
   comparisons: Array<{
@@ -16,22 +19,14 @@ export async function compareArticles(
     right_article_extra_info_index: number[]
   }>
 }>> {
-  try {
-    const axiosInstance = await getAxiosInstance();
+  const axiosInstance = await getAxiosInstance()
 
-    console.log('[DEBUG] compareArticles called with textA length:', textA.length, 'textB length:', textB.length);
-    console.log('[DEBUG] Languages - A:', languageA, 'B:', languageB);
-
-    return axiosInstance.post('/symmetry/v1/articles/compare', {
-      original_article_content: textA,
-      translated_article_content: textB,
-      original_language: languageA,
-      translated_language: languageB,
-      similarity_threshold: similarityThreshold,
-      model_name: 'sentence-transformers/LaBSE'
-    });
-  } catch (error) {
-    console.error('Failed to get axios instance:', error);
-    throw error;
-  }
+  return axiosInstance.post('/symmetry/v1/articles/compare', {
+    original_article_content: sourceArticleContent,
+    translated_article_content: targetArticleContent,
+    original_language: sourceLanguage,
+    translated_language: targetLanguage,
+    similarity_threshold: similarityThreshold,
+    model_name: 'sentence-transformers/LaBSE'
+  })
 }

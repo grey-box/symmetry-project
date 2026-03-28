@@ -78,3 +78,44 @@ export interface ReferenceAnalysisRequest {
   query: string;
   lang?: string;
 }
+
+// Section comparison types (matching backend SectionCompareResponse)
+
+export interface ParagraphDiff {
+  source_text: string;
+  target_text: string;
+  similarity_score: number;
+  levenshtein_score: number | null;
+  status: 'matched' | 'missing_in_target' | 'added_in_target';
+}
+
+export interface SectionDiff {
+  source_title: string;
+  target_title: string;
+  section_similarity: number;
+  status: 'matched' | 'missing_in_target' | 'added_in_target';
+  paragraph_diffs: ParagraphDiff[];
+}
+
+export interface SectionCompareResponse {
+  source_title: string;
+  target_title: string;
+  source_lang: string;
+  target_lang: string;
+  source_section_count: number;
+  target_section_count: number;
+  matched_section_count: number;
+  missing_section_count: number;
+  added_section_count: number;
+  overall_similarity: number;
+  section_diffs: SectionDiff[];
+}
+
+export interface SectionCompareRequest {
+  source_query: string;
+  target_query: string;
+  source_lang?: string;
+  target_lang?: string;
+  similarity_threshold?: number;
+  model_name?: string;
+}

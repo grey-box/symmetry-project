@@ -4,13 +4,14 @@ This file which runs when you use command 'npm run start'
 
 import { app, BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
-import { exec } from 'child_process'
+import { get } from 'node:http'
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare const MAIN_WINDOW_VITE_NAME: string;
 
 import { appConstantsPromise } from './constants/AppConstants'
 let AppConstants: any;
+const BACKEND_HEALTH_URL = 'http://127.0.0.1:8000/health';
 
 // A function to load our configuration file. Must be done from this main process
 // since renderer processes have no file access.
@@ -25,24 +26,37 @@ async function grabConfig() {
     return AppConstants;
 }
 
-// IPC handler to check backend health (does not start backend, just checks if it's running)
-ipcMain.handle('check-backend-health', async () => {
-  const backendUrl = 'http://127.0.0.1:8000/health';
-  
-  return new Promise((resolve) => {
-    exec(`curl -s -o /dev/null -w "%{http_code}" ${backendUrl}`, (error: any, stdout: any) => {
-      if (error) {
-        console.log(`[WARN] Backend health check failed: ${error.message}`);
-        resolve({ status: 'unhealthy', error: error.message });
-      } else if (stdout === '200') {
+function checkBackendHealth(backendUrl: string) {
+  return new Promise<{ status: string; url?: string; httpCode?: number; error?: string }>((resolve) => {
+    const req = get(backendUrl, { timeout: 5000 }, (res) => {
+      res.resume();
+
+      if (res.statusCode === 200) {
         console.log(`[INFO] Backend is healthy (HTTP 200)`);
         resolve({ status: 'healthy', url: backendUrl });
-      } else {
-        console.log(`[WARN] Backend responded with HTTP ${stdout}`);
-        resolve({ status: 'unhealthy', httpCode: stdout });
+        return;
       }
+
+      console.log(`[WARN] Backend responded with HTTP ${res.statusCode}`);
+      resolve({ status: 'unhealthy', httpCode: res.statusCode });
+    });
+
+    req.on('error', (error) => {
+      console.log(`[WARN] Backend health check failed: ${error.message}`);
+      resolve({ status: 'unhealthy', error: error.message });
+    });
+
+    req.on('timeout', () => {
+      req.destroy();
+      console.log('[WARN] Backend health check timed out.');
+      resolve({ status: 'unhealthy', error: 'timeout' });
     });
   });
+}
+
+// IPC handler to check backend health (does not start backend, just checks if it's running)
+ipcMain.handle('check-backend-health', async () => {
+  return checkBackendHealth(BACKEND_HEALTH_URL);
 });
 
 // Defining an IPC handle so renderer processes can access config.
@@ -85,14 +99,11 @@ const createWindow = async () => {
   }
   
   // Perform a health check on backend
-  exec('curl -s http://127.0.0.1:8000/health', (error: any, stdout: any, stderr: any) => {
-    if (error) {
+  const health = await checkBackendHealth(BACKEND_HEALTH_URL);
+  if (health.status !== 'healthy') {
       console.log(`[WARN] Backend health check failed: Backend may not be running`);
       console.log(`[INFO] Please start backend using: ./start.sh backend`);
-    } else {
-      console.log(`[INFO] Backend is healthy: ${stdout.trim()}`);
-    }
-  });
+  }
 
   // Open the DevTools.
   if (isDev) {

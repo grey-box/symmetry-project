@@ -26,6 +26,10 @@ lxml>=4.9.0
 # HTTP client
 httpx>=0.25.0
 
+# AI Providers
+openai>=1.0.0
+anthropic>=0.8.0
+
 # ML visualization and monitoring
 tensorboard>=2.19.0
 

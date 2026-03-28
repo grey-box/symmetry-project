@@ -5,3 +5,4 @@ backend_test.log
 backend.log
 datasets/
 .DS_Store
+**/tempCodeRunnerFile.py

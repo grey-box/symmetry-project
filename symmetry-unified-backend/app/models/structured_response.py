@@ -4,14 +4,14 @@ from app.models.wiki_structure import Citation, Reference, Section
 
 
 class CitedArticle(BaseModel):
-    title: str = Field(max_length=500)
+    title: str = Field()
     count: int = Field(ge=0)
 
 
 class StructuredArticleResponse(BaseModel):
-    title: str = Field(max_length=500)
-    lang: str = Field(max_length=10)
-    source: str = Field(max_length=100)
+    title: str = Field()
+    lang: str = Field()
+    source: str = Field()
     sections: List[Section]
     references: List[Reference]
     total_sections: int = Field(ge=0)
@@ -20,7 +20,7 @@ class StructuredArticleResponse(BaseModel):
 
 
 class StructuredSectionResponse(BaseModel):
-    title: str = Field(max_length=500)
+    title: str = Field()
     raw_content: str
     clean_content: str
     citations: Optional[List[Citation]] = None

@@ -3,13 +3,13 @@ from typing import List, Optional
 
 
 class MissingInfo(BaseModel):
-    sentence: str = Field(max_length=2000)
+    sentence: str = Field()
     index: int
     similarity_score: Optional[float] = None
 
 
 class ExtraInfo(BaseModel):
-    sentence: str = Field(max_length=2000)
+    sentence: str = Field()
     index: int
     similarity_score: Optional[float] = None
 
