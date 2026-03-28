@@ -13,7 +13,7 @@ class TableResponse(BaseModel):
     individual_table_information: List[TableInfo] = Field(
         description="Individual table information"
     )
-    language: str = Field(description="Article language", min_length=1, max_length=10)
+    language: str = Field(description="Article language", min_length=1)
 
 
 class HeaderCount(BaseModel):
@@ -38,7 +38,7 @@ class HeaderCount(BaseModel):
 
 
 class InfoBoxAttribute(BaseModel):
-    attribute_name: str = Field(max_length=200)
+    attribute_name: str = Field()
     attribute_value: str
 
 
@@ -60,13 +60,13 @@ class CitationAnalysisResponse(BaseModel):
     )
     see_also_links: int = Field(description="Count of see-also links", ge=0)
     external_links: int = Field(description="Count of external links", ge=0)
-    page_title: str = Field(description="Page title", min_length=1, max_length=500)
-    language: str = Field(description="Language", min_length=1, max_length=10)
+    page_title: str = Field(description="Page title", min_length=1)
+    language: str = Field(description="Language", min_length=1)
     total_citations: int = Field(description="Total number of citations", ge=0)
 
 
 class FinalAnalysisResponse(BaseModel):
-    title: str = Field(max_length=500)
+    title: str = Field()
     table_analysis: TableResponse
     header_analysis: HeaderCount
     info_box: InfoBoxResponse
@@ -75,16 +75,16 @@ class FinalAnalysisResponse(BaseModel):
 
 
 class MultiLanguageScoreResponse(BaseModel):
-    lang_code: str = Field(max_length=10)
-    lang_name: str = Field(max_length=100)
-    title: Optional[str] = Field(default=None, max_length=500)
+    lang_code: str = Field()
+    lang_name: str = Field()
+    title: Optional[str] = Field(default=None)
     score: float = Field(ge=-1.0)
     is_user_language: bool
     is_authority_article: bool
-    error: Optional[str] = Field(default=None, max_length=500)
+    error: Optional[str] = Field(default=None)
 
 
 class AnalysisResultsResponse(BaseModel):
     article: str = Field(min_length=1)
-    source_language_code: str = Field(min_length=1, max_length=10)
+    source_language_code: str = Field(min_length=1)
     scores_by_language: List[MultiLanguageScoreResponse]

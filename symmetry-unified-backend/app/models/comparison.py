@@ -7,26 +7,24 @@ from typing import List, Optional
 class CompareRequest(BaseModel):
     """Request to compare two article text blobs using semantic similarity."""
 
-    text_a: str = Field(
+    original_article_content: str = Field(
+        validation_alias=AliasChoices("original_article_content", "article_text_blob_1")
+    )
+    translated_article_content: str = Field(
         validation_alias=AliasChoices(
-            "text_a", "original_article_content", "article_text_blob_1"
+            "translated_article_content", "article_text_blob_2"
         )
     )
-    text_b: str = Field(
-        validation_alias=AliasChoices(
-            "text_b", "translated_article_content", "article_text_blob_2"
-        )
-    )
-    language_a: str = Field(
+    original_language: str = Field(
         default="en",
         validation_alias=AliasChoices(
-            "language_a", "original_language", "article_text_blob_1_language"
+            "original_language", "article_text_blob_1_language"
         ),
     )
-    language_b: str = Field(
+    translated_language: str = Field(
         default="fr",
         validation_alias=AliasChoices(
-            "language_b", "translated_language", "article_text_blob_2_language"
+            "translated_language", "article_text_blob_2_language"
         ),
     )
     similarity_threshold: float = Field(
