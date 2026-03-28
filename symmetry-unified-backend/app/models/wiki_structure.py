@@ -15,6 +15,7 @@ class Reference(BaseModel):
     url: Optional[str] = Field(default=None)
 
 
+
 class Section(BaseModel):
     title: str = Field()
     raw_content: str
