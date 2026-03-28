@@ -25,6 +25,7 @@ Commands:
     
     docker          Start services with Docker Compose
     docker-up       Start services with Docker Compose (detached)
+    docker-up-rebuild  Rebuild and start Docker services
     docker-down     Stop Docker Compose services
     
     help            Show this help message
@@ -206,6 +207,13 @@ docker_up_detached() {
     docker-compose up -d
 }
 
+docker_up_rebuild() {
+    echo "Rebuilding Docker images..."
+    docker-compose build
+    echo "Starting services with Docker Compose (detached)..."
+    docker-compose up -d
+}
+
 docker_down() {
     echo "Stopping Docker Compose services..."
     docker-compose down
@@ -291,6 +299,9 @@ case $COMMAND in
         ;;
     docker-up-detached|up)
         docker_up_detached
+        ;;
+    docker-up-rebuild|rebuild)
+        docker_up_rebuild
         ;;
     docker-down|down)
         docker_down
