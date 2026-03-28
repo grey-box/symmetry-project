@@ -4,6 +4,7 @@
   "FRONTEND_PORT": 5173,
   "OLLAMA_BASE_URL": "http://localhost:11434",
   "DEFAULT_TIMEOUT": 30000,
+  "SIMILARITY_THRESHOLD": 0.65,
   "COMPARISON_MODELS": [
     "sentence-transformers/LaBSE",
     "xlm-roberta-base",
