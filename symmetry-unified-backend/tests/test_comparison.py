@@ -33,12 +33,12 @@ class TestComparisonRouter:
             assert len(data["comparisons"]) == 1
 
     def test_compare_articles_with_obama_data(
-        self, client, sample_obama_text_a, sample_obama_text_b
+        self, client, sample_obama_original_text, sample_obama_translated_text
     ):
         """Test comparison with real Obama article data"""
         request_data = {
-            "original_article_content": sample_obama_text_a,
-            "translated_article_content": sample_obama_text_b,
+            "original_article_content": sample_obama_original_text,
+            "translated_article_content": sample_obama_translated_text,
             "original_language": "en",
             "translated_language": "en",
             "comparison_threshold": 0.65,
@@ -48,8 +48,8 @@ class TestComparisonRouter:
         mock_response = {
             "comparisons": [
                 {
-                    "left_article_array": sample_obama_text_a.split("\n"),
-                    "right_article_array": sample_obama_text_b.split("\n"),
+                    "left_article_array": sample_obama_original_text.split("\n"),
+                    "right_article_array": sample_obama_translated_text.split("\n"),
                     "left_article_missing_info_index": [2, 6],
                     "right_article_extra_info_index": [1, 5],
                 }
