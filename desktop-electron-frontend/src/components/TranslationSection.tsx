@@ -12,31 +12,31 @@ import { TranslationFormType } from '@/models/TranslationFormType'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
 
+/** Maps display type to background color. */
+const getHighlightClass = (displayType: string): string => {
+  switch (displayType) {
+    case 'source':
+      return 'bg-green-50';
+    case 'translated':
+      return 'bg-blue-50';
+    default:
+      return '';
+  }
+};
+
+interface ArticleDisplayBlock {
+  label: string;
+  content: string;
+  displayType: 'source' | 'translated' | '';
+}
+
 const TranslationSection = () => {
-  const getColorClass = (type: any) => {
-    switch (type) {
-      case 'change':
-        return 'bg-green-100';
-      case 'addition':
-        return 'bg-red-100';
-      default:
-        return '';
-    }
-  };
-  
   const [availableTranslationLanguages, setAvailableTranslationLanguages] = useState<SelectData<string>[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
   const [translationProgress, setTranslationProgress] = useState(0)
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
-  const [texts, setTexts] = useState([
-    {
-      editing: "",
-      reference: "",
-      suggestedContribution: "",
-      suggestionType: ""
-    }
-  ]);
+  const [articleBlocks, setArticleBlocks] = useState<ArticleDisplayBlock[]>([]);
 
   const form = useForm<TranslationFormType>({
     defaultValues: {
@@ -132,12 +132,11 @@ const TranslationSection = () => {
       const response = await fetchArticle(data.sourceArticleUrl)
       setValue('sourceArticleContent', response.data.sourceArticle)
       setValue('translatedArticleContent', '')
-      setTexts([
+      setArticleBlocks([
         {
-          editing: response.data.sourceArticle,
-          reference: response.data.sourceArticle,
-          suggestedContribution: '',
-          suggestionType: 'change',
+          label: 'Source Content',
+          content: response.data.sourceArticle,
+          displayType: 'source',
         },
       ]);
 
@@ -191,12 +190,11 @@ const TranslationSection = () => {
       }
 
       setValue('translatedArticleContent', '')
-      setTexts([
+      setArticleBlocks([
         {
-          editing: sourceText,
-          reference: sourceText,
-          suggestedContribution: '',
-          suggestionType: 'change',
+          label: 'Source Content',
+          content: sourceText,
+          displayType: 'source',
         },
       ])
 
@@ -210,18 +208,16 @@ const TranslationSection = () => {
       }
 
       setValue('translatedArticleContent', translatedArticle)
-      setTexts([
+      setArticleBlocks([
         {
-          editing: sourceText,
-          reference: sourceText,
-          suggestedContribution: '',
-          suggestionType: 'change',
+          label: 'Source Content',
+          content: sourceText,
+          displayType: 'source',
         },
         {
-          editing: translatedArticle,
-          reference: translatedArticle,
-          suggestedContribution: '',
-          suggestionType: 'addition',
+          label: 'Translated Content',
+          content: translatedArticle,
+          displayType: 'translated',
         },
       ]);
       translationSucceeded = true
@@ -289,7 +285,7 @@ const TranslationSection = () => {
                 type="button" 
                 variant="outline" 
                 onClick={() => { 
-                  setTexts([])
+                  setArticleBlocks([])
                   form.setValue('sourceArticleUrl', '')
                   form.setValue('sourceArticleContent', '')
                   form.setValue('translatedArticleContent', '')
@@ -372,13 +368,11 @@ const TranslationSection = () => {
             />
           </div>
           <div>
-            {texts.map((text, index) => (
-              <div key={index} className={getColorClass(text.suggestionType)}>
-                <p className="text-xs text-zinc-600 px-2 pt-2">
-                  {index === 0 ? 'Source Content' : 'Translated Content'}
-                </p>
+            {articleBlocks.map((block, index) => (
+              <div key={index} className={getHighlightClass(block.displayType)}>
+                <p className="text-xs text-zinc-600 px-2 pt-2">{block.label}</p>
                 <p className="font-medium whitespace-pre-wrap break-words px-2 pb-2 max-h-[28rem] overflow-y-auto">
-                  {text.reference}
+                  {block.content}
                 </p>
               </div>
             ))}

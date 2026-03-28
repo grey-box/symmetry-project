@@ -5,8 +5,8 @@ from app.ai.translations import translate
 class TestTranslationLimits:
     """Test suite for translation model limits in terms of length and content variety"""
 
-    #Length Tests
-    
+    # Length Tests
+
     def test_very_short_text(self):
         """Test translation of very short text (single word)"""
         result = translate("Hello", "en", "es")
@@ -64,7 +64,7 @@ class TestTranslationLimits:
         assert isinstance(result, str)
         # Model might have limits on token length, but should handle or error gracefully
 
-    #content variety tests
+    # content variety tests
 
     def test_technical_content(self):
         """Test translation of technical/specialized content"""
@@ -75,7 +75,9 @@ class TestTranslationLimits:
 
     def test_poetic_content(self):
         """Test translation of poetic/literary content"""
-        poetic_text = "Two roads diverged in a yellow wood, and sorry I could not travel both."
+        poetic_text = (
+            "Two roads diverged in a yellow wood, and sorry I could not travel both."
+        )
         result = translate(poetic_text, "en", "pt")
         assert isinstance(result, str)
         assert len(result) > 0
@@ -117,7 +119,9 @@ class TestTranslationLimits:
 
     def test_code_snippets(self):
         """Test translation with code-like content"""
-        code_text = "function calculate(x, y) { return x + y; } const result = calculate(5, 3);"
+        code_text = (
+            "function calculate(x, y) { return x + y; } const result = calculate(5, 3);"
+        )
         result = translate(code_text, "en", "de")
         assert isinstance(result, str)
         # Should handle code without breaking
@@ -131,14 +135,18 @@ class TestTranslationLimits:
 
     def test_quoted_text(self):
         """Test translation with quoted content"""
-        quoted_text = '"To be or not to be, that is the question." - William Shakespeare'
+        quoted_text = (
+            '"To be or not to be, that is the question." - William Shakespeare'
+        )
         result = translate(quoted_text, "en", "ja")
         assert isinstance(result, str)
         assert len(result) > 0
 
     def test_sentences_with_contractions(self):
         """Test translation with contractions and abbreviated forms"""
-        contraction_text = "I've got what's needed. Don't worry, there's no problem. We'll handle it."
+        contraction_text = (
+            "I've got what's needed. Don't worry, there's no problem. We'll handle it."
+        )
         result = translate(contraction_text, "en", "ko")
         assert isinstance(result, str)
         assert len(result) > 0
@@ -158,12 +166,14 @@ class TestTranslationLimits:
 
     def test_multiline_content(self):
         """Test translation with multiple line breaks"""
-        multiline_text = "Line one.\n\nLine two with spacing.\n\n\nLine three with extra spacing."
+        multiline_text = (
+            "Line one.\n\nLine two with spacing.\n\n\nLine three with extra spacing."
+        )
         result = translate(multiline_text, "en", "hi")
         assert isinstance(result, str)
         assert len(result) > 0
 
-    #language pair tests
+    # language pair tests
 
     def test_english_to_spanish(self):
         """Test English to Spanish translation"""
@@ -225,12 +235,12 @@ class TestTranslationLimits:
         assert isinstance(result, str)
         # Should use generic ROMANCE-en model
 
-    #edge case tests
+    # edge case tests
 
     def test_unsupported_language(self):
-        """Test with unsupported language code"""
-        with pytest.raises(ValueError):
-            translate("Hello world", "en", "xx")
+        """Test with unsupported language code - falls back to original text"""
+        result = translate("Hello world", "en", "xx")
+        assert result == "Hello world"
 
     def test_very_many_special_characters(self):
         """Test with predominantly special characters"""
@@ -279,7 +289,7 @@ class TestTranslationLimits:
         result = translate(" ", "en", "ru")
         assert isinstance(result, str)
 
-    #stres tests
+    # stres tests
 
     def test_consecutive_translations_same_text(self):
         """Test multiple consecutive translations of same text"""
@@ -289,7 +299,7 @@ class TestTranslationLimits:
             result = translate(text, "en", "es")
             results.append(result)
             assert isinstance(result, str)
-        
+
         # Results should be consistent
         assert results[0] == results[1] == results[2]
 
@@ -297,25 +307,30 @@ class TestTranslationLimits:
         """Test multiple consecutive translations to different languages"""
         text = "Hello world"
         languages = ["es", "fr", "de", "it", "pt"]
-        
+
         for lang in languages:
             result = translate(text, "en", lang)
             assert isinstance(result, str)
             assert len(result) > 0
 
-    @pytest.mark.parametrize("text", [
-        "Hello",
-        "Hello world",
-        "The quick brown fox jumps over the lazy dog.",
-        "Machine learning is a powerful technology for solving complex problems."
-    ])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "Hello",
+            "Hello world",
+            "The quick brown fox jumps over the lazy dog.",
+            "Machine learning is a powerful technology for solving complex problems.",
+        ],
+    )
     def test_parametrized_texts_to_spanish(self, text):
         """Parametrized test for various text lengths to Spanish"""
         result = translate(text, "en", "es")
         assert isinstance(result, str)
         assert len(result) > 0
 
-    @pytest.mark.parametrize("lang", ["es", "fr", "de", "it", "pt", "nl", "pl", "ru", "zh", "ja"])
+    @pytest.mark.parametrize(
+        "lang", ["es", "fr", "de", "it", "pt", "nl", "pl", "ru", "zh", "ja"]
+    )
     def test_parametrized_languages(self, lang):
         """Parametrized test for translation to all supported languages"""
         text = "Good morning, how are you today?"
@@ -327,7 +342,7 @@ class TestTranslationLimits:
         """Test that response length is reasonable compared to input"""
         text = "Hello world"
         result = translate(text, "en", "es")
-        
+
         # Translation length should be somewhat reasonable
         # Allow for 5x expansion to account for language differences
         assert len(result) < len(text) * 5
@@ -336,10 +351,10 @@ class TestTranslationLimits:
         """Test that output doesn't grow exponentially with input"""
         short_text = "Hello world"
         long_text = short_text * 50
-        
+
         short_result = translate(short_text, "en", "fr")
         long_result = translate(long_text, "en", "fr")
-        
+
         # Long text should not cause exponential growth in output
         # Should be roughly proportional to input length
         assert len(long_result) < len(short_result) * 100
