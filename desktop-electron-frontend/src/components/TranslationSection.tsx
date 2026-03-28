@@ -37,14 +37,7 @@ const TranslationSection = () => {
   const translationAbortRef = useRef<AbortController | null>(null)
   const [translationProgress, setTranslationProgress] = useState(0)
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
-  const [texts, setTexts] = useState([
-    {
-      editing: "",
-      reference: "",
-      suggestedContribution: "",
-      suggestionType: ""
-    }
-  ]);
+  const [articleBlocks, setArticleBlocks] = useState<ArticleDisplayBlock[]>([]);
 
   const form = useForm<TranslationFormType>({
     defaultValues: {
@@ -306,8 +299,7 @@ const TranslationSection = () => {
                 type="button" 
                 variant="outline" 
                 onClick={() => { 
-                  console.log("Clear button clicked")
-                  setTexts([]) // Clear the texts state
+                  setArticleBlocks([])
                   form.setValue('sourceArticleUrl', '')
                   form.setValue('sourceArticleContent', '')
                   form.setValue('translatedArticleContent', '')

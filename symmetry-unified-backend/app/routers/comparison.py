@@ -15,6 +15,7 @@ from app.models import (
     SentenceDiff,
 )
 from app.models.server_model import ServerModel
+from app.ai.model_registry import COMPARISON_MODELS
 
 try:
     from app.ai.semantic_comparison import perform_semantic_comparison
@@ -24,26 +25,6 @@ except Exception:
 router = APIRouter(prefix="/symmetry/v1", tags=["comparison"])
 
 
-# @router.post("/articles/compare", response_model=CompareResponse)
-# def compare_articles(payload: CompareRequest):
-#     """
-#     This endpoint requests a comparison of two blobs of text using semantic comparison.
-#     The request includes the articles, the languages of the articles, the comparison threshold, and model name.
-#     """
-#     if perform_semantic_comparison is None:
-#         result = {
-#             "comparisons": [
-#                 {
-#                     "left_article_array": [],
-#                     "right_article_array": [],
-#                     "left_article_missing_info_index": [],
-#                     "right_article_extra_info_index": [],
-#                 }
-#             ]
-#         }
-#     else:
-#         result = perform_semantic_comparison(payload.dict())
-#     return result
 
 @router.post(
     "/articles/compare",
@@ -73,10 +54,10 @@ def compare_articles(payload: CompareRequest):
         )
 
     request_data = {
-        "article_text_blob_1": payload.text_a,
-        "article_text_blob_2": payload.text_b,
-        "article_text_blob_1_language": payload.language_a,
-        "article_text_blob_2_language": payload.language_b,
+        "original_article_content": payload.original_article_content,
+        "translated_article_content": payload.translated_article_content,
+        "original_language": payload.original_language,
+        "translated_language": payload.translated_language,
         "comparison_threshold": payload.similarity_threshold,
         "model_name": payload.model_name,
     }
@@ -135,8 +116,8 @@ def compare_articles(payload: CompareRequest):
     description="Performs semantic comparison between two texts using sentence embeddings. Returns sentences that are missing or extra based on similarity threshold.",
 )
 def compare_articles_semantic(
-    text_a: str = Query(..., description="First text to compare"),
-    text_b: str = Query(..., description="Second text to compare"),
+    original_article_content: str = Query(..., description="Original article text"),
+    translated_article_content: str = Query(..., description="Translated article text"),
     similarity_threshold: float = Query(
         0.75,
         ge=0,
@@ -371,3 +352,81 @@ def translate_text_endpoint(
 ):
     server = ServerModel()
     return {"response": server.text_translate(text, target_language)}
+
+
+# ---------------------------------------------------------------------------
+# Section-level structured comparison
+# ---------------------------------------------------------------------------
+
+from app.models.section_comparison import (
+    SectionCompareRequest,
+    SectionCompareResponse,
+)
+from app.services.article_parser import article_fetcher
+from app.services.section_comparison import compare_article_sections
+
+
+def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
+    """Extract Wikipedia title and language from a URL or plain title string."""
+    if "://" in query:
+        match = re.search(r"https?://([a-z]{2,3})\.wikipedia\.org/wiki/([^#?]*)", query)
+        if match:
+            from urllib.parse import unquote
+
+            lang = match.group(1)
+            title = unquote(match.group(2).replace("_", " "))
+            return title, lang
+        raise ValueError(f"Invalid Wikipedia URL: {query}")
+    return query, default_lang
+
+
+@router.post(
+    "/articles/compare-sections",
+    response_model=SectionCompareResponse,
+    summary="Section-Level Article Comparison",
+    description=(
+        "Compares two Wikipedia articles section-by-section and paragraph-by-paragraph "
+        "using semantic embeddings. Returns a structured diff showing matched, missing, "
+        "and added sections/paragraphs. Uses Levenshtein distance for disambiguation "
+        "when semantic similarity scores are close."
+    ),
+)
+def compare_article_sections_endpoint(payload: SectionCompareRequest):
+    """Compare two Wikipedia articles at the section and paragraph level."""
+
+    try:
+        source_title, source_lang = _resolve_title_and_lang(
+            payload.source_query, payload.source_lang
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        target_title, target_lang = _resolve_title_and_lang(
+            payload.target_query, payload.target_lang
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        source_article = article_fetcher(source_title, source_lang)
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Failed to fetch source article '{source_title}' ({source_lang}): {e}",
+        )
+
+    try:
+        target_article = article_fetcher(target_title, target_lang)
+    except Exception as e:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Failed to fetch target article '{target_title}' ({target_lang}): {e}",
+        )
+
+    return compare_article_sections(
+        source_article=source_article,
+        target_article=target_article,
+        similarity_threshold=payload.similarity_threshold,
+        model_name=payload.model_name,
+    )

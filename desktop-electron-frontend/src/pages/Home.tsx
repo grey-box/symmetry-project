@@ -35,18 +35,21 @@ const Home = () => {
 
       <Separator className="mb-6" />
 
-      {
-        phase === Phase.TRANSLATION ?
-          <TranslationSection />
-          : phase === Phase.AI_COMPARISON ?
-            <div id="comparison-section">
-              <ComparisonSection />
-            </div>
-            :
-            <div id="structured-article-section">
-              <StructuredArticleViewer initialLang="en" />
-            </div>
-      }
+      {activeTab === Phase.STRUCTURED_ARTICLE && (
+        <div id="structured-article-section">
+          <StructuredArticleViewer initialLang="en" />
+        </div>
+      )}
+
+      {activeTab === Phase.TRANSLATION && (
+        <TranslationSection />
+      )}
+
+      {activeTab === Phase.AI_COMPARISON && (
+        <div id="comparison-section">
+          <ComparisonSection />
+        </div>
+      )}
     </section>
   )
 }
