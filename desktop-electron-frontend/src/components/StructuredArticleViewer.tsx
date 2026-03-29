@@ -44,7 +44,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState(initialLang);
   const [translating, setTranslating] = useState(false);
-  
+
   // Fact extraction states
   const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
   const [selectedFactModel, setSelectedFactModel] = useState<string>('');
@@ -53,12 +53,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [factError, setFactError] = useState<string | null>(null);
   const [numFacts, setNumFacts] = useState<number>(1);
   const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
-
-  // Section comparison state
-  const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
-  const [compareLang, setCompareLang] = useState('es');
-  const [comparing, setComparing] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
 
   // Section comparison state
   const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
@@ -132,7 +126,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         source_query: article.title,
         target_query: article.title, // same article, different language
         source_lang: article.lang,
-        similarity_threshold: 0.65,
         similarity_threshold: 0.5,
       });
 
@@ -175,7 +168,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   // Auto-calculate num_facts based on selected section word count
   useEffect(() => {
     if (!autoNumFacts || !article || !selectedSection) return;
-    
+
     const section = article.sections.find(s => s.title === selectedSection);
     if (section) {
       const wordCount = section.clean_content.split(' ').length;
@@ -199,7 +192,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         setFactError('Failed to load fact extraction models');
       }
     };
-    
+
     loadFactModels();
   }, []);
 
@@ -226,7 +219,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         section_title: sectionTitle,
         num_facts: numFacts
       });
-      
+
       setSectionFacts(prev => ({
         ...prev,
         [sectionTitle]: response
@@ -402,7 +395,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        
+
 
         {/* Error Display */}
         {error && (
@@ -588,61 +581,61 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                           </div>
                         )}
 
-                       {/* Citation Positions */}
-                       {section.citation_position && section.citation_position.length > 0 && (
-                         <div className="mt-4 p-3 bg-yellow-50 rounded">
-                           <h5 className="font-medium text-yellow-800 mb-2">Citation Positions</h5>
-                           <p className="text-sm text-yellow-700">
-                             {structuredWikiService.formatCitationPositions(section.citation_position)}
-                           </p>
-                         </div>
-                       )}
+                        {/* Citation Positions */}
+                        {section.citation_position && section.citation_position.length > 0 && (
+                          <div className="mt-4 p-3 bg-yellow-50 rounded">
+                            <h5 className="font-medium text-yellow-800 mb-2">Citation Positions</h5>
+                            <p className="text-sm text-yellow-700">
+                              {structuredWikiService.formatCitationPositions(section.citation_position)}
+                            </p>
+                          </div>
+                        )}
 
-                       {/* Extract Facts Button */}
-                       <div className="mt-6">
-                         <button
-                           onClick={() => handleExtractFacts(section.title, section.clean_content)}
-                           disabled={extractingSection === section.title || !selectedFactModel}
-                           className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                         >
-                           {extractingSection === section.title ? (
-                             <>
-                               <Loader2 size={16} className="animate-spin" />
-                               Extracting...
-                             </>
-                           ) : (
-                             'Extract Facts'
-                           )}
-                         </button>
-                       </div>
+                        {/* Extract Facts Button */}
+                        <div className="mt-6">
+                          <button
+                            onClick={() => handleExtractFacts(section.title, section.clean_content)}
+                            disabled={extractingSection === section.title || !selectedFactModel}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            {extractingSection === section.title ? (
+                              <>
+                                <Loader2 size={16} className="animate-spin" />
+                                Extracting...
+                              </>
+                            ) : (
+                              'Extract Facts'
+                            )}
+                          </button>
+                        </div>
 
-                       {/* Display Extracted Facts */}
-                       {sectionFacts[section.title] && (
-                         <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                           <div className="flex items-center gap-2 mb-3">
-                             <h5 className="font-semibold text-purple-900">
-                               Extracted Facts
-                             </h5>
-                             <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                               {sectionFacts[section.title].model_used}
-                             </span>
-                           </div>
-                           {sectionFacts[section.title].facts.length > 0 ? (
-                             <ul className="space-y-2">
-                               {sectionFacts[section.title].facts.map((fact, index) => (
-                                 <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
-                                   <span className="text-purple-500 mt-1">•</span>
-                                   <span>{fact}</span>
-                                 </li>
-                               ))}
-                             </ul>
-                           ) : (
-                             <p className="text-sm text-gray-600 italic">
-                               No facts could be extracted from this section.
-                             </p>
-                           )}
-                         </div>
-                       )}
+                        {/* Display Extracted Facts */}
+                        {sectionFacts[section.title] && (
+                          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <h5 className="font-semibold text-purple-900">
+                                Extracted Facts
+                              </h5>
+                              <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                {sectionFacts[section.title].model_used}
+                              </span>
+                            </div>
+                            {sectionFacts[section.title].facts.length > 0 ? (
+                              <ul className="space-y-2">
+                                {sectionFacts[section.title].facts.map((fact, index) => (
+                                  <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
+                                    <span className="text-purple-500 mt-1">•</span>
+                                    <span>{fact}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-600 italic">
+                                No facts could be extracted from this section.
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
