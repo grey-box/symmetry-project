@@ -1,0 +1,13 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^python3 -c \"import yaml; yaml\\.safe_load\\(open\\('\\.github/workflows/ci\\.yml'\\)\\); print\\('ci\\.yml: valid YAML'\\)\" && python3 -c \"import yaml; yaml\\.safe_load\\(open\\('\\.github/workflows/release\\.yml'\\)\\); print\\('release\\.yml: valid YAML'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "pip3": true,
+        "/^source symmetry-unified-backend/venv/bin/activate && python -c \"import yaml; yaml\\.safe_load\\(open\\('\\.github/workflows/ci\\.yml'\\)\\); print\\('ci\\.yml: valid'\\); yaml\\.safe_load\\(open\\('\\.github/workflows/release\\.yml'\\)\\); print\\('release\\.yml: valid'\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
