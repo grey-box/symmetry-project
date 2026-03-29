@@ -196,13 +196,98 @@ pytest -v           # Verbose
 pytest --cov=app    # With coverage
 ```
 
+## CI/CD
+
+The project uses GitHub Actions for continuous integration and automated releases.
+
+### Workflows
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| **CI** (`.github/workflows/ci.yml`) | Push/PR to `main` or `develop` | Runs backend tests, builds frontend web bundle, builds & smoke-tests frontend Docker image, runs docker-compose integration |
+| **Release** (`.github/workflows/release.yml`) | Push to `main` | Runs full CI → bumps version (semver) → creates git tag → creates GitHub release → publishes Docker images to GHCR |
+
+### CI Pipeline
+
+```
+┌─────────────────┐   ┌──────────────────┐
+│  backend-test   │   │  frontend-build  │
+│  (pytest, py11) │   │  (vite build)    │
+└────────┬────────┘   └────────┬─────────┘
+         │                     │
+         └──────────┬──────────┘
+                    │
+         ┌──────────▼──────────┐    ┌──────────────────┐
+         │  integration-test   │    │  frontend-docker  │
+         │  (docker compose)   │    │  (build + smoke)  │
+         └─────────────────────┘    └──────────────────┘
+```
+
+- **backend-test** — Installs Python 3.11 deps, downloads spaCy model, runs `pytest` (excluding slow/external tests)
+- **frontend-build** — Installs Node 18 deps, runs `npm run build:web` (Vite production build, non-Electron)
+- **frontend-docker** — Builds Docker image, starts container, verifies HTTP response on port 5173
+- **integration-test** — Starts full stack via `docker compose`, waits for backend health check, verifies frontend and API docs are accessible
+
+### Release Pipeline
+
+When a push lands on `main` (typically via PR merge):
+
+1. **All CI checks run and must pass**
+2. **Version is determined** from commit messages since the last tag using [Conventional Commits](https://www.conventionalcommits.org/):
+   - `fix:` → **patch** bump (e.g., `v1.0.5` → `v1.0.6`)
+   - `feat:` → **minor** bump (e.g., `v1.0.5` → `v1.1.0`)
+   - `feat!:` or `BREAKING CHANGE:` → **major** bump (e.g., `v1.0.5` → `v2.0.0`)
+   - No conventional prefix → defaults to **patch**
+3. **Git tag** is created (e.g., `v1.1.0`)
+4. **GitHub Release** is published with auto-generated changelog
+5. **Docker images** are built and pushed to GitHub Container Registry:
+   - `ghcr.io/grey-box/symmetry-project/backend:1.1.0`
+   - `ghcr.io/grey-box/symmetry-project/frontend:1.1.0`
+   - Also tagged with `latest` and `major.minor`
+
+### Conventional Commits
+
+Use these prefixes in commit messages to control versioning:
+
+```bash
+# Patch release (bug fixes)
+git commit -m "fix: correct similarity threshold for short paragraphs"
+
+# Minor release (new features)
+git commit -m "feat: add support for Japanese article parsing"
+
+# Major release (breaking changes)
+git commit -m "feat!: redesign comparison API response format"
+
+# Non-release commits (still valid, default to patch on release)
+git commit -m "docs: update API endpoint documentation"
+git commit -m "chore: update dependencies"
+git commit -m "refactor: extract article fetching into service"
+```
+
+### Docker Images
+
+Released images are available from GHCR:
+
+```bash
+# Pull specific version
+docker pull ghcr.io/grey-box/symmetry-project/backend:1.1.0
+docker pull ghcr.io/grey-box/symmetry-project/frontend:1.1.0
+
+# Pull latest
+docker pull ghcr.io/grey-box/symmetry-project/backend:latest
+docker pull ghcr.io/grey-box/symmetry-project/frontend:latest
+```
+
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/your-feature`)
 3. Install dependencies (see Quick Start)
 4. Make changes and run tests
-5. Submit a pull request
+5. Use [Conventional Commits](https://www.conventionalcommits.org/) for your commit messages
+6. Submit a pull request to `develop`
+7. After review, PRs are merged to `develop`, then promoted to `main` for release
 
 ### Code Standards
 
