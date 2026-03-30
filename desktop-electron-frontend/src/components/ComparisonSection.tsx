@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { Loader2, FileText, Globe, BarChart3 } from 'lucide-react'
 import { compareArticles } from '@/services/compareArticles'
 import { fetchArticle } from '@/services/fetchArticle'
+import { getThresholds } from '@/services/thresholdService'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -29,6 +30,13 @@ const ComparisonSection = () => {
   const [similarityThreshold, setSimilarityThreshold] = useState(0.65)
   const sourceUrlRef = useRef<HTMLInputElement>(null)
 
+  // Fetch default threshold from backend on mount
+  useEffect(() => {
+    getThresholds().then((thresholds) => {
+      setSimilarityThreshold(thresholds.similarity_threshold)
+    })
+  }, [])
+
   const form = useForm({
     defaultValues: {
       sourceText: '',
@@ -43,19 +51,19 @@ const ComparisonSection = () => {
       const { sourceContent, translatedContent, sourceUrl, targetLanguage: targetLang } = JSON.parse(comparisonData)
       setSourceText(sourceContent)
       setTargetText(translatedContent)
-      
+
       // If source URL is provided, extract language and set target URL
       if (sourceUrl) {
         const langMatch = sourceUrl.match(/https?:\/\/([a-z]{2})\.wikipedia\.org/)
         const sourceLang = langMatch ? langMatch[1] : 'en'
         setSourceLanguage(sourceLang)
-        
+
         if (targetLang) {
           // Set target URL with target language
           const targetUrlObj = new URL(sourceUrl)
           targetUrlObj.hostname = `${targetLang.toLowerCase()}.wikipedia.org`
           setTargetUrl(targetUrlObj.toString())
-          
+
           // Set target language (convert to 2-letter code)
           const langMap: Record<string, string> = {
             'English': 'en',
@@ -65,12 +73,12 @@ const ComparisonSection = () => {
           }
           setTargetLanguage(langMap[targetLang] || targetLang.toLowerCase())
         }
-        
+
         // Make target fields read-only
         setIsTargetTextReadOnly(true)
         setIsTargetLanguageReadOnly(true)
       }
-      
+
       form.setValue('sourceText', sourceContent)
       form.setValue('targetText', translatedContent)
 
@@ -183,27 +191,27 @@ const ComparisonSection = () => {
               <FileText size={16} />
               <h3 className="text-lg font-medium">Source Text</h3>
             </div>
-            
+
             <div className="flex gap-2">
-               <input
-                 type="url"
-                 placeholder="Enter Wikipedia URL"
-                 className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                 ref={sourceUrlRef}
-               />
-               <Button
-                 type="button"
-                 variant="outline"
-                 onClick={() => {
-                   const url = sourceUrlRef.current?.value
-                   if (url) {
-                     fetchFromUrl(url, setSourceText, setSourceLanguage)
-                   }
-                 }}
-                 disabled={isLoading}
-               >
-                 Fetch
-               </Button>
+              <input
+                type="url"
+                placeholder="Enter Wikipedia URL"
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                ref={sourceUrlRef}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  const url = sourceUrlRef.current?.value
+                  if (url) {
+                    fetchFromUrl(url, setSourceText, setSourceLanguage)
+                  }
+                }}
+                disabled={isLoading}
+              >
+                Fetch
+              </Button>
             </div>
 
             <FormField
@@ -241,43 +249,43 @@ const ComparisonSection = () => {
               control={form.control}
               name="targetText"
               render={({ field }) => (
-                  <FormItem>
-                   <div className="flex items-center justify-between">
-                     <FormLabel>Target Content</FormLabel>
-                     <div className="flex items-center gap-2">
-                       {isTargetTextReadOnly && (
-                         <div className="flex items-center gap-2 mr-2">
-                           <input
-                             type="text"
-                             value={targetUrl}
-                             readOnly
-                             className="max-w-[200px] px-2 py-1 text-xs border border-gray-300 rounded-md bg-gray-50"
-                             title="Source URL from Translation page"
-                           />
-                           <span className="text-xs text-gray-400">→</span>
-                         </div>
-                       )}
-                       <label className="text-sm text-gray-500">Language:</label>
-                       <input
-                         type="text"
-                         value={targetLanguage}
-                         onChange={(e) => setTargetLanguage(e.target.value)}
-                         className="w-16 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                         placeholder="en"
-                         readOnly={isTargetLanguageReadOnly}
-                       />
-                     </div>
-                   </div>
-                   <FormControl>
-                     <Textarea
-                       placeholder="Paste translated text here..."
-                       className="min-h-[150px]"
-                       {...field}
-                       readOnly={isTargetTextReadOnly}
-                     />
-                   </FormControl>
-                   <FormMessage />
-                 </FormItem>
+                <FormItem>
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Target Content</FormLabel>
+                    <div className="flex items-center gap-2">
+                      {isTargetTextReadOnly && (
+                        <div className="flex items-center gap-2 mr-2">
+                          <input
+                            type="text"
+                            value={targetUrl}
+                            readOnly
+                            className="max-w-[200px] px-2 py-1 text-xs border border-gray-300 rounded-md bg-gray-50"
+                            title="Source URL from Translation page"
+                          />
+                          <span className="text-xs text-gray-400">→</span>
+                        </div>
+                      )}
+                      <label className="text-sm text-gray-500">Language:</label>
+                      <input
+                        type="text"
+                        value={targetLanguage}
+                        onChange={(e) => setTargetLanguage(e.target.value)}
+                        className="w-16 px-2 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="en"
+                        readOnly={isTargetLanguageReadOnly}
+                      />
+                    </div>
+                  </div>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Paste translated text here..."
+                      className="min-h-[150px]"
+                      {...field}
+                      readOnly={isTargetTextReadOnly}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
             />
           </div>
@@ -330,10 +338,10 @@ const ComparisonSection = () => {
       {comparisonResult && (
         <div className="mt-8 space-y-6">
           <Separator />
-          
+
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Comparison Results</h3>
-            
+
             {/* Missing Information (from right article - translated) */}
             {comparisonResult.right_article_extra_info_index.length > 0 && (
               <div className="space-y-2">
