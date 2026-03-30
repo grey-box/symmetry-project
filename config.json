@@ -3,19 +3,5 @@
   "BACKEND_PORT": 8000,
   "FRONTEND_PORT": 5173,
   "OLLAMA_BASE_URL": "http://localhost:11434",
-  "DEFAULT_TIMEOUT": 30000,
-  "SIMILARITY_THRESHOLD": 0.65,
-  "LEVENSHTEIN_DISAMBIGUATION_MARGIN": 0.08,
-  "FAMILY_THRESHOLD_SAME": 0.50,
-  "FAMILY_THRESHOLD_IE_BRANCHES": 0.60,
-  "FAMILY_THRESHOLD_UNRELATED": 0.70,
-  "FAMILY_THRESHOLD_UNKNOWN": 0.70,
-  "COMPARISON_MODELS": [
-    "sentence-transformers/LaBSE",
-    "xlm-roberta-base",
-    "multi-qa-distilbert-cos-v1",
-    "multi-qa-MiniLM-L6-cos-v1",
-    "multi-qa-mpnet-base-cos-v1"
-  ],
-  "DEFAULT_MODEL": "sentence-transformers/LaBSE"
+  "DEFAULT_TIMEOUT": 30000
 }
