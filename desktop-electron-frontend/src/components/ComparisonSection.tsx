@@ -37,6 +37,13 @@ const ComparisonSection = () => {
     })
   }, [])
 
+  // Fetch default threshold from backend on mount
+  useEffect(() => {
+    getThresholds().then((thresholds) => {
+      setSimilarityThreshold(thresholds.similarity_threshold)
+    })
+  }, [])
+
   const form = useForm({
     defaultValues: {
       sourceText: '',
