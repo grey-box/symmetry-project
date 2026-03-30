@@ -11,6 +11,17 @@ from typing import List, Tuple, Optional, Dict
 from enum import Enum
 import re
 
+from app.core.settings import (
+    FAMILY_THRESHOLD_SAME,
+    FAMILY_THRESHOLD_IE_BRANCHES,
+    FAMILY_THRESHOLD_UNRELATED,
+    FAMILY_THRESHOLD_UNKNOWN,
+    BAND_SAME_FAMILY,
+    BAND_IE_BRANCHES,
+    BAND_DIFFERENT_FAMILIES,
+    BAND_UNKNOWN,
+)
+
 
 # Latinate suffixes for loanword detection (no leading hyphens)
 LOANWORD_SUFFIXES = {
@@ -403,11 +414,9 @@ def get_family_threshold(family_a: LanguageFamily, family_b: LanguageFamily) -> 
     Returns:
         Recommended word_match_threshold (0-1)
     """
-    # Same family - very similar, use stricter threshold
     if family_a == family_b and family_a != LanguageFamily.UNKNOWN:
-        return 0.50  # Close family members have high cognate overlap
+        return FAMILY_THRESHOLD_SAME
 
-    # Both Indo-European but different branches
     ie_branches = {
         LanguageFamily.GERMANIC,
         LanguageFamily.ROMANCE,
@@ -415,14 +424,12 @@ def get_family_threshold(family_a: LanguageFamily, family_b: LanguageFamily) -> 
     }
 
     if family_a in ie_branches and family_b in ie_branches:
-        return 0.60  # IE languages share some cognates; use slightly stricter threshold
+        return FAMILY_THRESHOLD_IE_BRANCHES
 
-    # Completely different families
     if family_a != LanguageFamily.UNKNOWN and family_b != LanguageFamily.UNKNOWN:
-        return 0.70  # Strict threshold for unrelated families
+        return FAMILY_THRESHOLD_UNRELATED
 
-    # Unknown - use default stricter threshold
-    return 0.70
+    return FAMILY_THRESHOLD_UNKNOWN
 
 
 def get_family_threshold_bands(
@@ -434,25 +441,21 @@ def get_family_threshold_bands(
     Returns:
         (very_close_threshold, same_branch_high, same_family_low, unrelated_threshold)
     """
-    # Same family - lower thresholds (more lenient)
     if family_a == family_b and family_a != LanguageFamily.UNKNOWN:
-        return (0.75, 0.55, 0.30, 0.15)  # More lenient for same family
+        return BAND_SAME_FAMILY
 
-    # Both Indo-European
     ie_branches = {
         LanguageFamily.GERMANIC,
         LanguageFamily.ROMANCE,
         LanguageFamily.SLAVIC,
     }
     if family_a in ie_branches and family_b in ie_branches:
-        return (0.80, 0.60, 0.35, 0.20)  # Moderately lenient
+        return BAND_IE_BRANCHES
 
-    # Completely different families
     if family_a != LanguageFamily.UNKNOWN and family_b != LanguageFamily.UNKNOWN:
-        return (0.85, 0.65, 0.40, 0.25)  # Standard thresholds
+        return BAND_DIFFERENT_FAMILIES
 
-    # One or both unknown - use default
-    return (0.85, 0.60, 0.25, 0.10)
+    return BAND_UNKNOWN
 
 
 def classify_band(
