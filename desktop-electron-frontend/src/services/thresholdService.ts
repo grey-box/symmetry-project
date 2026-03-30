@@ -1,4 +1,4 @@
-import { getAxiosInstance } from './axios';
+import { getAxiosInstance } from '@/services/axios';
 
 export interface ThresholdConfig {
   similarity_threshold: number;
