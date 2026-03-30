@@ -18,6 +18,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from app.core.settings import LEVENSHTEIN_DISAMBIGUATION_MARGIN, SIMILARITY_THRESHOLD
 from app.models.wiki_structure import Article, Section
 from app.models.section_comparison import (
     ParagraphDiff,
@@ -30,10 +31,6 @@ logger = logging.getLogger(__name__)
 
 # Reusable model cache (shared with semantic_comparison.py pattern)
 _model_cache: dict = {}
-
-# When two paragraph embeddings have similarity scores within this margin,
-# Levenshtein distance is used as a tiebreaker for matching.
-LEVENSHTEIN_DISAMBIGUATION_MARGIN = 0.08 # Consider moving to a central config or making configurable
 
 
 def _get_model(model_name: str) -> SentenceTransformer:
@@ -274,7 +271,7 @@ def _compare_paragraphs(
 def compare_article_sections(
     source_article: Article,
     target_article: Article,
-    similarity_threshold: float = 0.65,
+    similarity_threshold: float = SIMILARITY_THRESHOLD,
     model_name: str = "sentence-transformers/LaBSE",
 ) -> SectionCompareResponse:
     """
