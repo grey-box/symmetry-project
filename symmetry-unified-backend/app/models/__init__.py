@@ -37,6 +37,7 @@ from app.models.api_models import (
     ModelSelectionResponse,
     ListResponse,
 )
+from app.models.revision import Revision, SectionDiff, Flag, DiffResponse
 
 __all__ = [
     "Citation",
@@ -73,4 +74,8 @@ __all__ = [
     "ArticleResponse",
     "ModelSelectionResponse",
     "ListResponse",
+    "Revision",
+    "SectionDiff",
+    "Flag",
+    "DiffResponse",
 ]
