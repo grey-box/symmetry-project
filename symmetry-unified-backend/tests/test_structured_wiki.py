@@ -323,3 +323,50 @@ class TestStructuredWikiRouter:
             assert "language" in str(exc_info.value).lower()
 
         asyncio.run(test_parse())
+
+
+class TestLongReferenceId:
+    """Regression tests for reference ID length validation.
+
+    Previously, Reference.id had max_length=100 which caused 500 errors for
+    articles with long reference IDs (e.g., https://en.wikipedia.org/wiki/Despre_tine).
+    """
+
+    def test_reference_model_accepts_id_over_100_chars(self):
+        """Reference model should accept IDs longer than 100 characters."""
+        long_id = "r" * 250
+        ref = Reference(label="test", id=long_id)
+        assert ref.id == long_id
+
+    def test_structured_article_endpoint_accepts_long_reference_id(self, client):
+        """Endpoint should return 200 and preserve reference IDs longer than 100 chars."""
+        long_id = "r" * 250
+
+        def fetcher_with_long_ref(title, lang):
+            article = Mock()
+            article.title = "Despre tine"
+            article.lang = lang
+            article.source = "wikipedia"
+            article.sections = [
+                Section(
+                    title="Introduction",
+                    raw_content="Test content",
+                    clean_content="Test content",
+                    citations=None,
+                    citation_position=None,
+                )
+            ]
+            article.references = [Reference(label="LongRef", id=long_id, url=None)]
+            return article
+
+        with patch(
+            "app.routers.structured_wiki.article_fetcher",
+            side_effect=fetcher_with_long_ref,
+        ):
+            response = client.get(
+                "/symmetry/v1/wiki/structured-article?query=Despre_tine_long_ref_test"
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert any(ref.get("id") == long_id for ref in data.get("references", []))
