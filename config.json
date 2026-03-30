@@ -3,5 +3,13 @@
   "BACKEND_PORT": 8000,
   "FRONTEND_PORT": 5173,
   "OLLAMA_BASE_URL": "http://localhost:11434",
-  "DEFAULT_TIMEOUT": 30000
+  "DEFAULT_TIMEOUT": 30000,
+  "COMPARISON_MODELS": [
+    "sentence-transformers/LaBSE",
+    "xlm-roberta-base",
+    "multi-qa-distilbert-cos-v1",
+    "multi-qa-MiniLM-L6-cos-v1",
+    "multi-qa-mpnet-base-cos-v1"
+  ],
+  "DEFAULT_MODEL": "sentence-transformers/LaBSE"
 }
