@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 from fastapi import APIRouter, Query, HTTPException
 
 from app.ai.translations import translate
-from app.ai.fact_extraction import extract_facts, get_available_models, get_model_config
+from app.ai.fact_extraction import extract_facts, get_available_models, get_model_config, validate_model
 from app.ai.similarity_scoring import score_article_pair
 from app.models.wiki_structure import Section
 
@@ -504,6 +504,92 @@ async def get_language_lag(
         logging.error("Error detecting language lag for '%s': %s", title, str(e))
         raise HTTPException(status_code=500, detail=f"Failed to detect language lag: {str(e)}")
     return reports
+
+
+@router.get("/fact-extraction-validate")
+async def validate_fact_extraction_model(
+    model_id: str = Query(..., description="Model ID to validate (predefined or HuggingFace model name)")
+):
+    """
+    Validate a fact extraction model ID.
+    Checks if the model exists either in the predefined config or on HuggingFace Hub.
+    
+    Args:
+        model_id: The model ID to validate
+        
+    Returns:
+        Dictionary with validation result and model info if valid
+    """
+    logging.info("Validating fact extraction model: %s", model_id)
+    
+    try:
+        config = validate_model(model_id)
+        return {
+            "valid": True,
+            "model": config
+        }
+    except ValueError as e:
+        logging.warning("Model validation failed for %s: %s", model_id, str(e))
+        return {
+            "valid": False,
+            "error": str(e)
+        }
+    except Exception as e:
+        logging.error("Error validating model %s: %s", model_id, str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Validation error: {str(e)}"
+        )
+
+
+@router.post("/extract-facts", response_model=FactExtractionResponse)
+async def extract_facts_endpoint(request: FactExtractionRequest):
+    """
+    Extract facts from a section's content using the specified LLM model.
+    
+    - **section_content**: The text content to extract facts from
+    - **model_id**: The ID of the model to use (from /fact-extraction-models endpoint)
+    - **section_title**: The title of the section being processed (optional)
+    - **num_facts**: Number of facts to extract (also determines number of model calls via chunking). Default is 1.
+    """
+    logging.info(
+        "Calling extract facts endpoint (model='%s', content_length=%d, section_title='%s', num_facts=%d)",
+        request.model_id,
+        len(request.section_content),
+        request.section_title,
+        request.num_facts,
+    )
+    try:
+        facts = extract_facts(
+            request.section_content,
+            request.model_id,
+            num_facts=request.num_facts,
+        )
+
+        config = get_model_config(request.model_id)
+        model_name = config["name"]
+
+        response = FactExtractionResponse(
+            facts=facts,
+            model_used=model_name,
+            section_title=request.section_title,
+        )
+
+        logging.info(
+            "Successfully extracted %d facts using model %s for section '%s'",
+            len(facts),
+            request.model_id,
+            request.section_title,
+        )
+
+        return response
+    except ValueError as e:
+        logging.error("ValueError in fact extraction: %s", str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logging.error("Error extracting facts: %s", str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to extract facts: {str(e)}"
+        )
 
 
 # ---------------------------------------------------------------------------
