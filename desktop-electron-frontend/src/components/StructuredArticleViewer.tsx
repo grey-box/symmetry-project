@@ -46,6 +46,9 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   // Fact extraction states
   const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
   const [selectedFactModel, setSelectedFactModel] = useState<string>('');
+  const [customFactModel, setCustomFactModel] = useState<string>('');
+  const [customModelValidation, setCustomModelValidation] = useState<{valid: boolean; error?: string} | null>(null);
+  const [validatingCustomModel, setValidatingCustomModel] = useState<boolean>(false);
   const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
   const [extractingSection, setExtractingSection] = useState<string | null>(null);
   const [factError, setFactError] = useState<string | null>(null);
@@ -200,6 +203,35 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
+  const handleValidateCustomModel = async () => {
+    if (!customFactModel.trim()) {
+      setCustomModelValidation({valid: false, error: 'Please enter a model name'});
+      return;
+    }
+
+    setValidatingCustomModel(true);
+    setCustomModelValidation(null);
+    setFactError(null);
+
+    try {
+      const result = await structuredWikiService.validateFactExtractionModel(customFactModel.trim());
+      setCustomModelValidation(result);
+      
+      if (result.valid && result.model) {
+        // Auto-select the custom model
+        setSelectedFactModel(result.model.id);
+      }
+    } catch (err) {
+      console.error('Error validating custom model:', err);
+      setCustomModelValidation({
+        valid: false,
+        error: err instanceof Error ? err.message : 'Validation failed'
+      });
+    } finally {
+      setValidatingCustomModel(false);
+    }
+  };
+
   return (
     <div className="structured-article-viewer p-6 max-w-7xl mx-auto">
       <div className="bg-white rounded-lg shadow-lg p-6">
@@ -271,23 +303,62 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
             </div>
 
             {/* Fact Extraction Model Selection */}
-            <div className="flex items-center gap-4">
-              <select
-                value={selectedFactModel}
-                onChange={(e) => setSelectedFactModel(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
-                disabled={factModels.length === 0}
-              >
-                {factModels.map(model => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedFactModel}
+                  onChange={(e) => setSelectedFactModel(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  disabled={factModels.length === 0}
+                >
+                  {factModels.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+                
+                <span className="text-sm text-gray-500">
+                  Model:
+                </span>
+              </div>
               
-              <span className="text-sm text-gray-500">
-                Fact Extraction Model:
-              </span>
+              {/* Custom Model Input */}
+              <div className="flex items-center gap-2 ml-2">
+                <div className="flex-1 max-w-md">
+                  <input
+                    type="text"
+                    value={customFactModel}
+                    onChange={(e) => setCustomFactModel(e.target.value)}
+                    placeholder="Or paste HuggingFace model name (e.g., google/flan-t5-large)"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleValidateCustomModel();
+                      }
+                    }}
+                  />
+                </div>
+                <button
+                  onClick={handleValidateCustomModel}
+                  disabled={validatingCustomModel || !customFactModel.trim()}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                >
+                  {validatingCustomModel ? 'Validating...' : 'Validate & Use'}
+                </button>
+              </div>
+              
+              {/* Custom Model Validation Feedback */}
+              {customModelValidation && (
+                <div className={`ml-2 text-sm ${customModelValidation.valid ? 'text-green-600' : 'text-red-600'}`}>
+                  {customModelValidation.valid ? (
+                    <span>✓ Model validated and selected: {selectedFactModel}</span>
+                  ) : (
+                    <span>✗ {customModelValidation.error || 'Validation failed'}</span>
+                  )}
+                </div>
+              )}
             </div>
             
             {/* Number of Facts Control */}

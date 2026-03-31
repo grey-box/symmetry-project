@@ -1,7 +1,9 @@
 import json
+import logging
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
+import os
 
 import torch
 from transformers import (
@@ -10,6 +12,7 @@ from transformers import (
     AutoModelForCausalLM,
     AutoConfig,
 )
+from huggingface_hub import model_info
 
 # ---------------------------------------------------------------------
 # Load model config
@@ -25,6 +28,25 @@ with open(CONFIG_PATH, "r") as f:
 
 # Cache: model_name -> (model, tokenizer)
 _model_cache: Dict[str, Tuple[Any, Any]] = {}
+
+
+def model_exists_on_hf(model_name: str) -> bool:
+    """
+    Check if a model exists on HuggingFace Hub.
+    Uses huggingface_hub.model_info() which automatically uses HF_TOKEN from environment.
+    
+    Args:
+        model_name: The HuggingFace model ID to check
+        
+    Returns:
+        True if model exists and is accessible, False otherwise
+    """
+    try:
+        model_info(model_name)
+        return True
+    except Exception as e:
+        logging.error(f"Error checking model {model_name}: {e}")
+        return False
 
 
 def _split_into_sentences(text: str) -> List[str]:
@@ -111,14 +133,72 @@ def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str
 
 
 def get_model_config(model_id: str) -> Dict[str, Any]:
+    """
+    Get model configuration. First checks predefined configs, then treats
+    the model_id as a HuggingFace model name if it's not in the config.
+    
+    Args:
+        model_id: Either a predefined model ID from fact_extraction_models.json
+                  or a HuggingFace model name (e.g., "google/flan-t5-large")
+    
+    Returns:
+        Model configuration dictionary
+    """
     config = MODEL_CONFIG.get(model_id)
-    if not config:
-        raise ValueError(f"Model ID '{model_id}' not found")
-    return config
+    if config:
+        return config
+    
+    # If not in predefined configs, treat as custom HuggingFace model
+    # Validate that the model exists on HF Hub
+    if model_exists_on_hf(model_id):
+        # Return a minimal config for custom models
+        return {
+            "id": model_id,
+            "name": model_id,
+            "provider": "huggingface",
+            "model_name": model_id,
+            "description": f"Custom HuggingFace model: {model_id}",
+            "task": "text2text-generation",  # Default, will be auto-detected
+            "prompt_style": "instruction",
+            "use_chat_template": False
+        }
+    
+    raise ValueError(f"Model ID '{model_id}' not found in config and does not exist on HuggingFace Hub")
 
 
 def get_available_models() -> List[Dict[str, Any]]:
+    """
+    Get list of all available fact extraction models.
+    Returns predefined models from config file.
+    Custom HuggingFace models are validated on-demand, not listed here.
+    
+    Returns:
+        List of model configuration dictionaries
+    """
     return list(MODEL_CONFIG.values())
+
+
+def validate_model(model_id: str) -> Dict[str, Any]:
+    """
+    Validate that a model exists on HuggingFace Hub and return its config.
+    This supports both predefined models and custom HuggingFace models.
+    
+    Args:
+        model_id: Model ID (predefined or HuggingFace model name)
+        
+    Returns:
+        Model configuration dictionary if valid
+        
+    Raises:
+        ValueError: If model does not exist or is invalid
+    """
+    try:
+        config = get_model_config(model_id)
+        return config
+    except ValueError as e:
+        raise e
+    except Exception as e:
+        raise ValueError(f"Failed to validate model '{model_id}': {str(e)}")
 
 
 # ---------------------------------------------------------------------
@@ -208,6 +288,8 @@ def extract_facts(text: str, model_id: str, num_facts: int = 1) -> List[str]:
             tokenizer.pad_token = tokenizer.eos_token
             model.config.pad_token_id = tokenizer.pad_token_id
 
+        rep_penalty = config.get("repetition_penalty", 1.0)
+
         with torch.no_grad():
             outputs = model.generate(
                 **inputs,
@@ -215,6 +297,7 @@ def extract_facts(text: str, model_id: str, num_facts: int = 1) -> List[str]:
                 do_sample=False,
                 eos_token_id=tokenizer.eos_token_id,
                 pad_token_id=tokenizer.pad_token_id,
+                repetition_penalty=rep_penalty,
             )
 
         raw_output = tokenizer.decode(outputs[0], skip_special_tokens=True)

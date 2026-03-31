@@ -254,6 +254,14 @@ class StructuredWikiService {
     
     return await response.json();
   }
+
+  /**
+   * Validate a custom fact extraction model
+   */
+  async validateFactExtractionModel(modelId: string): Promise<{valid: boolean; model?: FactExtractionModel; error?: string}> {
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/fact-extraction-validate?model_id=${encodeURIComponent(modelId)}`;
+    return this.fetchWithErrorHandling<{valid: boolean; model?: FactExtractionModel; error?: string}>(url);
+  }
 }
 
 // Export singleton instance

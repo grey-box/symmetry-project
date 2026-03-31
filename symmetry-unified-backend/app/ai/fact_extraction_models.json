@@ -30,16 +30,6 @@
     "use_chat_template": true
   },
   {
-    "id": "pegasus-xsum",
-    "name": "Pegasus XSum",
-    "provider": "huggingface",
-    "model_name": "google/pegasus-xsum",
-    "description": "Summarization model fine-tuned on XSum dataset, good for abstractive summarization",
-    "task": "text2text-generation",
-    "prompt_style": "instruction",
-    "use_chat_template": false
-  },
-  {
     "id": "distilbart-cnn-12-6",
     "name": "DistilBART CNN 12-6",
     "provider": "huggingface",
