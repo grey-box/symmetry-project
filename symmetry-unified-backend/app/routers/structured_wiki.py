@@ -17,7 +17,7 @@ from app.models import (
     FactExtractionResponse,
 )
 from app.services.article_parser import article_fetcher
-from app.ai.fact_extraction import extract_facts, get_available_models, get_model_config
+from app.ai.fact_extraction import extract_facts, get_available_models, get_model_config, validate_model
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
@@ -436,6 +436,41 @@ async def get_fact_extraction_models():
         logging.error("Error fetching fact extraction models: %s", str(e))
         raise HTTPException(
             status_code=500, detail=f"Failed to fetch models: {str(e)}"
+        )
+
+
+@router.get("/fact-extraction-validate")
+async def validate_fact_extraction_model(
+    model_id: str = Query(..., description="Model ID to validate (predefined or HuggingFace model name)")
+):
+    """
+    Validate a fact extraction model ID.
+    Checks if the model exists either in the predefined config or on HuggingFace Hub.
+    
+    Args:
+        model_id: The model ID to validate
+        
+    Returns:
+        Dictionary with validation result and model info if valid
+    """
+    logging.info("Validating fact extraction model: %s", model_id)
+    
+    try:
+        config = validate_model(model_id)
+        return {
+            "valid": True,
+            "model": config
+        }
+    except ValueError as e:
+        logging.warning("Model validation failed for %s: %s", model_id, str(e))
+        return {
+            "valid": False,
+            "error": str(e)
+        }
+    except Exception as e:
+        logging.error("Error validating model %s: %s", model_id, str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Validation error: {str(e)}"
         )
 
 
