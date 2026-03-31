@@ -205,7 +205,7 @@ def validate_model(model_id: str) -> Dict[str, Any]:
 # Main extraction function (simplified)
 # ---------------------------------------------------------------------
 
-def extract_facts(text: str, model_id: str, num_facts: int = 1) -> List[str]:
+def extract_facts(text: str, model_id: str, num_facts: int = 1) -> Tuple[List[str], List[str]]:
     """
     Extract facts from text using the specified model.
     
@@ -217,10 +217,13 @@ def extract_facts(text: str, model_id: str, num_facts: int = 1) -> List[str]:
                   Default is 1 (no chunking).
     
     Returns:
-        List of extracted facts (strings). Empty list if no text.
+        Tuple of (facts, chunks) where:
+        - facts: List of extracted facts (strings)
+        - chunks: List of text chunks that were processed
+        Empty lists if no text.
     """
     if not text.strip():
-        return []
+        return [], []
 
     config = get_model_config(model_id)
     model_name = config["model_name"]
@@ -248,11 +251,12 @@ def extract_facts(text: str, model_id: str, num_facts: int = 1) -> List[str]:
         # Split text into sentences and chunk
         sentences = _split_into_sentences(text)
         if not sentences:
-            return []
+            return [], []
         chunks_sentences = _chunk_by_word_count(sentences, num_facts)
         chunks = [" ".join(chunk_sentences) for chunk_sentences in chunks_sentences]
 
     all_facts: List[str] = []
+    processed_chunks: List[str] = []
 
     for chunk in chunks:
         if not chunk.strip():
@@ -305,8 +309,9 @@ def extract_facts(text: str, model_id: str, num_facts: int = 1) -> List[str]:
         # Parse the output into individual facts (handle bullet points and newlines)
         facts_from_chunk = _parse_facts(raw_output)
         all_facts.extend(facts_from_chunk)
+        processed_chunks.append(chunk)
 
-    return all_facts
+    return all_facts, processed_chunks
 
 
 def _parse_facts(raw_output: str) -> List[str]:

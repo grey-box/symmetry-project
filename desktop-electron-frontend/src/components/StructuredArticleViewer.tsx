@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   StructuredArticleResponse,
@@ -54,6 +54,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [factError, setFactError] = useState<string | null>(null);
   const [numFacts, setNumFacts] = useState<number>(1);
   const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
+  const [hoveredChunk, setHoveredChunk] = useState<string | null>(null);
+  const [clickedChunk, setClickedChunk] = useState<string | null>(null);
 
 
 
@@ -232,6 +234,67 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
+  // Helper to highlight hovered/clicked chunk in content
+  const highlightChunk = (content: string, chunk: string | null, isClickHighlight = false): React.ReactNode => {
+    if (!chunk) return content;
+    
+    // Escape regex special characters in the chunk
+    const escapedChunk = chunk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Split content by the chunk (case-insensitive)
+    const parts = content.split(new RegExp(`(${escapedChunk})`, 'gi'));
+    
+    if (parts.length === 1) return content; // Chunk not found
+    
+    return (
+      <>
+        {parts.map((part, index) => {
+          // Check if this part matches the chunk (case-insensitive)
+          if (part.toLowerCase() === chunk.toLowerCase()) {
+            return (
+              <mark
+                key={index}
+                className={`${isClickHighlight ? 'bg-orange-200 outline outline-2 outline-orange-400' : 'bg-yellow-200 outline outline-1 outline-yellow-400'} px-0.5 rounded`}
+              >
+                {part}
+              </mark>
+            );
+          }
+          return part;
+        })}
+      </>
+    );
+  };
+
+  // Handle fact click - scroll to chunk in passage
+  const handleFactClick = (chunk: string) => {
+    // Toggle off if already clicked
+    if (clickedChunk === chunk) {
+      setClickedChunk(null);
+    } else {
+      setClickedChunk(chunk);
+      // Scroll to the highlighted chunk after re-render
+      setTimeout(() => {
+        // Find the first mark element with the clicked chunk
+        const marks = document.querySelectorAll('mark');
+        for (const mark of marks) {
+          if (mark.textContent?.toLowerCase() === chunk.toLowerCase()) {
+            mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            break;
+          }
+        }
+      }, 50);
+    }
+  };
+
+  // Clear clicked highlight when section changes
+  useEffect(() => {
+    return () => {
+      setClickedChunk(null);
+      setHoveredChunk(null);
+    };
+  }, [selectedSection]);
+
   return (
     <div className="structured-article-viewer p-6 max-w-7xl mx-auto">
       <div className="bg-white rounded-lg shadow-lg p-6">
@@ -271,7 +334,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Translate Article Button & Fact Extraction Model Selection */}
+        {/* Translate Button Row */}
         {article && (
           <div className="mb-6 flex flex-wrap items-center gap-4">
             {/* Translation Controls */}
@@ -301,10 +364,15 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                 {article.lang} → {targetLang}
               </span>
             </div>
+          </div>
+        )}
 
-            {/* Fact Extraction Model Selection */}
+        {/* Fact Extraction Model Selection & Options - with Extract Facts button */}
+        {article && (
+          <div className="mb-6 flex flex-wrap items-center gap-4 p-4 bg-gray-50 rounded-lg">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">Model:</span>
                 <select
                   value={selectedFactModel}
                   onChange={(e) => setSelectedFactModel(e.target.value)}
@@ -317,14 +385,10 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                     </option>
                   ))}
                 </select>
-                
-                <span className="text-sm text-gray-500">
-                  Model:
-                </span>
               </div>
               
               {/* Custom Model Input */}
-              <div className="flex items-center gap-2 ml-2">
+              <div className="flex items-center gap-2">
                 <div className="flex-1 max-w-md">
                   <input
                     type="text"
@@ -351,7 +415,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
               
               {/* Custom Model Validation Feedback */}
               {customModelValidation && (
-                <div className={`ml-2 text-sm ${customModelValidation.valid ? 'text-green-600' : 'text-red-600'}`}>
+                <div className={`text-sm ${customModelValidation.valid ? 'text-green-600' : 'text-red-600'}`}>
                   {customModelValidation.valid ? (
                     <span>✓ Model validated and selected: {selectedFactModel}</span>
                   ) : (
@@ -391,6 +455,38 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
               {autoNumFacts && (
                 <span className="text-sm text-gray-500">
                   (auto: based on section length)
+                </span>
+              )}
+            </div>
+
+            {/* Extract Facts Button - inside the model selection box */}
+            <div className="flex items-center gap-2 ml-4 border-l border-gray-300 pl-4">
+              <button
+                onClick={() => {
+                  if (selectedSection) {
+                    const section = filteredSections.find(s => s.title === selectedSection);
+                    if (section) {
+                      handleExtractFacts(section.title, section.clean_content);
+                    }
+                  }
+                }}
+                disabled={extractingSection !== null || !selectedFactModel || !selectedSection}
+                className="px-6 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              >
+                {extractingSection ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Extracting...
+                  </>
+                ) : (
+                  'Extract Facts'
+                )}
+              </button>
+              
+              {/* Show which section is being extracted */}
+              {extractingSection && (
+                <span className="text-sm text-gray-500">
+                  from "{extractingSection}"
                 </span>
               )}
             </div>
@@ -479,7 +575,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
             </div>
 
             {/* Section Content */}
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-3" id="section-content-area">
               {selectedSection && (
                 <div>
                   {(() => {
@@ -501,9 +597,54 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                         {/* Section Content */}
                         <div className="prose prose-blue max-w-none">
                           <p className="text-gray-700 leading-relaxed">
-                            {structuredWikiService.formatSectionContent(section)}
+                            {clickedChunk && sectionFacts[section.title]?.chunks
+                              ? highlightChunk(section.clean_content, clickedChunk, true)
+                              : (hoveredChunk && sectionFacts[section.title]?.chunks
+                                ? highlightChunk(section.clean_content, hoveredChunk)
+                                : structuredWikiService.formatSectionContent(section))}
                           </p>
                         </div>
+
+                        {/* Extracted Facts - between passage and citations */}
+                        {sectionFacts[section.title] && (
+                          <div className="mt-6 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <h5 className="font-semibold text-purple-900">
+                                Extracted Facts
+                              </h5>
+                              <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                {sectionFacts[section.title].model_used}
+                              </span>
+                            </div>
+                            {sectionFacts[section.title].facts.length > 0 ? (
+                              <ul className="space-y-2">
+                                {sectionFacts[section.title].facts.map((fact, index) => {
+                                  const chunk = sectionFacts[section.title]?.chunks?.[index] || '';
+                                  const isHovered = hoveredChunk === chunk;
+                                  const isClicked = clickedChunk === chunk;
+                                  return (
+                                    <li
+                                      key={index}
+                                      className={`flex items-start gap-2 text-sm text-gray-700 p-2 rounded transition-colors cursor-pointer ${
+                                        isClicked ? 'bg-orange-100 outline outline-2 outline-orange-400' : isHovered ? 'bg-yellow-100' : ''
+                                      }`}
+                                      onMouseEnter={() => setHoveredChunk(chunk)}
+                                      onMouseLeave={() => setHoveredChunk(null)}
+                                      onClick={() => handleFactClick(chunk)}
+                                    >
+                                      <span className="text-purple-500 mt-1">•</span>
+                                      <span>{fact}</span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-600 italic">
+                                No facts could be extracted from this section.
+                              </p>
+                            )}
+                          </div>
+                        )}
 
                         {/* Citations */}
                         {section.citations && section.citations.length > 0 && (
@@ -534,61 +675,15 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                           </div>
                         )}
 
-                       {/* Citation Positions */}
-                       {section.citation_position && section.citation_position.length > 0 && (
-                         <div className="mt-4 p-3 bg-yellow-50 rounded">
-                           <h5 className="font-medium text-yellow-800 mb-2">Citation Positions</h5>
-                           <p className="text-sm text-yellow-700">
-                             {structuredWikiService.formatCitationPositions(section.citation_position)}
-                           </p>
-                         </div>
-                       )}
-
-                       {/* Extract Facts Button */}
-                       <div className="mt-6">
-                         <button
-                           onClick={() => handleExtractFacts(section.title, section.clean_content)}
-                           disabled={extractingSection === section.title || !selectedFactModel}
-                           className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                         >
-                           {extractingSection === section.title ? (
-                             <>
-                               <Loader2 size={16} className="animate-spin" />
-                               Extracting...
-                             </>
-                           ) : (
-                             'Extract Facts'
-                           )}
-                         </button>
-                       </div>
-
-                       {/* Display Extracted Facts */}
-                       {sectionFacts[section.title] && (
-                         <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                           <div className="flex items-center gap-2 mb-3">
-                             <h5 className="font-semibold text-purple-900">
-                               Extracted Facts
-                             </h5>
-                             <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                               {sectionFacts[section.title].model_used}
-                             </span>
-                           </div>
-                           {sectionFacts[section.title].facts.length > 0 ? (
-                             <ul className="space-y-2">
-                               {sectionFacts[section.title].facts.map((fact, index) => (
-                                 <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
-                                   <span className="text-purple-500 mt-1">•</span>
-                                   <span>{fact}</span>
-                                 </li>
-                               ))}
-                             </ul>
-                           ) : (
-                             <p className="text-sm text-gray-600 italic">
-                               No facts could be extracted from this section.
-                             </p>
-                           )}
-                         </div>
-                       )}
+                        {/* Citation Positions */}
+                        {section.citation_position && section.citation_position.length > 0 && (
+                          <div className="mt-4 p-3 bg-yellow-50 rounded">
+                            <h5 className="font-medium text-yellow-800 mb-2">Citation Positions</h5>
+                            <p className="text-sm text-yellow-700">
+                              {structuredWikiService.formatCitationPositions(section.citation_position)}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
