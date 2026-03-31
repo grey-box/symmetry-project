@@ -425,6 +425,23 @@ def translate_article(
     )
 
 
+@router.get("/fact-extraction-models", response_model=List[Dict[str, Any]])
+async def get_fact_extraction_models():
+    """
+    Get list of available fact extraction models.
+    Returns model configurations that can be used with the extract-facts endpoint.
+    """
+    logging.info("Calling fact extraction models endpoint")
+    try:
+        models = get_available_models()
+        return models
+    except Exception as e:
+        logging.error("Error fetching fact extraction models: %s", str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch models: {str(e)}"
+        )
+
+
 # ---------------------------------------------------------------------------
 # Revision history
 # ---------------------------------------------------------------------------
@@ -559,7 +576,7 @@ async def extract_facts_endpoint(request: FactExtractionRequest):
         request.num_facts,
     )
     try:
-        facts = extract_facts(
+        facts, chunks = extract_facts(
             request.section_content,
             request.model_id,
             num_facts=request.num_facts,
@@ -572,6 +589,7 @@ async def extract_facts_endpoint(request: FactExtractionRequest):
             facts=facts,
             model_used=model_name,
             section_title=request.section_title,
+            chunks=chunks,
         )
 
         logging.info(
