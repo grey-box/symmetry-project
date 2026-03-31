@@ -489,7 +489,7 @@ async def extract_facts_endpoint(request: FactExtractionRequest):
     )
     
     try:
-        facts = extract_facts(
+        facts, chunks = extract_facts(
             request.section_content,
             request.model_id,
             num_facts=request.num_facts
@@ -501,7 +501,8 @@ async def extract_facts_endpoint(request: FactExtractionRequest):
         response = FactExtractionResponse(
             facts=facts,
             model_used=model_name,
-            section_title=request.section_title
+            section_title=request.section_title,
+            chunks=chunks
         )
         
         logging.info(

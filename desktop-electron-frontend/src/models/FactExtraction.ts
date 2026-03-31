@@ -25,4 +25,5 @@ export interface FactExtractionResponse {
   facts: string[];
   model_used: string;
   section_title: string;
+  chunks: string[];
 }
