@@ -92,7 +92,12 @@ class TestComparisonRouter:
         valid_request = valid_compare_request.copy()
         valid_request["original_language"] = "verylonglanguagecode"
 
-        response = client.post("/symmetry/v1/articles/compare", json=valid_request)
+        mock_response = {"comparisons": []}
+        with patch(
+            "app.routers.comparison.perform_semantic_comparison",
+            return_value=mock_response,
+        ):
+            response = client.post("/symmetry/v1/articles/compare", json=valid_request)
 
         assert response.status_code == 200
 
