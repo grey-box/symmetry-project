@@ -41,8 +41,18 @@ class DummyConfig:
 
 @pytest.fixture(autouse=True)
 def patch_model_loading(monkeypatch):
-    monkeypatch.setattr(fact_extraction, "AutoTokenizer", SimpleNamespace(from_pretrained=lambda model_name: DummyTokenizer()))
-    monkeypatch.setattr(fact_extraction, "AutoConfig", SimpleNamespace(from_pretrained=lambda model_name: DummyConfig(is_encoder_decoder=True)))
+    monkeypatch.setattr(
+        fact_extraction,
+        "AutoTokenizer",
+        SimpleNamespace(from_pretrained=lambda model_name: DummyTokenizer()),
+    )
+    monkeypatch.setattr(
+        fact_extraction,
+        "AutoConfig",
+        SimpleNamespace(
+            from_pretrained=lambda model_name: DummyConfig(is_encoder_decoder=True)
+        ),
+    )
     monkeypatch.setattr(
         fact_extraction,
         "AutoModelForSeq2SeqLM",
@@ -77,15 +87,27 @@ def test_model_cache_eviction_lru_order(monkeypatch):
     fact_extraction.extract_facts("text B", "model_b")
     fact_extraction.extract_facts("text C", "model_c")
 
-    assert list(fact_extraction._model_cache.keys()) == ["model_a", "model_b", "model_c"]
+    assert list(fact_extraction._model_cache.keys()) == [
+        "model_a",
+        "model_b",
+        "model_c",
+    ]
 
     # Access model_a again to update its recency.
     fact_extraction.extract_facts("text A", "model_a")
-    assert list(fact_extraction._model_cache.keys()) == ["model_b", "model_c", "model_a"]
+    assert list(fact_extraction._model_cache.keys()) == [
+        "model_b",
+        "model_c",
+        "model_a",
+    ]
 
     # Adding a fourth model should evict the least recently used model_b.
     fact_extraction.extract_facts("text D", "model_d")
-    assert list(fact_extraction._model_cache.keys()) == ["model_c", "model_a", "model_d"]
+    assert list(fact_extraction._model_cache.keys()) == [
+        "model_c",
+        "model_a",
+        "model_d",
+    ]
     assert "model_b" not in fact_extraction._model_cache
 
 
