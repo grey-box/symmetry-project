@@ -301,6 +301,13 @@ def extract_facts(
 
     model, tokenizer = _model_cache[model_name]
 
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model.to(device)
+
+    if tokenizer.pad_token_id is None:
+        tokenizer.pad_token = tokenizer.eos_token
+        model.config.pad_token_id = tokenizer.pad_token_id
+
     # If num_facts is 1, process the whole text at once (backward compatible)
     if num_facts == 1:
         chunks = [text]
@@ -340,14 +347,7 @@ def extract_facts(
             )
 
         inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
-
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model.to(device)
         inputs = {k: v.to(device) for k, v in inputs.items()}
-
-        if tokenizer.pad_token_id is None:
-            tokenizer.pad_token = tokenizer.eos_token
-            model.config.pad_token_id = tokenizer.pad_token_id
 
         rep_penalty = config.get("repetition_penalty", 1.0)
 
