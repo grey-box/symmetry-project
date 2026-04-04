@@ -17,7 +17,12 @@ from app.models import (
     FactExtractionResponse,
 )
 from app.services.article_parser import article_fetcher
-from app.ai.fact_extraction import extract_facts, get_available_models, get_model_config, validate_model
+from app.ai.fact_extraction import (
+    extract_facts,
+    get_available_models,
+    get_model_config,
+    validate_model,
+)
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
@@ -337,7 +342,10 @@ async def structured_translated_article(
 ):
     logging.info(
         "Calling structured translated article endpoint (source='%s', target='%s', url='%s', title='%s')",
-        source_lang, target_lang, url, title,
+        source_lang,
+        target_lang,
+        url,
+        title,
     )
 
     # 1. Resolve title
@@ -357,9 +365,7 @@ async def structured_translated_article(
         article = article_fetcher(title, source_lang)
 
         # 3. Translate + build response (delegated)
-        response = translate_article(
-            article, source_lang, target_lang
-        )
+        response = translate_article(article, source_lang, target_lang)
 
         logging.info(
             "Successfully translated article: %s (%d sections, %d citations)",
@@ -380,6 +386,7 @@ async def structured_translated_article(
             status_code=500, detail=f"Failed to translate article: {str(e)}"
         )
 
+
 def translate_article(
     article,
     source_lang: str,
@@ -396,7 +403,9 @@ def translate_article(
             Section(
                 title=translate(section.title, source_lang, target_lang),
                 raw_content=translate(section.raw_content, source_lang, target_lang),
-                clean_content=translate(section.clean_content, source_lang, target_lang),
+                clean_content=translate(
+                    section.clean_content, source_lang, target_lang
+                ),
                 citations=section.citations,
                 citation_position=section.citation_position,
             )
@@ -430,51 +439,43 @@ async def get_fact_extraction_models():
         return models
     except Exception as e:
         logging.error("Error fetching fact extraction models: %s", str(e))
-        raise HTTPException(
-            status_code=500, detail=f"Failed to fetch models: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to fetch models: {str(e)}")
 
 
 @router.get("/fact-extraction-validate")
 async def validate_fact_extraction_model(
-    model_id: str = Query(..., description="Model ID to validate (predefined or HuggingFace model name)")
+    model_id: str = Query(
+        ..., description="Model ID to validate (predefined or HuggingFace model name)"
+    ),
 ):
     """
     Validate a fact extraction model ID.
     Checks if the model exists either in the predefined config or on HuggingFace Hub.
-    
+
     Args:
         model_id: The model ID to validate
-        
+
     Returns:
         Dictionary with validation result and model info if valid
     """
     logging.info("Validating fact extraction model: %s", model_id)
-    
+
     try:
         config = validate_model(model_id)
-        return {
-            "valid": True,
-            "model": config
-        }
+        return {"valid": True, "model": config}
     except ValueError as e:
         logging.warning("Model validation failed for %s: %s", model_id, str(e))
-        return {
-            "valid": False,
-            "error": str(e)
-        }
+        return {"valid": False, "error": str(e)}
     except Exception as e:
         logging.error("Error validating model %s: %s", model_id, str(e))
-        raise HTTPException(
-            status_code=500, detail=f"Validation error: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Validation error: {str(e)}")
 
 
 @router.post("/extract-facts", response_model=FactExtractionResponse)
 def extract_facts_endpoint(request: FactExtractionRequest):
     """
     Extract facts from a section's content using the specified LLM model.
-    
+
     - **section_content**: The text content to extract facts from
     - **model_id**: The ID of the model to use (from /fact-extraction-models endpoint)
     - **section_title**: The title of the section being processed (optional)
@@ -487,33 +488,31 @@ def extract_facts_endpoint(request: FactExtractionRequest):
         request.section_title,
         request.num_facts,
     )
-    
+
     try:
         facts, chunks = extract_facts(
-            request.section_content,
-            request.model_id,
-            num_facts=request.num_facts
+            request.section_content, request.model_id, num_facts=request.num_facts
         )
-        
+
         config = get_model_config(request.model_id)
         model_name = config["name"]
-        
+
         response = FactExtractionResponse(
             facts=facts,
             model_used=model_name,
             section_title=request.section_title,
-            chunks=chunks
+            chunks=chunks,
         )
-        
+
         logging.info(
             "Successfully extracted %d facts using model %s for section '%s'",
             len(facts),
             request.model_id,
             request.section_title,
         )
-        
+
         return response
-        
+
     except ValueError as e:
         logging.error("ValueError in fact extraction: %s", str(e))
         raise HTTPException(status_code=400, detail=str(e))
