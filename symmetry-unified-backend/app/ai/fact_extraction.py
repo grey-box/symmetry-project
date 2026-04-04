@@ -22,10 +22,7 @@ from huggingface_hub import model_info
 CONFIG_PATH = Path(__file__).parent / "fact_extraction_models.json"
 
 with open(CONFIG_PATH, "r") as f:
-    MODEL_CONFIG = {
-        entry["id"]: entry
-        for entry in json.load(f)
-    }
+    MODEL_CONFIG = {entry["id"]: entry for entry in json.load(f)}
 
 # Cache: model_name -> (model, tokenizer)
 MODEL_CACHE_MAX_SIZE = int(os.getenv("FACT_EXTRACTION_MODEL_CACHE_SIZE", "3"))
@@ -57,10 +54,10 @@ def model_exists_on_hf(model_name: str) -> bool:
     """
     Check if a model exists on HuggingFace Hub.
     Uses huggingface_hub.model_info() which automatically uses HF_TOKEN from environment.
-    
+
     Args:
         model_name: The HuggingFace model ID to check
-        
+
     Returns:
         True if model exists and is accessible, False otherwise
     """
@@ -78,12 +75,12 @@ def _split_into_sentences(text: str) -> List[str]:
     Handles sentence boundaries: . ! ?
     """
     # Replace multiple whitespace with single space
-    text = re.sub(r'\s+', ' ', text.strip())
-    
+    text = re.sub(r"\s+", " ", text.strip())
+
     # Split on sentence endings
     # Pattern: look for . ! ? followed by space or end of string
-    sentences = re.split(r'(?<=[.!?])\s+', text)
-    
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+
     # Filter out empty sentences
     return [s.strip() for s in sentences if s.strip()]
 
@@ -91,37 +88,40 @@ def _split_into_sentences(text: str) -> List[str]:
 def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str]]:
     """
     Divide sentences into approximately equal chunks by word count.
-    
+
     Args:
         sentences: List of sentences to chunk
         num_chunks: Number of chunks to create (will be capped by len(sentences))
-    
+
     Returns:
         List of chunks, where each chunk is a list of sentences
     """
     if not sentences:
         return []
-    
+
     # Cap num_chunks to number of sentences
     num_chunks = min(num_chunks, len(sentences))
-    
+
     # Calculate word count for each sentence
     sentence_word_counts = [len(s.split()) for s in sentences]
     total_words = sum(sentence_word_counts)
-    
+
     if total_words == 0:
         return [[s] for s in sentences[:num_chunks]]
-    
+
     # Target words per chunk
     target_words_per_chunk = total_words / num_chunks
-    
+
     chunks: List[List[str]] = []
     current_chunk: List[str] = []
     current_word_count = 0
-    
+
     for sentence, word_count in zip(sentences, sentence_word_counts):
         # If adding this sentence would exceed the target and we still have chunks to allocate
-        if current_word_count + word_count > target_words_per_chunk and len(chunks) < num_chunks - 1:
+        if (
+            current_word_count + word_count > target_words_per_chunk
+            and len(chunks) < num_chunks - 1
+        ):
             if current_chunk:  # Don't add empty chunks
                 chunks.append(current_chunk)
             current_chunk = [sentence]
@@ -129,29 +129,29 @@ def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str
         else:
             current_chunk.append(sentence)
             current_word_count += word_count
-    
+
     # Add the last chunk
     if current_chunk:
         chunks.append(current_chunk)
-    
+
     # If we have fewer chunks than requested, redistribute some sentences
     # This can happen if sentences are very large
     while len(chunks) < num_chunks and chunks:
         # Find the largest chunk
         largest_idx = max(range(len(chunks)), key=lambda i: len(chunks[i]))
         largest_chunk = chunks[largest_idx]
-        
+
         if len(largest_chunk) <= 1:
             break  # Can't split further
-            
+
         # Split the largest chunk in half
         mid = len(largest_chunk) // 2
         new_chunk1 = largest_chunk[:mid]
         new_chunk2 = largest_chunk[mid:]
-        
+
         chunks[largest_idx] = new_chunk1
         chunks.append(new_chunk2)
-    
+
     return chunks
 
 
@@ -159,18 +159,18 @@ def get_model_config(model_id: str) -> Dict[str, Any]:
     """
     Get model configuration. First checks predefined configs, then treats
     the model_id as a HuggingFace model name if it's not in the config.
-    
+
     Args:
         model_id: Either a predefined model ID from fact_extraction_models.json
                   or a HuggingFace model name (e.g., "google/flan-t5-large")
-    
+
     Returns:
         Model configuration dictionary
     """
     config = MODEL_CONFIG.get(model_id)
     if config:
         return config
-    
+
     # If not in predefined configs, treat as custom HuggingFace model
     # Validate that the model exists on HF Hub
     if model_exists_on_hf(model_id):
@@ -183,10 +183,12 @@ def get_model_config(model_id: str) -> Dict[str, Any]:
             "description": f"Custom HuggingFace model: {model_id}",
             "task": "text2text-generation",  # Default, will be auto-detected
             "prompt_style": "instruction",
-            "use_chat_template": False
+            "use_chat_template": False,
         }
-    
-    raise ValueError(f"Model ID '{model_id}' not found in config and does not exist on HuggingFace Hub")
+
+    raise ValueError(
+        f"Model ID '{model_id}' not found in config and does not exist on HuggingFace Hub"
+    )
 
 
 def get_available_models() -> List[Dict[str, Any]]:
@@ -194,7 +196,7 @@ def get_available_models() -> List[Dict[str, Any]]:
     Get list of all available fact extraction models.
     Returns predefined models from config file.
     Custom HuggingFace models are validated on-demand, not listed here.
-    
+
     Returns:
         List of model configuration dictionaries
     """
@@ -205,13 +207,13 @@ def validate_model(model_id: str) -> Dict[str, Any]:
     """
     Validate that a model exists on HuggingFace Hub and return its config.
     This supports both predefined models and custom HuggingFace models.
-    
+
     Args:
         model_id: Model ID (predefined or HuggingFace model name)
-        
+
     Returns:
         Model configuration dictionary if valid
-        
+
     Raises:
         ValueError: If model does not exist or is invalid
     """
@@ -228,17 +230,20 @@ def validate_model(model_id: str) -> Dict[str, Any]:
 # Main extraction function (simplified)
 # ---------------------------------------------------------------------
 
-def extract_facts(text: str, model_id: str, num_facts: int = 1) -> Tuple[List[str], List[str]]:
+
+def extract_facts(
+    text: str, model_id: str, num_facts: int = 1
+) -> Tuple[List[str], List[str]]:
     """
     Extract facts from text using the specified model.
-    
+
     Args:
         text: The text content to extract facts from
         model_id: The ID of the model to use
         num_facts: Number of facts to extract (also determines number of model calls).
                   The text will be chunked and each chunk sent to the model.
                   Default is 1 (no chunking).
-    
+
     Returns:
         Tuple of (facts, chunks) where:
         - facts: List of extracted facts (strings)
@@ -334,7 +339,7 @@ def extract_facts(text: str, model_id: str, num_facts: int = 1) -> Tuple[List[st
             )
 
         raw_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
+
         # Parse the output into individual facts (handle bullet points and newlines)
         facts_from_chunk = _parse_facts(raw_output)
         all_facts.extend(facts_from_chunk)
@@ -349,24 +354,24 @@ def _parse_facts(raw_output: str) -> List[str]:
     Handles bullet points, numbered lists, and newline-separated facts.
     """
     # Split by newlines
-    lines = raw_output.strip().split('\n')
-    
+    lines = raw_output.strip().split("\n")
+
     facts = []
     for line in lines:
         line = line.strip()
         if not line:
             continue
-        
+
         # Remove bullet point markers and numbering
         # Handles: -, *, •, 1., 1), etc.
-        cleaned = re.sub(r'^[\s]*([-*•]|\d+[.)])\s+', '', line)
+        cleaned = re.sub(r"^[\s]*([-*•]|\d+[.)])\s+", "", line)
         cleaned = cleaned.strip()
-        
+
         if cleaned:
             facts.append(cleaned)
-    
+
     # If no bullet points found, treat the whole output as one fact
     if not facts and raw_output.strip():
         return [raw_output.strip()]
-    
+
     return facts
