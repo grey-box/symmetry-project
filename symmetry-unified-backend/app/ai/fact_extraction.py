@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from collections import OrderedDict
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import os
@@ -27,7 +28,29 @@ with open(CONFIG_PATH, "r") as f:
     }
 
 # Cache: model_name -> (model, tokenizer)
-_model_cache: Dict[str, Tuple[Any, Any]] = {}
+MODEL_CACHE_MAX_SIZE = int(os.getenv("FACT_EXTRACTION_MODEL_CACHE_SIZE", "3"))
+_model_cache: "OrderedDict[str, Tuple[Any, Any]]" = OrderedDict()
+
+
+def _evict_lru_model() -> None:
+    """Evict the least recently used model from the cache."""
+    if not _model_cache:
+        return
+
+    evicted_name, (evicted_model, _) = _model_cache.popitem(last=False)
+
+    try:
+        evicted_model.to("cpu")
+    except Exception as e:
+        logging.warning(f"Could not move evicted model {evicted_name} to CPU: {e}")
+
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+        except Exception:
+            pass
+
+    logging.info(f"Evicted least recently used model from cache: {evicted_name}")
 
 
 def model_exists_on_hf(model_name: str) -> bool:
@@ -240,7 +263,13 @@ def extract_facts(text: str, model_id: str, num_facts: int = 1) -> Tuple[List[st
             model = AutoModelForCausalLM.from_pretrained(model_name)
 
         model.eval()
+
+        if len(_model_cache) >= MODEL_CACHE_MAX_SIZE:
+            _evict_lru_model()
+
         _model_cache[model_name] = (model, tokenizer)
+    else:
+        _model_cache.move_to_end(model_name)
 
     model, tokenizer = _model_cache[model_name]
 
