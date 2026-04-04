@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import os
 
+import spacy
+from spacy.language import Language
 import torch
 from transformers import (
     AutoTokenizer,
@@ -27,6 +29,18 @@ with open(CONFIG_PATH, "r") as f:
 # Cache: model_name -> (model, tokenizer)
 MODEL_CACHE_MAX_SIZE = int(os.getenv("FACT_EXTRACTION_MODEL_CACHE_SIZE", "3"))
 _model_cache: "OrderedDict[str, Tuple[Any, Any]]" = OrderedDict()
+
+_spacy_sentence_segmenter: Language | None = None
+
+
+def _get_spacy_sentence_segmenter() -> Language:
+    global _spacy_sentence_segmenter
+    if _spacy_sentence_segmenter is None:
+        nlp = spacy.blank("en")
+        if "sentencizer" not in nlp.pipe_names:
+            nlp.add_pipe("sentencizer")
+        _spacy_sentence_segmenter = nlp
+    return _spacy_sentence_segmenter
 
 
 def _evict_lru_model() -> None:
@@ -71,17 +85,26 @@ def model_exists_on_hf(model_name: str) -> bool:
 
 def _split_into_sentences(text: str) -> List[str]:
     """
-    Split text into sentences using regex.
-    Handles sentence boundaries: . ! ?
+    Split text into sentences using spaCy sentence segmentation for improved
+    accuracy. Falls back to regex-based splitting if spaCy segmentation fails.
     """
-    # Replace multiple whitespace with single space
     text = re.sub(r"\s+", " ", text.strip())
+    if not text:
+        return []
 
-    # Split on sentence endings
-    # Pattern: look for . ! ? followed by space or end of string
+    try:
+        nlp = _get_spacy_sentence_segmenter()
+        doc = nlp(text)
+        sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+        if sentences:
+            return sentences
+    except Exception as e:
+        logging.warning(
+            f"spaCy sentence segmentation failed, falling back to regex: {e}"
+        )
+
+    # Fallback for any unexpected spaCy failure.
     sentences = re.split(r"(?<=[.!?])\s+", text)
-
-    # Filter out empty sentences
     return [s.strip() for s in sentences if s.strip()]
 
 
