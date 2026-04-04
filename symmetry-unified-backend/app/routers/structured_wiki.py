@@ -559,7 +559,7 @@ async def validate_fact_extraction_model(
 
 
 @router.post("/extract-facts", response_model=FactExtractionResponse)
-async def extract_facts_endpoint(request: FactExtractionRequest):
+def extract_facts_endpoint(request: FactExtractionRequest):
     """
     Extract facts from a section's content using the specified LLM model.
     
