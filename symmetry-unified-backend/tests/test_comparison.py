@@ -131,7 +131,11 @@ class TestComparisonRouter:
         """Test semantic comparison GET with invalid threshold"""
         response = client.get(
             "/symmetry/v1/comparison/semantic",
-            params={"original_article_content": "Test", "translated_article_content": "Test", "similarity_threshold": 2.0},
+            params={
+                "original_article_content": "Test",
+                "translated_article_content": "Test",
+                "similarity_threshold": 2.0,
+            },
         )
 
         assert response.status_code == 422  # FastAPI validates ge/le at framework level
@@ -251,7 +255,9 @@ class TestComparisonRouter:
         """Test wiki translation without required parameters"""
         response = client.get("/symmetry/v1/wiki_translate/source_article")
 
-        assert response.status_code == 422  # FastAPI returns 422 for missing required query params
+        assert (
+            response.status_code == 422
+        )  # FastAPI returns 422 for missing required query params
 
     def test_wiki_translate_article_not_found(self, client):
         """Test wiki translation for non-existent article"""
