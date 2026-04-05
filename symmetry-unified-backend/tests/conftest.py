@@ -46,8 +46,8 @@ def mock_wikipediaapi_fresh():
 
 
 @pytest.fixture
-def sample_obama_text_a():
-    """Sample text from Obama article A"""
+def sample_obama_original_text():
+    """Sample text from Obama original article"""
     return """Barack Hussein Obama II is an American politician who served as the 44th president of United States from 2009 to 2017.
 Obama previously served as a U.S. senator representing Illinois from 2005 to 2008 and as an Illinois state senator from 1997 to 2004.
 Obama was born in Honolulu, Hawaii. 
@@ -58,8 +58,8 @@ Obama selected Joe Biden as his running mate and defeated Republican nominee Joh
 
 
 @pytest.fixture
-def sample_obama_text_b():
-    """Sample text from Obama article B"""
+def sample_obama_translated_text():
+    """Sample text from Obama translated article"""
     return """Barack Hussein Obama II is an American politician who served as the 44th president of United States from 2009 to 2017.
 A member of the Democratic Party, he was the first African-American president in American history.
 He graduated from Columbia University in 1983 with a Bachelor of Arts degree in political science and later worked as a community organizer in Chicago.
@@ -73,10 +73,10 @@ In the 2008 presidential election, after a close primary campaign against Hillar
 def valid_compare_request():
     """Valid comparison request payload"""
     return {
-        "article_text_blob_1": "First article text",
-        "article_text_blob_2": "Second article text",
-        "article_text_blob_1_language": "en",
-        "article_text_blob_2_language": "en",
+        "original_article_content": "First article text",
+        "translated_article_content": "Second article text",
+        "original_language": "en",
+        "translated_language": "en",
         "comparison_threshold": 0.65,
         "model_name": "sentence-transformers/LaBSE",
     }
@@ -86,8 +86,8 @@ def valid_compare_request():
 def valid_semantic_compare_request():
     """Valid semantic comparison request payload"""
     return {
-        "text_a": "First text to compare",
-        "text_b": "Second text to compare",
+        "original_article_content": "First text to compare",
+        "translated_article_content": "Second text to compare",
         "similarity_threshold": 0.75,
         "model_name": "sentence-transformers/LaBSE",
     }

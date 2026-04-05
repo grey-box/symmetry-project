@@ -4,6 +4,7 @@ import {
   StructuredArticleResponse,
   StructuredCitationResponse,
   StructuredReferenceResponse,
+  SectionCompareResponse,
   Section
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
@@ -57,24 +58,39 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [hoveredChunk, setHoveredChunk] = useState<string | null>(null);
   const [clickedChunk, setClickedChunk] = useState<string | null>(null);
 
+  // Fact extraction states
+  const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
+  const [selectedFactModel, setSelectedFactModel] = useState<string>('');
+  const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
+  const [extractingSection, setExtractingSection] = useState<string | null>(null);
+  const [factError, setFactError] = useState<string | null>(null);
+  const [numFacts, setNumFacts] = useState<number>(1);
+  const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
+
+  // Section comparison state
+  const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
+  const [compareLang, setCompareLang] = useState('es');
+  const [comparing, setComparing] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+
 
 
   // Load article data
   const loadArticle = async (query: string, lang: string) => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const [articleData, citationsData, referencesData] = await Promise.all([
         structuredWikiService.getStructuredArticle({ query, lang }),
         structuredWikiService.getCitationAnalysis({ query, lang }),
         structuredWikiService.getReferenceAnalysis({ query, lang })
       ]);
-      
+
       setArticle(articleData);
       setCitationAnalysis(citationsData);
       setReferenceAnalysis(referencesData);
-      
+
       if (articleData.sections.length > 0) {
         setSelectedSection(articleData.sections[0].title);
       }
@@ -110,6 +126,30 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
+
+  /** Run section-by-section comparison against another language */
+  const runSectionComparison = async () => {
+    if (!article) return;
+
+    setComparing(true);
+    setError(null);
+
+    try {
+      const result = await structuredWikiService.compareSections({
+        source_query: article.title,
+        target_query: article.title, // same article, different language
+        source_lang: article.lang,
+        similarity_threshold: 0.5,
+      });
+
+      setComparisonResult(result);
+      setShowComparison(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Section comparison failed');
+    } finally {
+      setComparing(false);
+    }
+  };
 
   // Search sections (for section navigation)
   const filteredSections = article ? structuredWikiService.searchSections(article, searchTerm) : [];
@@ -299,7 +339,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     <div className="structured-article-viewer p-6 max-w-7xl mx-auto">
       <div className="bg-white rounded-lg shadow-lg p-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Structured Wikipedia Article Viewer</h1>
-        
+
         {/* Search Form */}
         <form onSubmit={handleSearch} className="mb-6">
           <div className="flex gap-4">
@@ -493,7 +533,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        
+
 
         {/* Error Display */}
         {error && (
@@ -532,7 +572,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Most Cited Articles */}
-        {mostCited.length > 0 && (
+        {!showComparison && mostCited.length > 0 && (
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Most Cited Articles</h3>
             <div className="space-y-2">
@@ -549,7 +589,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Article Content */}
-        {article && (
+        {!showComparison && article && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Section Navigation */}
             <div className="lg:col-span-1">
@@ -559,11 +599,10 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                   <button
                     key={index}
                     onClick={() => setSelectedSection(section.title)}
-                    className={`w-full text-left p-2 rounded transition-colors ${
-                      selectedSection === section.title
+                    className={`w-full text-left p-2 rounded transition-colors ${selectedSection === section.title
                         ? 'bg-blue-100 text-blue-800 border-l-4 border-blue-500'
                         : 'hover:bg-gray-100 text-gray-700'
-                    }`}
+                      }`}
                   >
                     <div className="font-medium">{section.title}</div>
                     <div className="text-sm text-gray-500">
@@ -684,6 +723,52 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                             </p>
                           </div>
                         )}
+
+                        {/* Extract Facts Button */}
+                        <div className="mt-6">
+                          <button
+                            onClick={() => handleExtractFacts(section.title, section.clean_content)}
+                            disabled={extractingSection === section.title || !selectedFactModel}
+                            className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          >
+                            {extractingSection === section.title ? (
+                              <>
+                                <Loader2 size={16} className="animate-spin" />
+                                Extracting...
+                              </>
+                            ) : (
+                              'Extract Facts'
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Display Extracted Facts */}
+                        {sectionFacts[section.title] && (
+                          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <h5 className="font-semibold text-purple-900">
+                                Extracted Facts
+                              </h5>
+                              <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                {sectionFacts[section.title].model_used}
+                              </span>
+                            </div>
+                            {sectionFacts[section.title].facts.length > 0 ? (
+                              <ul className="space-y-2">
+                                {sectionFacts[section.title].facts.map((fact, index) => (
+                                  <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
+                                    <span className="text-purple-500 mt-1">•</span>
+                                    <span>{fact}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-600 italic">
+                                No facts could be extracted from this section.
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -694,7 +779,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* References Section */}
-        {referenceAnalysis && referenceAnalysis.references.length > 0 && (
+        {!showComparison && referenceAnalysis && referenceAnalysis.references.length > 0 && (
           <div className="mt-8 pt-8 border-t border-gray-200">
             <h3 className="text-xl font-bold text-gray-800 mb-4">
               References ({referenceAnalysis.total_references})
@@ -711,8 +796,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                     )}
                   </div>
                   <div className="text-gray-800 text-sm">
-                    {reference.label.length > 200 
-                      ? reference.label.substring(0, 200) + '...' 
+                    {reference.label.length > 200
+                      ? reference.label.substring(0, 200) + '...'
                       : reference.label
                     }
                   </div>

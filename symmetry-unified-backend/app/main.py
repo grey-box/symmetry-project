@@ -14,6 +14,7 @@ from app.routers import (
     structured_wiki,
     structural_analysis,
     models,
+    config as config_router,
 )
 
 config = Config(".env")
@@ -21,14 +22,6 @@ config = Config(".env")
 LOG_LEVEL = config.get("LOG_LEVEL", default="INFO")
 FASTAPI_DEBUG = config.get("FASTAPI_DEBUG", cast=bool, default=False)
 SIMILARITY_THRESHOLD = config.get("SIMILARITY_THRESHOLD", cast=float, default=0.65)
-
-comparison_models = [
-    "sentence-transformers/LaBSE",
-    "xlm-roberta-base",
-    "multi-qa-distilbert-cos-v1",
-    "multi-qa-MiniLM-L6-cos-v1",
-    "multi-qa-mpnet-base-cos-v1",
-]
 
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -66,6 +59,7 @@ app.include_router(comparison.router)
 app.include_router(structured_wiki.router)
 app.include_router(structural_analysis.router)
 app.include_router(models.router)
+app.include_router(config_router.router)
 
 
 @app.get(
