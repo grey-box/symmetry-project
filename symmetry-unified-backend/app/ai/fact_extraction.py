@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import os
 
+import spacy
 import torch
 from transformers import (
     AutoTokenizer,
@@ -14,6 +15,11 @@ from transformers import (
     AutoConfig,
 )
 from huggingface_hub import model_info
+
+try:
+    _nlp = spacy.load("en_core_web_sm")
+except OSError:
+    _nlp = None
 
 # ---------------------------------------------------------------------
 # Load model config
@@ -74,17 +80,17 @@ def model_exists_on_hf(model_name: str) -> bool:
 
 def _split_into_sentences(text: str) -> List[str]:
     """
-    Split text into sentences using regex.
-    Handles sentence boundaries: . ! ?
+    Split text into sentences using spaCy's sentencizer.
+    Falls back to regex splitting if spaCy is unavailable.
     """
-    # Replace multiple whitespace with single space
     text = re.sub(r'\s+', ' ', text.strip())
-    
-    # Split on sentence endings
-    # Pattern: look for . ! ? followed by space or end of string
+
+    if _nlp is not None:
+        doc = _nlp(text)
+        return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
+
+    # Fallback: regex-based splitting
     sentences = re.split(r'(?<=[.!?])\s+', text)
-    
-    # Filter out empty sentences
     return [s.strip() for s in sentences if s.strip()]
 
 
