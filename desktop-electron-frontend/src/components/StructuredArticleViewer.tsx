@@ -58,15 +58,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [hoveredChunk, setHoveredChunk] = useState<string | null>(null);
   const [clickedChunk, setClickedChunk] = useState<string | null>(null);
 
-  // Fact extraction states
-  const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
-  const [selectedFactModel, setSelectedFactModel] = useState<string>('');
-  const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
-  const [extractingSection, setExtractingSection] = useState<string | null>(null);
-  const [factError, setFactError] = useState<string | null>(null);
-  const [numFacts, setNumFacts] = useState<number>(1);
-  const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
-
   // Section comparison state
   const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
   const [compareLang, setCompareLang] = useState('es');
