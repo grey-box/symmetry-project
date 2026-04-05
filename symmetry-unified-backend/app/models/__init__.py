@@ -41,18 +41,6 @@ from app.models.api_models import (
     FactExtractionRequest,
     FactExtractionResponse,
 )
-from app.models.section_comparison import (
-    SectionCompareRequest,
-    SectionCompareResponse,
-    SectionDiff,
-    ParagraphDiff,
-)
-from app.models.section_comparison import (
-    SectionCompareRequest,
-    SectionCompareResponse,
-    SectionDiff,
-    ParagraphDiff,
-)
 
 __all__ = [
     "Citation",
