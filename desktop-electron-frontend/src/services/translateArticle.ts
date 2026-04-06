@@ -3,21 +3,19 @@ import { getAxiosInstance } from '@/services/axios'
 import { TranslateArticleResponse } from '@/models/apis/TranslateArticleResponse'
 
 export async function translateArticle(
-  sourceText: string,
-  sourceLanguage: string,
+  sourceUrl: string,
   targetLanguage: string
 ): Promise<AxiosResponse<TranslateArticleResponse>> {
   try {
     const axiosInstance = await getAxiosInstance();
 
-    return axiosInstance.post<TranslateArticleResponse>(
-      '/symmetry/v1/wiki_translate/chunked_text',
+    return axiosInstance.get<TranslateArticleResponse>(
+      '/symmetry/v1/wiki_translate/source_article',
       {
-        source_language: sourceLanguage,
-        target_language: targetLanguage,
-        text: sourceText,
-      },
-      {
+        params: {
+          url: sourceUrl,
+          language: targetLanguage,
+        },
         timeout: 600000,
       }
     );

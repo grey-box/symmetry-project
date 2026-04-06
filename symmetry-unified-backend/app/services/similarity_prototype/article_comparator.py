@@ -3,9 +3,10 @@ import os
 import re
 import math
 import multiprocessing
+import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 from Phase_1.vectorizer import Vectorizer
 from Phase_3.scorer import Scorer
 from wikipedia_parser import parse_url_to_paragraph_sentences
@@ -21,32 +22,53 @@ _GENERIC_PRONOUNS = frozenset({
 # These must be at module level (not inside a class or function) so that
 # Python's "spawn" start method on Windows can pickle and find them.
 
-# Each worker process stores its shared data here after _init_worker() runs.
+# Each worker process stores its shared data here after _init_worker_persistent() runs.
 _worker_state: dict = {}
 
+# Module-level persistent pool – created once and reused across all section comparisons.
+# Previously the pool was recreated per section, paying the ~1 s-per-worker spaCy /
+# WordNet startup cost for every section.  With a persistent pool that cost is paid
+# only on the very first comparison request.
+_persistent_pool: Optional[multiprocessing.Pool] = None
 
-def _init_worker(
-    all_vectors:          dict,
-    all_roles:            dict,
-    all_tokens:           dict,
+
+def _init_worker_persistent(
     weights:              dict,
     role_weights:         dict,
     antonym_verb_penalty: float,
     known_antonym_pairs:  set,
 ) -> None:
-    """Runs once per worker process. Stores shared pre-computed data and
-    creates a SynonymMatcher with its own WordNet cache."""
+    """Runs once per worker when the pool is first created.
+    Loads the SynonymMatcher (WordNet + NLTK) and stores constant scoring
+    parameters.  Per-section data (vectors, roles, tokens) is passed as
+    task arguments instead so it does not need to be re-sent on every call."""
     from Phase_2.synonym_matcher import SynonymMatcher
     _worker_state.update({
-        "all_vectors":           all_vectors,
-        "all_roles":             all_roles,
-        "all_tokens":            all_tokens,
         "weights":               weights,
         "role_weights":          role_weights,
         "antonym_verb_penalty":  antonym_verb_penalty,
         "known_antonym_pairs":   known_antonym_pairs,
         "matcher":               SynonymMatcher(),
     })
+
+
+def _get_persistent_pool(
+    weights:              dict,
+    role_weights:         dict,
+    antonym_verb_penalty: float,
+    known_antonym_pairs:  set,
+) -> multiprocessing.Pool:
+    """Return the module-level worker pool, creating it on the first call."""
+    global _persistent_pool
+    if _persistent_pool is None:
+        num_workers = multiprocessing.cpu_count()
+        print(f"  Initializing persistent worker pool ({num_workers} workers)…")
+        _persistent_pool = multiprocessing.Pool(
+            processes=num_workers,
+            initializer=_init_worker_persistent,
+            initargs=(weights, role_weights, antonym_verb_penalty, known_antonym_pairs),
+        )
+    return _persistent_pool
 
 
 def _cosine(vec_a: list, vec_b: list) -> float:
@@ -118,29 +140,51 @@ def _compare_roles_worker(matcher, roles_a, roles_b, role_weights,
     return round(weighted_sum / total_weight, 4) if total_weight > 0 else 0.0
 
 
-def _score_row(sent_a: str, sentences_b: list) -> list:
-    """Compute one row of the score matrix.  Runs in a worker process."""
+def _score_row(
+    sent_a:           str,
+    sentences_b:      list,
+    candidate_indices,
+    all_vectors:      dict,
+    all_roles:        dict,
+    all_tokens:       dict,
+) -> list:
+    """Compute one row of the score matrix.  Runs in a worker process.
+
+    Per-section data (all_vectors, all_roles, all_tokens) is passed as
+    arguments rather than read from _worker_state so the persistent pool
+    does not need to be restarted between sections.
+
+    candidate_indices: frozenset of column indices that should receive the full
+    Phase 1+2+3 score.  All other columns get a Phase-1-only score so the
+    expensive WordNet / role-comparison work is skipped for clearly unrelated
+    pairs.  Pass None to score every column with the full pipeline.
+    """
     st      = _worker_state
     matcher = st["matcher"]
     w       = st["weights"]
 
-    vec_a    = st["all_vectors"][sent_a]
-    roles_a  = st["all_roles"][sent_a]
-    tokens_a = st["all_tokens"][sent_a]
+    vec_a    = all_vectors[sent_a]
+    roles_a  = all_roles[sent_a]
+    tokens_a = all_tokens[sent_a]
 
     row = []
-    for sent_b in sentences_b:
-        # Phase 1 — cosine on pre-computed TF-IDF vectors
-        p1 = _cosine(vec_a, st["all_vectors"][sent_b])
+    for j, sent_b in enumerate(sentences_b):
+        # Phase 1 — cosine on pre-computed TF-IDF vectors (always computed)
+        p1 = _cosine(vec_a, all_vectors[sent_b])
 
-        # Phase 2 — WordNet synonym matching on pre-computed tokens
-        toks_b = st["all_tokens"][sent_b]
+        if candidate_indices is not None and j not in candidate_indices:
+            # Non-candidate: contribute Phase 1 weight only; skip costly lookups
+            row.append(round(w["phase_1"] * p1, 4))
+            continue
+
+        # Phase 2 — WordNet synonym matching (candidates only)
+        toks_b = all_tokens[sent_b]
         p2 = round((matcher.best_token_match(tokens_a, toks_b) +
                     matcher.best_token_match(toks_b, tokens_a)) / 2, 4)
 
-        # Phase 3 — role comparison on pre-computed spaCy roles
+        # Phase 3 — role comparison (candidates only)
         p3 = _compare_roles_worker(
-            matcher, roles_a, st["all_roles"][sent_b],
+            matcher, roles_a, all_roles[sent_b],
             st["role_weights"], st["antonym_verb_penalty"], st["known_antonym_pairs"],
         )
 
@@ -281,9 +325,25 @@ class ArticleComparator:
     # multiprocessing.Pool.  Each worker has its own SynonymMatcher with
     # its own WordNet cache, so there is no cross-process locking.
     # spaCy is NOT loaded in workers (lazy-load in SyntaxParser ensures this).
-    def build_score_matrix(self, sentences_a: List[str], sentences_b: List[str]) -> List[List[float]]:
+    def build_score_matrix(
+        self,
+        sentences_a: List[str],
+        sentences_b: List[str],
+        top_k: int = 8,
+    ) -> List[List[float]]:
+        """Build the N×M score matrix.
+
+        top_k controls the candidate-pruning pre-filter: for each sentence in A
+        the K sentences in B with the highest Phase-1 (TF-IDF cosine) score are
+        selected as candidates and scored with the full Phase 1+2+3 pipeline.
+        All other pairs receive a Phase-1-only score, skipping the expensive
+        WordNet and role-comparison work.  This reduces Phase 2+3 work from
+        O(N×M) to O(N×K), giving a large speedup on long articles without
+        meaningfully affecting accuracy (the true best match is almost always
+        among the top-K TF-IDF candidates).
+        """
         total = len(sentences_a) * len(sentences_b)
-        print(f"  Note: Running full pipeline on all {total} pairs")
+        print(f"  Note: {total} pairs total — using top-{top_k} Phase-1 pre-filter")
 
         unique_sentences = list(dict.fromkeys(sentences_a + sentences_b))
 
@@ -293,12 +353,43 @@ class ArticleComparator:
         all_vectors = vectorizer.get_vectors(unique_sentences)
         print("  Pre-computing TF-IDF vectors... done")
 
+        # ── Phase 1 pre-filter: select top-K candidates per sentence_a ───────
+        # Use numpy for a fast all-pairs cosine similarity matrix so we can
+        # identify the best candidates without running Phase 2+3 on every pair.
+        effective_k = min(top_k, len(sentences_b))
+        candidate_sets: List = []
+
+        if effective_k < len(sentences_b):
+            print("  Selecting candidates via Phase-1 pre-filter...", end="\r")
+            vecs_a = np.array([all_vectors[s] for s in sentences_a], dtype=np.float32)
+            vecs_b = np.array([all_vectors[s] for s in sentences_b], dtype=np.float32)
+
+            norms_a = np.linalg.norm(vecs_a, axis=1, keepdims=True)
+            norms_b = np.linalg.norm(vecs_b, axis=1, keepdims=True)
+            norms_a[norms_a == 0] = 1.0
+            norms_b[norms_b == 0] = 1.0
+
+            p1_matrix = (vecs_a / norms_a) @ (vecs_b / norms_b).T  # (N, M)
+
+            for i in range(len(sentences_a)):
+                top_indices = np.argpartition(p1_matrix[i], -effective_k)[-effective_k:]
+                candidate_sets.append(frozenset(top_indices.tolist()))
+
+            full_pairs = len(sentences_a) * effective_k
+            print(f"  Candidates selected — Phase 2+3 pairs: {full_pairs} (was {total})")
+        else:
+            # Small enough to score everything with the full pipeline
+            candidate_sets = [None] * len(sentences_a)
+            print("  Article small enough — skipping pre-filter, scoring all pairs")
+
         # ── Phase 2 pre-computation ──────────────────────────────────────────
-        # Tokenise every sentence once so workers call best_token_match()
-        # with pre-built token lists instead of re-tokenising per pair.
+        # Cap tokens per paragraph to prevent O(N²) WordNet blowup.
+        # Paragraphs can have 100+ tokens; 30 captures the main content words
+        # while keeping best_token_match to at most 30×30 = 900 comparisons.
+        _MAX_TOKENS = 30
         print("  Pre-computing tokens...        ", end="\r")
         preprocess = self.scorer.synonym_matcher.preprocessor.process
-        all_tokens = {s: preprocess(s) for s in unique_sentences}
+        all_tokens = {s: preprocess(s)[:_MAX_TOKENS] for s in unique_sentences}
         print("  Pre-computing tokens...         done")
 
         # ── Phase 3 pre-computation ──────────────────────────────────────────
@@ -313,20 +404,40 @@ class ArticleComparator:
         antonym_verb_penalty = rc.ANTONYM_VERB_PENALTY
         known_antonym_pairs  = rc.KNOWN_ANTONYM_PAIRS
 
-        # ── Parallel matrix computation ──────────────────────────────────────
-        num_workers = min(multiprocessing.cpu_count(), len(sentences_a))
-        print(f"  Building score matrix with {num_workers} workers...")
+        # ── Parallel vs sequential decision ──────────────────────────────────
+        # For very small inputs the IPC overhead of distributing tasks to the
+        # pool exceeds the benefit of parallelism, so fall back to sequential.
+        # The persistent pool means we no longer pay spaCy startup per section,
+        # so this threshold only guards against task-distribution overhead.
+        total_scored_pairs = len(sentences_a) * (
+            effective_k if effective_k < len(sentences_b) else len(sentences_b)
+        )
+        _SEQUENTIAL_THRESHOLD = 60  # pairs below which sequential is faster
 
-        with multiprocessing.Pool(
-            processes   = num_workers,
-            initializer = _init_worker,
-            initargs    = (all_vectors, all_roles, all_tokens,
-                           self.scorer.WEIGHTS, role_weights,
-                           antonym_verb_penalty, known_antonym_pairs),
-        ) as pool:
+        if total_scored_pairs <= _SEQUENTIAL_THRESHOLD:
+            print(f"  Building score matrix sequentially ({total_scored_pairs} pairs)...")
+            _init_worker_persistent(
+                self.scorer.WEIGHTS, role_weights,
+                antonym_verb_penalty, known_antonym_pairs,
+            )
+            matrix = [
+                _score_row(sent_a, sentences_b, candidate_sets[i],
+                           all_vectors, all_roles, all_tokens)
+                for i, sent_a in enumerate(sentences_a)
+            ]
+        else:
+            pool = _get_persistent_pool(
+                self.scorer.WEIGHTS, role_weights,
+                antonym_verb_penalty, known_antonym_pairs,
+            )
+            print(f"  Building score matrix with {multiprocessing.cpu_count()} workers...")
             matrix = pool.starmap(
                 _score_row,
-                [(sent_a, sentences_b) for sent_a in sentences_a],
+                [
+                    (sent_a, sentences_b, candidate_sets[i],
+                     all_vectors, all_roles, all_tokens)
+                    for i, sent_a in enumerate(sentences_a)
+                ],
             )
 
         return matrix

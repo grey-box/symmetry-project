@@ -10,7 +10,8 @@ export async function compareArticles(
   targetArticleContent: string,
   sourceLanguage: string,
   targetLanguage: string,
-  similarityThreshold: number = 0.65
+  similarityThreshold: number = 0.65,
+  modelName: string = 'sentence-transformers/LaBSE'
 ): Promise<AxiosResponse<{
   comparisons: Array<{
     left_article_array: string[]
@@ -27,6 +28,8 @@ export async function compareArticles(
     original_language: sourceLanguage,
     translated_language: targetLanguage,
     similarity_threshold: similarityThreshold,
-    model_name: 'sentence-transformers/LaBSE'
+    model_name: modelName,
+  }, {
+    timeout: 600000, // 10 minutes — large articles can take significant time
   })
 }

@@ -292,11 +292,27 @@ def perform_semantic_comparison(request_data):
     # and will split/clean sentences using the existing preprocess_input.
     if model_name == "similarity_prototype" and ArticleComparator is not None:
         try:
+            from app.ai.translations import translate as _translate
+
+            # Prototype NLP tools (TF-IDF vocabulary, WordNet, spaCy en_core_web_sm)
+            # are English-only.  Translate both sides to English automatically so
+            # the three-phase pipeline operates on a common language.
+            if source_language != "en":
+                logger.info(
+                    "similarity_prototype: translating source (%s→en)", source_language
+                )
+                source_article = _translate(source_article, source_language, "en")
+            if target_language != "en":
+                logger.info(
+                    "similarity_prototype: translating target (%s→en)", target_language
+                )
+                target_article = _translate(target_article, target_language, "en")
+
             comparator = ArticleComparator()
 
-            # Use same preprocessing/splitting used by the transformer path
-            original_sentences = preprocess_input(source_article, source_language) or []
-            translated_sentences = preprocess_input(target_article, target_language) or []
+            # Preprocess as English now that both blobs have been translated
+            original_sentences = preprocess_input(source_article, "en") or []
+            translated_sentences = preprocess_input(target_article, "en") or []
 
             # Clean and filter using the comparator's gates
             left = [comparator.clean_sentence(s) for s in original_sentences]
@@ -353,8 +369,8 @@ def perform_semantic_comparison(request_data):
                     {
                         "left_article_array": left,
                         "right_article_array": right,
-                        "left_article_missing_info_index": [i for i, sc in enumerate(ab_scores) if sc == 0],
-                        "right_article_extra_info_index": [i for i, sc in enumerate(ba_scores) if sc == 0],
+                        "left_article_missing_info_index": [i for i, sc in enumerate(ab_scores) if sc < sim_threshold],
+                        "right_article_extra_info_index": [i for i, sc in enumerate(ba_scores) if sc < sim_threshold],
                         "success": True,
                         "score": final_score,
                         "details": {

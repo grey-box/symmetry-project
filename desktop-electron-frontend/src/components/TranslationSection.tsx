@@ -142,11 +142,13 @@ const TranslationSection = () => {
 
       const sourceText = form.getValues('sourceArticleContent')
       const sourceUrl = form.getValues('sourceArticleUrl')
-      const sourceLangMatch = sourceUrl.match(/https?:\/\/([a-z]{2})\.wikipedia\.org/)
-      const sourceLanguage = sourceLangMatch ? sourceLangMatch[1] : 'en'
 
       if (!sourceText || !sourceText.trim()) {
         throw new Error('Source article content is empty.')
+      }
+
+      if (!sourceUrl || !sourceUrl.trim()) {
+        throw new Error('Source article URL is required for translation.')
       }
 
       setValue('translatedArticleContent', '')
@@ -158,7 +160,7 @@ const TranslationSection = () => {
         },
       ])
 
-      const response = await translateArticle(sourceText, sourceLanguage, language)
+      const response = await translateArticle(sourceUrl, language)
       const translatedArticle = typeof response.data?.translatedArticle === 'string'
         ? response.data.translatedArticle
         : ''

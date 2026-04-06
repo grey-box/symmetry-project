@@ -22,12 +22,20 @@ const ComparisonSection = () => {
   const [targetText, setTargetText] = useState('')
   const [elapsedTime, setElapsedTime] = useState(0)
   const [isRunning, setIsRunning] = useState(false)
+
+  // Progress bar
+  const [compareProgress, setCompareProgress] = useState(0)
+  const [compareStage, setCompareStage] = useState('')
+  const rafRef = useRef<number | null>(null)
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const animatingRef = useRef(false)
   const [sourceLanguage, setSourceLanguage] = useState('en')
   const [targetLanguage, setTargetLanguage] = useState('en')
   const [targetUrl, setTargetUrl] = useState('')
   const [isTargetTextReadOnly, setIsTargetTextReadOnly] = useState(false)
   const [isTargetLanguageReadOnly, setIsTargetLanguageReadOnly] = useState(false)
   const [similarityThreshold, setSimilarityThreshold] = useState(0.65)
+  const [selectedModel, setSelectedModel] = useState('sentence-transformers/LaBSE')
   const sourceUrlRef = useRef<HTMLInputElement>(null)
 
   // Fetch default threshold from backend on mount
@@ -102,6 +110,67 @@ const ComparisonSection = () => {
     }
   }, [isRunning])
 
+  // Progress bar animation
+  useEffect(() => {
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+
+    if (!isLoading) {
+      if (animatingRef.current) {
+        animatingRef.current = false
+        if (rafRef.current) cancelAnimationFrame(rafRef.current)
+        setCompareProgress(100)
+        setCompareStage('Complete')
+        resetTimerRef.current = setTimeout(() => {
+          setCompareProgress(0)
+          setCompareStage('')
+        }, 1000)
+      }
+      return
+    }
+
+    animatingRef.current = true
+    setCompareProgress(0)
+
+    const stages: { to: number; ms: number; label: string }[] = [
+      { to: 12, ms: 1500,   label: 'Preparing texts...' },
+      { to: 40, ms: 5000,   label: 'Computing embeddings...' },
+      { to: 83, ms: 30000,  label: 'Comparing sentences...' },
+      { to: 91, ms: 6000,   label: 'Finalizing results...' },
+      // Slow creep to 99% so the bar never freezes while waiting for the response.
+      // This stage has a very long budget — the bar snaps to 100% whenever the
+      // response actually arrives, regardless of how far along this stage is.
+      { to: 99, ms: 120000, label: 'Finalizing results...' },
+    ]
+
+    let stageIdx = 0
+    let from = 0
+    let stageStart = Date.now()
+    setCompareStage(stages[0].label)
+
+    const tick = () => {
+      if (!animatingRef.current) return
+      const stage = stages[stageIdx]
+      const elapsed = Date.now() - stageStart
+      const t = Math.min(elapsed / stage.ms, 1)
+      const eased = 1 - Math.pow(1 - t, 3)
+      setCompareProgress(Math.floor(from + (stage.to - from) * eased))
+
+      if (t >= 1 && stageIdx < stages.length - 1) {
+        from = stage.to
+        stageIdx++
+        stageStart = Date.now()
+        setCompareStage(stages[stageIdx].label)
+      }
+
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+    }
+  }, [isLoading])
+
   // Create abort controller for stopping comparison
   let abortController: AbortController | null = null
 
@@ -112,7 +181,7 @@ const ComparisonSection = () => {
     setComparisonResult(null)
 
     try {
-      const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage, similarityThreshold)
+      const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage, similarityThreshold, selectedModel)
       // The response data has a 'comparisons' array, we need the first comparison
       const comparison = response.data.comparisons[0]
       setComparisonResult(comparison)
@@ -290,6 +359,19 @@ const ComparisonSection = () => {
             />
           </div>
 
+          {/* Comparison Model */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Comparison Model</label>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              <option value="sentence-transformers/LaBSE">LaBSE (multilingual embeddings)</option>
+              <option value="similarity_prototype">Similarity Prototype (Phase 1/2/3 — English only, auto-translates)</option>
+            </select>
+          </div>
+
           {/* Similarity Threshold */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Similarity Threshold</label>
@@ -304,7 +386,7 @@ const ComparisonSection = () => {
                 className="w-24"
               />
               <span className="text-sm text-gray-500">
-                Lower values = more sensitive (detects more differences)
+                Higher values = more sensitive (stricter matching, detects more differences)
               </span>
             </div>
           </div>
@@ -331,6 +413,24 @@ const ComparisonSection = () => {
               </Button>
             )}
           </div>
+
+          {/* Progress bar */}
+          {(isLoading || compareProgress > 0) && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>{compareStage}</span>
+                <span>{compareProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className={`h-2 rounded-full transition-all duration-300 ease-out ${
+                    compareProgress === 100 ? 'bg-green-500' : 'bg-blue-500'
+                  }`}
+                  style={{ width: `${compareProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
         </form>
       </Form>
 

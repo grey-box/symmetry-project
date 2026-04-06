@@ -187,7 +187,9 @@ class SynonymMatcher:
     
     #antonym detection
     def are_antonyms(self, word_a, word_b):
-        key = (word_a, word_b)
+        # Symmetric key: (a,b) and (b,a) share one cache entry since antonyms
+        # are a symmetric relationship and the check is expensive.
+        key = (min(word_a, word_b), max(word_a, word_b))
         if key in self._antonym_cache:
             return self._antonym_cache[key]
 
@@ -272,6 +274,10 @@ class SynonymMatcher:
                 similarity = syn1.wup_similarity(syn2)
                 if similarity is not None and similarity > max_similarity:
                     max_similarity = similarity
+                    if max_similarity >= 1.0:  # perfect score — no need to check more pairs
+                        break
+            if max_similarity >= 1.0:
+                break
 
         result = round(max_similarity, 4)
         self._wup_cache[key] = result
@@ -290,27 +296,31 @@ class SynonymMatcher:
             best_match_word = None
 
             for token_b in tokens_b:
-                #check exact mathch first
+                #check exact match first — skip all WordNet work if identical
                 if token_a == token_b:
-                    score = 1.0
+                    best_match_score = 1.0
+                    best_match_word = token_b
+                    break  # can't score higher than 1.0
+
+                if self.are_antonyms(token_a, token_b):
+                    score = 0.0
                 else:
-                    if self.are_antonyms(token_a, token_b):
-                        score = 0.0
+                    wu_score = self.wu_palmer_similarity(token_a, token_b)
+                    shares_synset = self.share_synset(token_a, token_b)
+
+                    if shares_synset:
+                        score = wu_score
+                    elif wu_score >= 0.9:
+                        score = wu_score
                     else:
-                        wu_score = self.wu_palmer_similarity(token_a, token_b)
-                        shares_synset = self.share_synset(token_a, token_b)
-                       
-                        if shares_synset:
-                         score = wu_score
-                        elif wu_score >= 0.9:
-                         score = wu_score
-                        else:
-                         score = 0.0
+                        score = 0.0
 
                 if score > best_match_score:
                     best_match_score = score
                     best_match_word = token_b
-            
+                    if best_match_score >= 1.0:  # perfect match found — stop early
+                        break
+
             # print(f"  '{token_a}' best match → '{best_match_word}' = {best_match_score}")
             total_similarity += best_match_score
 

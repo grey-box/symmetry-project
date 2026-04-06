@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   StructuredArticleResponse,
@@ -59,6 +59,13 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [compareLang, setCompareLang] = useState('es');
   const [comparing, setComparing] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+
+  // Progress bar state for comparison
+  const [compareProgress, setCompareProgress] = useState(0);
+  const [compareStage, setCompareStage] = useState('');
+  const rafRef = useRef<number | null>(null);
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const animatingRef = useRef(false);
 
 
 
@@ -126,6 +133,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         source_query: article.title,
         target_query: article.title, // same article, different language
         source_lang: article.lang,
+        target_lang: compareLang,
         similarity_threshold: 0.5,
       });
 
@@ -195,6 +203,71 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
 
     loadFactModels();
   }, []);
+
+  // Animate comparison progress bar through stages while the request is in flight.
+  // Stages are time-based estimates; the bar snaps to 100% when the response arrives.
+  useEffect(() => {
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+
+    if (!comparing) {
+      if (animatingRef.current) {
+        animatingRef.current = false;
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        setCompareProgress(100);
+        setCompareStage('Complete');
+        resetTimerRef.current = setTimeout(() => {
+          setCompareProgress(0);
+          setCompareStage('');
+        }, 1000);
+      }
+      return;
+    }
+
+    animatingRef.current = true;
+    setCompareProgress(0);
+
+    // Each stage: target % to reach and estimated ms to get there
+    const stages: { to: number; ms: number; label: string }[] = [
+      { to: 15, ms: 2500,   label: 'Fetching articles...' },
+      { to: 35, ms: 4000,   label: 'Matching sections...' },
+      { to: 83, ms: 35000,  label: 'Comparing paragraphs...' },
+      { to: 91, ms: 7000,   label: 'Finalizing results...' },
+      // Slow creep to 99% so the bar never freezes while waiting for the response.
+      // This stage has a very long budget — the bar snaps to 100% whenever the
+      // response actually arrives, regardless of how far along this stage is.
+      { to: 99, ms: 120000, label: 'Finalizing results...' },
+    ];
+
+    let stageIdx = 0;
+    let from = 0;
+    let stageStart = Date.now();
+    setCompareStage(stages[0].label);
+
+    const tick = () => {
+      if (!animatingRef.current) return;
+      const stage = stages[stageIdx];
+      const elapsed = Date.now() - stageStart;
+      const t = Math.min(elapsed / stage.ms, 1);
+      // Ease-out cubic so the bar slows as it approaches the stage target
+      const eased = 1 - Math.pow(1 - t, 3);
+      setCompareProgress(Math.floor(from + (stage.to - from) * eased));
+
+      if (t >= 1 && stageIdx < stages.length - 1) {
+        from = stage.to;
+        stageIdx++;
+        stageStart = Date.now();
+        setCompareStage(stages[stageIdx].label);
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [comparing]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -338,6 +411,24 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Comparison progress bar */}
+            {(comparing || compareProgress > 0) && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>{compareStage}</span>
+                  <span>{compareProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-300 ease-out ${
+                      compareProgress === 100 ? 'bg-green-500' : 'bg-indigo-500'
+                    }`}
+                    style={{ width: `${compareProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {/* Fact Extraction Model Selection */}
             <div className="flex items-center gap-4">
