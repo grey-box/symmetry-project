@@ -29,6 +29,7 @@ from app.models.comparison_request import (
     LLMCompareRequest,
     SemanticCompareRequest,
     BaseCompareRequest,
+    ChunkedTranslateRequest,
 )
 from app.models.api_models import (
     ComparisonResponse,
@@ -68,6 +69,7 @@ __all__ = [
     "LLMCompareRequest",
     "SemanticCompareRequest",
     "BaseCompareRequest",
+    "ChunkedTranslateRequest",
     "ComparisonResponse",
     "TranslationResponse",
     "ArticleResponse",
