@@ -319,79 +319,40 @@ def translate_text_endpoint(
     return {"response": server.text_translate(text, target_language)}
 
 
-# ---------------------------------------------------------------------------
-# Section-level structured comparison
-# ---------------------------------------------------------------------------
-
-from app.models.section_comparison import (
-    SectionCompareRequest,
-    SectionCompareResponse,
-)
-from app.services.article_parser import article_fetcher
-from app.services.section_comparison import compare_article_sections
-
-
-def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
-    """Extract Wikipedia title and language from a URL or plain title string."""
-    if "://" in query:
-        match = re.search(r"https?://([a-z]{2,3})\.wikipedia\.org/wiki/([^#?]*)", query)
-        if match:
-            from urllib.parse import unquote
-
-            lang = match.group(1)
-            title = unquote(match.group(2).replace("_", " "))
-            return title, lang
-        raise ValueError(f"Invalid Wikipedia URL: {query}")
-    return query, default_lang
-
-
 @router.post(
-    "/articles/compare-sections",
-    response_model=SectionCompareResponse,
-    summary="Section-Level Article Comparison",
-    description=(
-        "Compares two Wikipedia articles section-by-section and paragraph-by-paragraph "
-        "using semantic embeddings. Returns a structured diff showing matched, missing, "
-        "and added sections/paragraphs. Uses Levenshtein distance for disambiguation "
-        "when semantic similarity scores are close."
-    ),
+    "/wiki_translate/chunked_text",
+    response_model=TranslateArticleResponse,
+    summary="Translate Text (Chunked)",
+    description="Translates long text using the chunked translation pipeline.",
 )
-def compare_article_sections_endpoint(payload: SectionCompareRequest):
-    """Compare two Wikipedia articles at the section and paragraph level."""
+def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
+    from app.ai.translations import translate as chunked_translate
 
     try:
-        source_title, source_lang = _resolve_title_and_lang(
-            payload.source_query, payload.source_lang
+        logging.info(
+            "Chunked translation request (source='%s', target='%s', chars=%d)",
+            payload.source_language,
+            payload.target_language,
+            len(payload.text or ""),
+        )
+        translated = chunked_translate(
+            payload.text,
+            payload.source_language,
+            payload.target_language,
+        )
+        return {"translatedArticle": translated}
+    except ImportError as e:
+        logging.exception("Chunked translation dependency error: %s", str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Missing translation dependency. Install sentencepiece in the backend venv "
+                "and restart the backend."
+            ),
         )
     except ValueError as e:
+        logging.exception("Chunked translation validation error: %s", str(e))
         raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        target_title, target_lang = _resolve_title_and_lang(
-            payload.target_query, payload.target_lang
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        source_article = article_fetcher(source_title, source_lang)
     except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Failed to fetch source article '{source_title}' ({source_lang}): {e}",
-        )
-
-    try:
-        target_article = article_fetcher(target_title, target_lang)
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Failed to fetch target article '{target_title}' ({target_lang}): {e}",
-        )
-
-    return compare_article_sections(
-        source_article=source_article,
-        target_article=target_article,
-        similarity_threshold=payload.similarity_threshold,
-        model_name=payload.model_name,
-    )
+        logging.exception("Chunked translation failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")

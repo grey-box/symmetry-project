@@ -34,7 +34,6 @@ const TranslationSection = () => {
   const [availableTranslationLanguages, setAvailableTranslationLanguages] = useState<SelectData<string>[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
-  const translationAbortRef = useRef<AbortController | null>(null)
   const [translationProgress, setTranslationProgress] = useState(0)
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
   const [articleBlocks, setArticleBlocks] = useState<ArticleDisplayBlock[]>([]);
@@ -177,10 +176,6 @@ const TranslationSection = () => {
   
   const onLanguageChange = useCallback(async (language: string) => {
     let translationSucceeded = false
-
-    translationAbortRef.current?.abort()
-    translationAbortRef.current = new AbortController()
-    const { signal } = translationAbortRef.current
 
     try {
       setIsLoading(true)
