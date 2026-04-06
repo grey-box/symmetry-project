@@ -33,6 +33,8 @@ interface ArticleDisplayBlock {
 const TranslationSection = () => {
   const [availableTranslationLanguages, setAvailableTranslationLanguages] = useState<SelectData<string>[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isTranslating, setIsTranslating] = useState(false)
+  const [translationProgress, setTranslationProgress] = useState(0)
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
   const [articleBlocks, setArticleBlocks] = useState<ArticleDisplayBlock[]>([]);
 
@@ -89,6 +91,40 @@ const TranslationSection = () => {
     return () => clearInterval(interval)
   }, [checkBackendStatus])
 
+  useEffect(() => {
+    if (!isTranslating) {
+      return
+    }
+
+    setTranslationProgress((prev) => (prev > 0 ? prev : 8))
+    const interval = setInterval(() => {
+      setTranslationProgress((prev) => {
+        if (prev >= 92) {
+          return prev
+        }
+        if (prev < 40) {
+          return Math.min(92, prev + 6)
+        }
+        if (prev < 70) {
+          return Math.min(92, prev + 3)
+        }
+        return Math.min(92, prev + 1)
+      })
+    }, 900)
+
+    return () => clearInterval(interval)
+  }, [isTranslating])
+
+  useEffect(() => {
+    if (isTranslating || translationProgress !== 100) {
+      return
+    }
+    const timeout = setTimeout(() => {
+      setTranslationProgress(0)
+    }, 500)
+    return () => clearTimeout(timeout)
+  }, [isTranslating, translationProgress])
+
   const onSubmit = useCallback(async (data: TranslationFormType) => {
     try {
       setIsLoading(true)
@@ -137,8 +173,12 @@ const TranslationSection = () => {
   }, [setValue, translationTool, APIKey])
   
   const onLanguageChange = useCallback(async (language: string) => {
+    let translationSucceeded = false
+
     try {
       setIsLoading(true)
+      setIsTranslating(true)
+      setTranslationProgress(8)
 
       const sourceText = form.getValues('sourceArticleContent')
       const sourceUrl = form.getValues('sourceArticleUrl')
@@ -180,6 +220,7 @@ const TranslationSection = () => {
           displayType: 'translated',
         },
       ]);
+      translationSucceeded = true
     } catch (error) {
       console.error('Error translating article:', error)
       setIsLoading(false)
@@ -205,6 +246,12 @@ const TranslationSection = () => {
       alert(errorMessage)
     } finally {
       setIsLoading(false)
+      if (translationSucceeded) {
+        setTranslationProgress(100)
+      } else {
+        setTranslationProgress(0)
+      }
+      setIsTranslating(false)
     }
   }, [setValue, form])
 
@@ -242,6 +289,8 @@ const TranslationSection = () => {
                   form.setValue('sourceArticleUrl', '')
                   form.setValue('sourceArticleContent', '')
                   form.setValue('translatedArticleContent', '')
+                  setIsTranslating(false)
+                  setTranslationProgress(0)
                 }}
               >
                 Clear
@@ -256,6 +305,20 @@ const TranslationSection = () => {
               </Button>
             </div>
           </div>
+          {(isTranslating || translationProgress === 100) && (
+            <div className="px-5 pb-2">
+              <div className="flex items-center justify-between text-xs text-zinc-600 mb-1">
+                <span>Translating article...</span>
+                <span>{Math.round(translationProgress)}%</span>
+              </div>
+              <div className="w-full h-2 bg-zinc-200 rounded overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-500"
+                  style={{ width: `${translationProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-between py-2 px-5 mt-2 h-fit">
             <FormField
