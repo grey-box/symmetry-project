@@ -442,33 +442,69 @@ const ComparisonSection = () => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Comparison Results</h3>
 
-            {/* Missing Information (from right article - translated) */}
-            {comparisonResult.right_article_extra_info_index.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-medium text-red-700">Missing Information in Translation</h4>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  {comparisonResult.right_article_extra_info_index.map((index, i) => (
-                    <li key={i} className="text-red-600">
-                      Sentence {index + 1}: "{comparisonResult.right_article_array[index]}"
-                    </li>
-                  ))}
-                </ul>
+            {/* Side-by-side comparison view */}
+            <div className="space-y-3">
+              {/* Column headers */}
+              <div className="grid grid-cols-2 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide px-3">
+                <span>Source ({sourceLanguage})</span>
+                <span>Target ({targetLanguage})</span>
               </div>
-            )}
 
-            {/* Extra Information (in right article - translated) */}
-            {comparisonResult.left_article_missing_info_index.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-medium text-green-700">Extra Information in Translation</h4>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  {comparisonResult.left_article_missing_info_index.map((index, i) => (
-                    <li key={i} className="text-green-600">
-                      Sentence {index + 1}: "{comparisonResult.left_article_array[index]}"
-                    </li>
+              {/* Comparison rows */}
+              {comparisonResult.left_article_array.map((sourceSentence, idx) => {
+                const isSourceMissing = comparisonResult.right_article_extra_info_index.includes(idx);
+                const isTargetExtra = comparisonResult.left_article_missing_info_index.includes(idx);
+                const targetSentence = idx < comparisonResult.right_article_array.length ? comparisonResult.right_article_array[idx] : '';
+
+                return (
+                  <div
+                    key={idx}
+                    className={`grid grid-cols-2 gap-4 p-3 rounded-md border ${
+                      isSourceMissing
+                        ? 'border-red-200 bg-red-50/30'
+                        : isTargetExtra
+                        ? 'border-green-200 bg-green-50/30'
+                        : 'border-gray-200 bg-gray-50/30'
+                    }`}
+                  >
+                    {/* Source sentence */}
+                    <div className="text-sm leading-relaxed text-gray-700">
+                      {isSourceMissing ? (
+                        <del className="text-red-600 bg-red-100/50">{sourceSentence}</del>
+                      ) : (
+                        <p>{sourceSentence}</p>
+                      )}
+                    </div>
+
+                    {/* Target sentence */}
+                    <div className="text-sm leading-relaxed text-gray-700">
+                      {isTargetExtra ? (
+                        <ins className="text-green-600 bg-green-100/50">{targetSentence}</ins>
+                      ) : (
+                        <p>{targetSentence || <span className="italic text-gray-400">—</span>}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Handle extra sentences in target not in source */}
+              {comparisonResult.right_article_array.length > comparisonResult.left_article_array.length && (
+                <>
+                  {comparisonResult.right_article_array.slice(comparisonResult.left_article_array.length).map((targetSentence, idx) => (
+                    <div
+                      key={`extra-${idx}`}
+                      className="grid grid-cols-2 gap-4 p-3 rounded-md border border-green-200 bg-green-50/30"
+                    >
+                      <div className="text-sm leading-relaxed text-gray-400 italic">—</div>
+                      <div className="text-sm leading-relaxed text-gray-700">
+                        <ins className="text-green-600 bg-green-100/50">{targetSentence}</ins>
+                      </div>
+                    </div>
                   ))}
-                </ul>
-              </div>
-            )}
+                </>
+              )}
+            </div>
 
             {comparisonResult.right_article_extra_info_index.length === 0 && comparisonResult.left_article_missing_info_index.length === 0 && (
               <div className="text-center py-4 text-gray-500">
