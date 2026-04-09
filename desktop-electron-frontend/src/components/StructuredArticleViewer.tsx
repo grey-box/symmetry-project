@@ -43,12 +43,12 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState(initialLang);
   const [translating, setTranslating] = useState(false);
-  
+
   // Fact extraction states
   const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
   const [selectedFactModel, setSelectedFactModel] = useState<string>('');
   const [customFactModel, setCustomFactModel] = useState<string>('');
-  const [customModelValidation, setCustomModelValidation] = useState<{valid: boolean; error?: string} | null>(null);
+  const [customModelValidation, setCustomModelValidation] = useState<{ valid: boolean; error?: string } | null>(null);
   const [validatingCustomModel, setValidatingCustomModel] = useState<boolean>(false);
   const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
   const [extractingSection, setExtractingSection] = useState<string | null>(null);
@@ -172,7 +172,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   // Auto-calculate num_facts based on selected section word count
   useEffect(() => {
     if (!autoNumFacts || !article || !selectedSection) return;
-    
+
     const section = article.sections.find(s => s.title === selectedSection);
     if (section) {
       const wordCount = section.clean_content.split(' ').length;
@@ -196,7 +196,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         setFactError('Failed to load fact extraction models');
       }
     };
-    
+
     loadFactModels();
   }, []);
 
@@ -223,7 +223,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         section_title: sectionTitle,
         num_facts: numFacts
       });
-      
+
       setSectionFacts(prev => ({
         ...prev,
         [sectionTitle]: response
@@ -238,7 +238,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
 
   const handleValidateCustomModel = async () => {
     if (!customFactModel.trim()) {
-      setCustomModelValidation({valid: false, error: 'Please enter a model name'});
+      setCustomModelValidation({ valid: false, error: 'Please enter a model name' });
       return;
     }
 
@@ -249,7 +249,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     try {
       const result = await structuredWikiService.validateFactExtractionModel(customFactModel.trim());
       setCustomModelValidation(result);
-      
+
       if (result.valid && result.model) {
         // Auto-select the custom model
         setSelectedFactModel(result.model.id);
@@ -268,15 +268,15 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   // Helper to highlight hovered/clicked chunk in content
   const highlightChunk = (content: string, chunk: string | null, isClickHighlight = false): React.ReactNode => {
     if (!chunk) return content;
-    
+
     // Escape regex special characters in the chunk
     const escapedChunk = chunk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    
+
     // Split content by the chunk (case-insensitive)
     const parts = content.split(new RegExp(`(${escapedChunk})`, 'gi'));
-    
+
     if (parts.length === 1) return content; // Chunk not found
-    
+
     return (
       <>
         {parts.map((part, index) => {
@@ -417,7 +417,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                   ))}
                 </select>
               </div>
-              
+
               {/* Custom Model Input */}
               <div className="flex items-center gap-2">
                 <div className="flex-1 max-w-md">
@@ -443,7 +443,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                   {validatingCustomModel ? 'Validating...' : 'Validate & Use'}
                 </button>
               </div>
-              
+
               {/* Custom Model Validation Feedback */}
               {customModelValidation && (
                 <div className={`text-sm ${customModelValidation.valid ? 'text-green-600' : 'text-red-600'}`}>
@@ -455,7 +455,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                 </div>
               )}
             </div>
-            
+
             {/* Number of Facts Control */}
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -467,7 +467,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                 />
                 Auto
               </label>
-              
+
               {!autoNumFacts && (
                 <div className="flex items-center gap-2">
                   <input
@@ -482,7 +482,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                   <span className="text-sm text-gray-500">facts</span>
                 </div>
               )}
-              
+
               {autoNumFacts && (
                 <span className="text-sm text-gray-500">
                   (auto: based on section length)
@@ -513,7 +513,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                   'Extract Facts'
                 )}
               </button>
-              
+
               {/* Show which section is being extracted */}
               {extractingSection && (
                 <span className="text-sm text-gray-500">
@@ -591,8 +591,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                     key={index}
                     onClick={() => setSelectedSection(section.title)}
                     className={`w-full text-left p-2 rounded transition-colors ${selectedSection === section.title
-                        ? 'bg-blue-100 text-blue-800 border-l-4 border-blue-500'
-                        : 'hover:bg-gray-100 text-gray-700'
+                      ? 'bg-blue-100 text-blue-800 border-l-4 border-blue-500'
+                      : 'hover:bg-gray-100 text-gray-700'
                       }`}
                   >
                     <div className="font-medium">{section.title}</div>
@@ -655,9 +655,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                                   return (
                                     <li
                                       key={index}
-                                      className={`flex items-start gap-2 text-sm text-gray-700 p-2 rounded transition-colors cursor-pointer ${
-                                        isClicked ? 'bg-orange-100 outline outline-2 outline-orange-400' : isHovered ? 'bg-yellow-100' : ''
-                                      }`}
+                                      className={`flex items-start gap-2 text-sm text-gray-700 p-2 rounded transition-colors cursor-pointer ${isClicked ? 'bg-orange-100 outline outline-2 outline-orange-400' : isHovered ? 'bg-yellow-100' : ''
+                                        }`}
                                       onMouseEnter={() => setHoveredChunk(chunk)}
                                       onMouseLeave={() => setHoveredChunk(null)}
                                       onClick={() => handleFactClick(chunk)}
