@@ -19,14 +19,32 @@ export async function compareArticles(
     right_article_extra_info_index: number[]
   }>
 }>> {
-  const axiosInstance = await getAxiosInstance()
+  try {
+    const axiosInstance = await getAxiosInstance()
 
-  return axiosInstance.post('/symmetry/v1/articles/compare', {
-    original_article_content: sourceArticleContent,
-    translated_article_content: targetArticleContent,
-    original_language: sourceLanguage,
-    translated_language: targetLanguage,
-    similarity_threshold: similarityThreshold,
-    model_name: 'sentence-transformers/LaBSE'
-  })
+    console.log(
+      '[DEBUG] compareArticles called with original length:',
+      sourceArticleContent.length,
+      'translated length:',
+      targetArticleContent.length
+    )
+    console.log(
+      '[DEBUG] Languages - original:',
+      sourceLanguage,
+      'translated:',
+      targetLanguage
+    )
+
+    return axiosInstance.post('/symmetry/v1/articles/compare', {
+      original_article_content: sourceArticleContent,
+      translated_article_content: targetArticleContent,
+      original_language: sourceLanguage,
+      translated_language: targetLanguage,
+      similarity_threshold: similarityThreshold,
+      model_name: 'sentence-transformers/LaBSE',
+    })
+  } catch (error) {
+    console.error('Failed to get axios instance:', error)
+    throw error
+  }
 }
