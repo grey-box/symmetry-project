@@ -442,6 +442,25 @@ const ComparisonSection = () => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Comparison Results</h3>
 
+            {/* Legend */}
+            <div className="bg-gray-50 rounded-lg p-4 border">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Legend</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <del className="text-red-600 bg-red-100/50 px-1 rounded">Missing</del>
+                  <span className="text-gray-600">= Information missing in target</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ins className="text-green-600 bg-green-100/50 px-1 rounded">Extra</ins>
+                  <span className="text-gray-600">= Extra information in target</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 italic">—</span>
+                  <span className="text-gray-600">= No corresponding sentence</span>
+                </div>
+              </div>
+            </div>
+
             {/* Side-by-side comparison view */}
             <div className="space-y-3">
               {/* Column headers */}
