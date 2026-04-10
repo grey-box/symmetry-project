@@ -5,8 +5,14 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import os
+import requests
+
+from starlette.config import Config
 
 import spacy
+
+# Load environment variables from .env file (same as main.py)
+_env_config = Config(".env")
 from spacy.language import Language
 import torch
 from transformers import (
@@ -108,9 +114,12 @@ def _split_into_sentences(text: str) -> List[str]:
     return [s.strip() for s in sentences if s.strip()]
 
 
-def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str]]:
+def _chunk_by_sentence_count(sentences: List[str], num_chunks: int) -> List[List[str]]:
     """
-    Divide sentences into approximately equal chunks by word count.
+    Divide sentences into chunks based on sentence count.
+    
+    Each chunk will contain approximately len(sentences) / num_chunks sentences.
+    This ensures that n facts are extracted from n equal groups of sentences.
 
     Args:
         sentences: List of sentences to chunk
@@ -124,56 +133,30 @@ def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str
 
     # Cap num_chunks to number of sentences
     num_chunks = min(num_chunks, len(sentences))
+    
+    if num_chunks == 0:
+        return []
 
-    # Calculate word count for each sentence
-    sentence_word_counts = [len(s.split()) for s in sentences]
-    total_words = sum(sentence_word_counts)
-
-    if total_words == 0:
+    # Calculate sentences per chunk
+    sentences_per_chunk = len(sentences) // num_chunks
+    
+    # Handle edge case: if sentences_per_chunk is 0 (more chunks than sentences)
+    if sentences_per_chunk == 0:
         return [[s] for s in sentences[:num_chunks]]
 
-    # Target words per chunk
-    target_words_per_chunk = total_words / num_chunks
-
     chunks: List[List[str]] = []
-    current_chunk: List[str] = []
-    current_word_count = 0
-
-    for sentence, word_count in zip(sentences, sentence_word_counts):
-        # If adding this sentence would exceed the target and we still have chunks to allocate
-        if (
-            current_word_count + word_count > target_words_per_chunk
-            and len(chunks) < num_chunks - 1
-        ):
-            if current_chunk:  # Don't add empty chunks
-                chunks.append(current_chunk)
-            current_chunk = [sentence]
-            current_word_count = word_count
+    
+    for i in range(num_chunks):
+        start_idx = i * sentences_per_chunk
+        # Last chunk gets any remaining sentences
+        if i == num_chunks - 1:
+            end_idx = len(sentences)
         else:
-            current_chunk.append(sentence)
-            current_word_count += word_count
-
-    # Add the last chunk
-    if current_chunk:
-        chunks.append(current_chunk)
-
-    # If we have fewer chunks than requested, redistribute some sentences
-    # This can happen if sentences are very large
-    while len(chunks) < num_chunks and chunks:
-        # Find the largest chunk
-        largest_idx = max(range(len(chunks)), key=lambda i: len(chunks[i]))
-        largest_chunk = chunks[largest_idx]
-
-        if len(largest_chunk) <= 1:
-            break  # Can't split further
-
-        # Split the largest chunk in half
-        mid = len(largest_chunk) // 2
-        new_chunk1 = largest_chunk[:mid]
-        new_chunk2 = largest_chunk[mid:]
-
-        chunks[largest_idx] = new_chunk1
-        chunks.append(new_chunk2)
+            end_idx = (i + 1) * sentences_per_chunk
+        
+        chunk = sentences[start_idx:end_idx]
+        if chunk:
+            chunks.append(chunk)
 
     return chunks
 
@@ -250,6 +233,98 @@ def validate_model(model_id: str) -> Dict[str, Any]:
 
 
 # ---------------------------------------------------------------------
+# OpenRouter API support
+# ---------------------------------------------------------------------
+
+
+def _build_chat_messages(prompt: str) -> List[Dict[str, str]]:
+    """
+    Convert a prompt string into OpenRouter chat format.
+
+    Args:
+        prompt: The prompt text (either instruction-style or plain text)
+
+    Returns:
+        List of message dictionaries in chat format
+    """
+    return [
+        {
+            "role": "user",
+            "content": prompt
+        }
+    ]
+
+
+def _call_openrouter_api(prompt: str, model_name: str, max_tokens: int = 256) -> str:
+    """
+    Call OpenRouter API to generate text using a chat model.
+
+    Args:
+        prompt: The prompt to send to the model
+        model_name: The OpenRouter model identifier (e.g., "openrouter/free")
+        max_tokens: Maximum tokens to generate
+
+    Returns:
+        Generated text from the model
+
+    Raises:
+        ValueError: If API key is missing or API call fails
+    """
+    api_key = _env_config.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "OPENROUTER_API_KEY environment variable is required for OpenRouter models. "
+            "Please set it in your .env file."
+        )
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": model_name,
+        "messages": _build_chat_messages(prompt),
+        "max_tokens": max_tokens,
+        "temperature": 0.0,  # Deterministic output for fact extraction
+        "top_p": 1.0,
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=120)
+        response.raise_for_status()
+
+        result = response.json()
+
+        if "choices" not in result or not result["choices"]:
+            raise ValueError(f"OpenRouter API returned no choices: {result}")
+
+        message = result["choices"][0].get("message", {})
+        content = message.get("content", "")
+
+        if not content:
+            raise ValueError(f"OpenRouter API returned empty content: {result}")
+
+        return content.strip()
+
+    except requests.exceptions.RequestException as e:
+        logging.error(f"OpenRouter API request failed: {e}")
+        if hasattr(e, 'response') and e.response is not None:
+            try:
+                error_detail = e.response.json()
+                logging.error(f"OpenRouter error detail: {error_detail}")
+                raise ValueError(f"OpenRouter API error: {error_detail.get('error', str(e))}")
+            except ValueError:
+                raise ValueError(f"OpenRouter API request failed: {str(e)}")
+        raise ValueError(f"OpenRouter API request failed: {str(e)}")
+    except (KeyError, IndexError, json.JSONDecodeError) as e:
+        logging.error(f"Failed to parse OpenRouter response: {e}")
+        raise ValueError(f"Invalid response from OpenRouter: {str(e)}")
+
+
+# ---------------------------------------------------------------------
 # Main extraction function (simplified)
 # ---------------------------------------------------------------------
 
@@ -260,9 +335,11 @@ def extract_facts(
     """
     Extract facts from text using the specified model.
 
+    Supports both local HuggingFace models and OpenRouter API models.
+
     Args:
         text: The text content to extract facts from
-        model_id: The ID of the model to use
+        model_id: The ID of the model to use (from config or custom HF model)
         num_facts: Number of facts to extract (also determines number of model calls).
                   The text will be chunked and each chunk sent to the model.
                   Default is 1 (no chunking).
@@ -277,36 +354,8 @@ def extract_facts(
         return [], []
 
     config = get_model_config(model_id)
+    provider = config.get("provider", "huggingface").lower()
     model_name = config["model_name"]
-
-    # Load model if not cached
-    if model_name not in _model_cache:
-        tokenizer = AutoTokenizer.from_pretrained(model_name)
-
-        model_config = AutoConfig.from_pretrained(model_name)
-
-        if model_config.is_encoder_decoder:
-            model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-        else:
-            model = AutoModelForCausalLM.from_pretrained(model_name)
-
-        model.eval()
-
-        if len(_model_cache) >= MODEL_CACHE_MAX_SIZE:
-            _evict_lru_model()
-
-        _model_cache[model_name] = (model, tokenizer)
-    else:
-        _model_cache.move_to_end(model_name)
-
-    model, tokenizer = _model_cache[model_name]
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
-
-    if tokenizer.pad_token_id is None:
-        tokenizer.pad_token = tokenizer.eos_token
-        model.config.pad_token_id = tokenizer.pad_token_id
 
     # If num_facts is 1, process the whole text at once (backward compatible)
     if num_facts == 1:
@@ -316,7 +365,7 @@ def extract_facts(
         sentences = _split_into_sentences(text)
         if not sentences:
             return [], []
-        chunks_sentences = _chunk_by_word_count(sentences, num_facts)
+        chunks_sentences = _chunk_by_sentence_count(sentences, num_facts)
         chunks = [" ".join(chunk_sentences) for chunk_sentences in chunks_sentences]
 
     all_facts: List[str] = []
@@ -346,23 +395,58 @@ def extract_facts(
                 "Facts:"
             )
 
-        inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
+        # Generate based on provider
+        if provider == "openrouter":
+            # OpenRouter API call
+            raw_output = _call_openrouter_api(prompt, model_name, max_tokens=256)
+        else:
+            # HuggingFace local model (default)
+            # Load model if not cached
+            if model_name not in _model_cache:
+                tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-        rep_penalty = config.get("repetition_penalty", 1.0)
+                model_config = AutoConfig.from_pretrained(model_name)
 
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_new_tokens=256,
-                do_sample=False,
-                eos_token_id=tokenizer.eos_token_id,
-                pad_token_id=tokenizer.pad_token_id,
-                repetition_penalty=rep_penalty,
-            )
+                if model_config.is_encoder_decoder:
+                    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+                else:
+                    model = AutoModelForCausalLM.from_pretrained(model_name)
 
-        raw_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+                model.eval()
 
+                if len(_model_cache) >= MODEL_CACHE_MAX_SIZE:
+                    _evict_lru_model()
+
+                _model_cache[model_name] = (model, tokenizer)
+            else:
+                _model_cache.move_to_end(model_name)
+
+            model, tokenizer = _model_cache[model_name]
+
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            model.to(device)
+
+            if tokenizer.pad_token_id is None:
+                tokenizer.pad_token = tokenizer.eos_token
+                model.config.pad_token_id = tokenizer.pad_token_id
+
+            inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
+            inputs = {k: v.to(device) for k, v in inputs.items()}
+
+            rep_penalty = config.get("repetition_penalty", 1.0)
+
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    max_new_tokens=256,
+                    do_sample=False,
+                    eos_token_id=tokenizer.eos_token_id,
+                    pad_token_id=tokenizer.pad_token_id,
+                    repetition_penalty=rep_penalty,
+                )
+
+            raw_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        
         # Parse the output into individual facts (handle bullet points and newlines)
         facts_from_chunk = _parse_facts(raw_output)
         all_facts.extend(facts_from_chunk)
