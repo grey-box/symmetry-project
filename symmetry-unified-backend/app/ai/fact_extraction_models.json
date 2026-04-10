@@ -19,5 +19,15 @@
     "prompt_style": "prefix",
     "use_chat_template": false,
     "prompt_prefix": "summarize: "
+  },
+  {
+    "id": "openrouter/free",
+    "name": "OpenRouter Free Model",
+    "provider": "openrouter",
+    "model_name": "openrouter/free",
+    "description": "Free LLM model via OpenRouter API. Uses the best available free model. Requires OPENROUTER_API_KEY environment variable.",
+    "task": "chat",
+    "prompt_style": "instruction",
+    "use_chat_template": true
   }
 ]
