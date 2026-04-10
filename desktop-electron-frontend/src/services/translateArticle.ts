@@ -5,7 +5,8 @@ import { TranslateArticleResponse } from '@/models/apis/TranslateArticleResponse
 export async function translateArticle(
   sourceText: string,
   sourceLanguage: string,
-  targetLanguage: string
+  targetLanguage: string,
+  signal?: AbortSignal
 ): Promise<AxiosResponse<TranslateArticleResponse>> {
   try {
     const axiosInstance = await getAxiosInstance();
@@ -19,6 +20,7 @@ export async function translateArticle(
       },
       {
         timeout: 600000,
+        signal,
       }
     );
   } catch (error) {

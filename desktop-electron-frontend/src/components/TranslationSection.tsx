@@ -1,6 +1,6 @@
 import { useForm } from 'react-hook-form'
 import { ChevronRight, Info } from 'lucide-react'
-import { useCallback, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -34,6 +34,7 @@ const TranslationSection = () => {
   const [availableTranslationLanguages, setAvailableTranslationLanguages] = useState<SelectData<string>[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isTranslating, setIsTranslating] = useState(false)
+  const translationAbortRef = useRef<AbortController | null>(null)
   const [translationProgress, setTranslationProgress] = useState(0)
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'online' | 'offline'>('unknown')
   const [articleBlocks, setArticleBlocks] = useState<ArticleDisplayBlock[]>([]);
@@ -175,6 +176,10 @@ const TranslationSection = () => {
   const onLanguageChange = useCallback(async (language: string) => {
     let translationSucceeded = false
 
+    translationAbortRef.current?.abort()
+    translationAbortRef.current = new AbortController()
+    const { signal } = translationAbortRef.current
+
     try {
       setIsLoading(true)
       setIsTranslating(true)
@@ -198,13 +203,17 @@ const TranslationSection = () => {
         },
       ])
 
-      const response = await translateArticle(sourceText, sourceLanguage, language)
+      const response = await translateArticle(sourceText, sourceLanguage, language, translationAbortRef.current?.signal)
       const translatedArticle = typeof response.data?.translatedArticle === 'string'
         ? response.data.translatedArticle
         : ''
 
       if (!translatedArticle.trim()) {
         throw new Error('Translated content is empty.')
+      }
+
+      if (signal.aborted) {
+        return
       }
 
       setValue('translatedArticleContent', translatedArticle)
@@ -222,6 +231,9 @@ const TranslationSection = () => {
       ]);
       translationSucceeded = true
     } catch (error) {
+      if (signal.aborted) {
+        return
+      }
       console.error('Error translating article:', error)
       setIsLoading(false)
 
@@ -285,6 +297,8 @@ const TranslationSection = () => {
                 type="button" 
                 variant="outline" 
                 onClick={() => { 
+                  translationAbortRef.current?.abort()
+                  translationAbortRef.current = null
                   setArticleBlocks([])
                   form.setValue('sourceArticleUrl', '')
                   form.setValue('sourceArticleContent', '')
