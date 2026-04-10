@@ -265,17 +265,14 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
+  const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
   // Helper to highlight hovered/clicked chunk in content
   const highlightChunk = (content: string, chunk: string | null, isClickHighlight = false): React.ReactNode => {
     if (!chunk) return content;
-    
-    // Escape regex special characters in the chunk
-    const escapedChunk = chunk.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    
-    // Split content by the chunk (case-insensitive)
-    const parts = content.split(new RegExp(`(${escapedChunk})`, 'gi'));
-    
-    if (parts.length === 1) return content; // Chunk not found
+    const escapedChunk = normalize(chunk).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const normalizedContent = normalize(content);
+    const parts = normalizedContent.split(new RegExp(`(${escapedChunk})`, 'gi'));
+    if (parts.length === 1) return content;
     
     return (
       <>
@@ -320,10 +317,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
 
   // Clear clicked highlight when section changes
   useEffect(() => {
-    return () => {
-      setClickedChunk(null);
-      setHoveredChunk(null);
-    };
+    setClickedChunk(null);
+    setHoveredChunk(null);
   }, [selectedSection]);
 
   return (
@@ -732,34 +727,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                             )}
                           </button>
                         </div>
-
-                        {/* Display Extracted Facts */}
-                        {sectionFacts[section.title] && (
-                          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
-                            <div className="flex items-center gap-2 mb-3">
-                              <h5 className="font-semibold text-purple-900">
-                                Extracted Facts
-                              </h5>
-                              <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                                {sectionFacts[section.title].model_used}
-                              </span>
-                            </div>
-                            {sectionFacts[section.title].facts.length > 0 ? (
-                              <ul className="space-y-2">
-                                {sectionFacts[section.title].facts.map((fact, index) => (
-                                  <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
-                                    <span className="text-purple-500 mt-1">•</span>
-                                    <span>{fact}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-sm text-gray-600 italic">
-                                No facts could be extracted from this section.
-                              </p>
-                            )}
-                          </div>
-                        )}
                       </div>
                     );
                   })()}
