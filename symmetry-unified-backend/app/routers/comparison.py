@@ -24,11 +24,6 @@ except Exception:
 
 router = APIRouter(prefix="/symmetry/v1", tags=["comparison"])
 
-<<<<<<< HEAD
-=======
-
->>>>>>> 7ef4d44 (Summary of Changes (#17))
-
 @router.post("/articles/compare", response_model=CompareResponse)
 def compare_articles(payload: CompareRequest):
     """
@@ -315,6 +310,44 @@ def translate_text_endpoint(
     return {"response": server.text_translate(text, target_language)}
 
 
+@router.post(
+    "/wiki_translate/chunked_text",
+    response_model=TranslateArticleResponse,
+    summary="Translate Text (Chunked)",
+    description="Translates long text using the chunked translation pipeline.",
+)
+def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
+    try:
+        from app.ai.translations import translate as chunked_translate
+        logging.info(
+            "Chunked translation request (source='%s', target='%s', chars=%d)",
+            payload.source_language,
+            payload.target_language,
+            len(payload.text or ""),
+        )
+        translated = chunked_translate(
+            payload.text,
+            payload.source_language,
+            payload.target_language,
+        )
+        return {"translatedArticle": translated}
+    except ImportError as e:
+        logging.exception("Chunked translation dependency error: %s", str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Missing translation dependency. Install sentencepiece in the backend venv "
+                "and restart the backend."
+            ),
+        )
+    except ValueError as e:
+        logging.exception("Chunked translation validation error: %s", str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logging.exception("Chunked translation failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+
+
 # ---------------------------------------------------------------------------
 # Section-level structured comparison
 # ---------------------------------------------------------------------------
@@ -432,8 +465,6 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
         raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 
 
-<<<<<<< HEAD
-=======
 # ---------------------------------------------------------------------------
 # Section-level structured comparison
 # ---------------------------------------------------------------------------
@@ -461,7 +492,6 @@ def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
     return query, default_lang
 
 
->>>>>>> 7ef4d44 (Summary of Changes (#17))
 @router.post(
     "/articles/compare-sections",
     response_model=SectionCompareResponse,
@@ -512,45 +542,3 @@ def compare_article_sections_endpoint(payload: SectionCompareRequest):
         similarity_threshold=payload.similarity_threshold,
         model_name=payload.model_name,
     )
-<<<<<<< HEAD
-=======
-@router.post(
-    "/wiki_translate/chunked_text",
-    response_model=TranslateArticleResponse,
-    summary="Translate Text (Chunked)",
-    description="Translates long text using the chunked translation pipeline.",
-)
-def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
-    from app.ai.translations import translate as chunked_translate
-
-    try:
-        logging.info(
-            "Chunked translation request (source='%s', target='%s', chars=%d)",
-            payload.source_language,
-            payload.target_language,
-            len(payload.text or ""),
-        )
-        translated = chunked_translate(
-            payload.text,
-            payload.source_language,
-            payload.target_language,
-        )
-        return {"translatedArticle": translated}
-    except ImportError as e:
-        logging.exception("Chunked translation dependency error: %s", str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Missing translation dependency. Install sentencepiece in the backend venv "
-                "and restart the backend."
-            ),
-        )
-    except ValueError as e:
-        logging.exception("Chunked translation validation error: %s", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logging.exception("Chunked translation failed: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
->>>>>>> a01ec0d (progress indicator for translation)
-=======
->>>>>>> 7ef4d44 (Summary of Changes (#17))

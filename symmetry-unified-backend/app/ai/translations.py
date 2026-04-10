@@ -6,8 +6,8 @@ from transformers import MarianMTModel, MarianTokenizer
 from app.ai.translation_model_registry import get_translation_model_name, ROMANCE_LANGS
 from app.services.chunking import chunk_text
 
-TRANSLATION_CHUNK_CHAR_THRESHOLD = 3500
-TRANSLATION_CHUNK_WORD_SIZE = 450
+TRANSLATION_CHUNK_CHAR_THRESHOLD = 1500
+TRANSLATION_CHUNK_WORD_SIZE = 300
 TRANSLATION_BATCH_SIZE = 4
 
 LANG_ALIASES = {
@@ -71,7 +71,7 @@ def translate(text: str, source_lang: str, target_lang: str) -> str:
         return text
 
 
-@lru_cache(maxsize=32)
+@lru_cache(maxsize=4)
 def load_translation_components(model_name: str):
     tokenizer = MarianTokenizer.from_pretrained(model_name)
     model = MarianMTModel.from_pretrained(model_name)

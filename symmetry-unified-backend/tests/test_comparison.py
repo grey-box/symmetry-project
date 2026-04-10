@@ -278,3 +278,60 @@ class TestComparisonRouter:
             )
 
             assert response.status_code == 404
+
+    def test_chunked_text_translate_success(self, client):
+        """Test chunked translation endpoint returns translatedArticle on success"""
+        with patch(
+            "app.ai.translations.translate",
+            return_value="Hola mundo",
+        ):
+            response = client.post(
+                "/symmetry/v1/wiki_translate/chunked_text",
+                json={
+                    "source_language": "en",
+                    "target_language": "es",
+                    "text": "Hello world",
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "translatedArticle" in data
+            assert data["translatedArticle"] == "Hola mundo"
+
+    def test_chunked_text_translate_value_error_returns_400(self, client):
+        """Test chunked translation endpoint maps ValueError to 400"""
+        with patch(
+            "app.ai.translations.translate",
+            side_effect=ValueError("Unsupported language pair"),
+        ):
+            response = client.post(
+                "/symmetry/v1/wiki_translate/chunked_text",
+                json={
+                    "source_language": "xx",
+                    "target_language": "yy",
+                    "text": "Hello world",
+                },
+            )
+
+            assert response.status_code == 400
+            assert "Unsupported language pair" in response.json()["detail"]
+
+    def test_chunked_text_translate_import_error_returns_500(self, client):
+        """Test chunked translation endpoint maps ImportError to 500 with helpful message"""
+        import sys
+
+        # Setting a module key to None in sys.modules causes ImportError on next import
+        with patch.dict(sys.modules, {"app.ai.translations": None}):
+            response = client.post(
+                "/symmetry/v1/wiki_translate/chunked_text",
+                json={
+                    "source_language": "en",
+                    "target_language": "es",
+                    "text": "Hello world",
+                },
+            )
+
+        assert response.status_code == 500
+        assert "Missing translation dependency" in response.json()["detail"]
+
