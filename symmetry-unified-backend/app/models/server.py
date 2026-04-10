@@ -311,5 +311,5 @@ class ServerModel:
             self.selected_comparison_model,
         )
 
-    def text_translate(self, source_text: str, target_language: str) -> str:
-        return translate(source_text, "en", target_language)
+    def text_translate(self, source_text: str, target_language: str, source_language: str = "en") -> str:
+        return translate(source_text, source_language, target_language)
