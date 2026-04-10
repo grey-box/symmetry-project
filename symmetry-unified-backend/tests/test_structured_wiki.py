@@ -1,5 +1,5 @@
 from unittest.mock import patch, Mock
-from app.models import (
+from app.models.wiki.structure import (
     Citation,
     Reference,
     Section,
@@ -70,7 +70,7 @@ class TestStructuredWikiRouter:
 
     def test_get_structured_article_with_citations(self, client, mock_article_parser):
         """Test structured article returns citation data"""
-        from app.models import Citation
+        from app.models.wiki.structure import Citation
 
         def mock_citations_fetcher(title="Test", lang="en"):
             article = Mock()

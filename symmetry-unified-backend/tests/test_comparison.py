@@ -277,7 +277,7 @@ class TestComparisonRouter:
     def test_chunked_text_translate_success(self, client):
         """Test chunked translation endpoint returns translatedArticle on success"""
         with patch(
-            "app.ai.translations.translate",
+            "app.models.translation.engine.translate",
             return_value="Hola mundo",
         ):
             response = client.post(
@@ -297,7 +297,7 @@ class TestComparisonRouter:
     def test_chunked_text_translate_value_error_returns_400(self, client):
         """Test chunked translation endpoint maps ValueError to 400"""
         with patch(
-            "app.ai.translations.translate",
+            "app.models.translation.engine.translate",
             side_effect=ValueError("Unsupported language pair"),
         ):
             response = client.post(
@@ -317,7 +317,7 @@ class TestComparisonRouter:
         import sys
 
         # Setting a module key to None in sys.modules causes ImportError on next import
-        with patch.dict(sys.modules, {"app.ai.translations": None}):
+        with patch.dict(sys.modules, {"app.models.translation.engine": None}):
             response = client.post(
                 "/symmetry/v1/wiki_translate/chunked_text",
                 json={

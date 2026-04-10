@@ -8,12 +8,12 @@ import logging
 try:
     from app.services.chunking import chunk_text
 except ModuleNotFoundError:
-    backend_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    backend_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     if backend_root not in sys.path:
         sys.path.insert(0, backend_root)
     from app.services.chunking import chunk_text
 
-from app.ai.model_registry import COMPARISON_MODELS, DEFAULT_MODEL
+from app.models.comparison.registry import COMPARISON_MODELS, DEFAULT_MODEL
 from app.core.settings import SIMILARITY_THRESHOLD as _DEFAULT_SIMILARITY_THRESHOLD
 
 logger = logging.getLogger(__name__)
@@ -186,9 +186,7 @@ def preprocess_input(article, language):
     }
 
     cleaned_article = article.replace("\n\n", "<DOUBLE_NEWLINE>")
-
     cleaned_article = cleaned_article.replace("\n", ". ")
-
     cleaned_article = cleaned_article.replace("<DOUBLE_NEWLINE>", " ").strip()
 
     if len(cleaned_article) > 3500:
@@ -206,7 +204,6 @@ def preprocess_input(article, language):
         try:
             model_name = language_model_map[language]
             nlp = spacy.load(model_name)
-
             doc = nlp(cleaned_article)
             sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
             return sentences
@@ -243,7 +240,7 @@ def sentences_diff(
 
 def perform_semantic_comparison(request_data):
     """
-    Process the JSON request data and perform semantic comparison
+    Process the JSON request data and perform semantic comparison.
 
     Expected JSON format:
     {
@@ -255,7 +252,7 @@ def perform_semantic_comparison(request_data):
         "model_name": "string"
     }
 
-        Returns:
+    Returns:
     {
         "comparisons": [
             {
@@ -267,7 +264,6 @@ def perform_semantic_comparison(request_data):
         ]
     }
     """
-    # extract values from request data
     source_article = request_data["original_article_content"]
     target_article = request_data["translated_article_content"]
     source_language = request_data["original_language"]
@@ -275,7 +271,6 @@ def perform_semantic_comparison(request_data):
     sim_threshold = request_data.get("comparison_threshold", _DEFAULT_SIMILARITY_THRESHOLD)
     model_name = request_data.get("model_name", DEFAULT_MODEL)
 
-    # perform semantic comparison
     result = semantic_compare(
         source_article,
         target_article,
@@ -285,7 +280,6 @@ def perform_semantic_comparison(request_data):
         model_name,
     )
 
-    # Return results in a structured format
     return {
         "comparisons": [
             {

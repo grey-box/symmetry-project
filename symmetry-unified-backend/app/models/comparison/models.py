@@ -1,14 +1,118 @@
-"""
-Pydantic models for section-level article comparison.
-
-These models support the structured diff view that compares Wikipedia articles
-component-by-component (section-by-section, paragraph-by-paragraph).
-"""
-
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
 from typing import List, Optional
+
+
+# ---------------------------------------------------------------------------
+# Base request models
+# ---------------------------------------------------------------------------
+
+
+class BaseCompareRequest(BaseModel):
+    """Base request for text comparison endpoints."""
+
+    original_article_content: str = Field(
+        ..., description="Original article text", min_length=1
+    )
+    translated_article_content: str = Field(
+        ..., description="Translated article text", min_length=1
+    )
+
+
+class SemanticCompareRequest(BaseCompareRequest):
+    """Request for semantic comparison with configurable model and threshold."""
+
+    similarity_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
+    model_name: str = Field(default="sentence-transformers/LaBSE", max_length=100)
+
+
+# ---------------------------------------------------------------------------
+# Legacy plain-text comparison models
+# ---------------------------------------------------------------------------
+
+
+class CompareRequest(BaseModel):
+    """Request to compare two article text blobs using semantic similarity."""
+
+    original_article_content: str
+    translated_article_content: str
+    original_language: str = Field(default="en")
+    translated_language: str = Field(default="fr")
+    similarity_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
+    model_name: str = "sentence-transformers/LaBSE"
+
+
+class SentenceDiff(BaseModel):
+    """A sentence that differs between two compared articles."""
+
+    sentence: str
+    index: int
+
+
+class ComparisonResult(BaseModel):
+    """Raw comparison arrays from the semantic comparison engine."""
+
+    left_article_array: List[str]
+    right_article_array: List[str]
+    left_article_missing_info_index: List[int]
+    right_article_extra_info_index: List[int]
+
+
+class CompareResponse(BaseModel):
+    """Response for the legacy plain-text article comparison endpoint."""
+
+    missing_info: List[SentenceDiff] = Field(default_factory=list)
+    extra_info: List[SentenceDiff] = Field(default_factory=list)
+    error_message: Optional[str] = None
+    model_name: str = Field(
+        default="sentence-transformers/LaBSE",
+        description="Name of the model used for comparison",
+    )
+    similarity_threshold: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+        description="Similarity threshold used for comparison",
+    )
+    comparisons: Optional[List[ComparisonResult]] = None
+
+
+# ---------------------------------------------------------------------------
+# Legacy response models (also used by comparison endpoints)
+# ---------------------------------------------------------------------------
+
+
+class MissingInfo(BaseModel):
+    sentence: str = Field()
+    index: int
+    similarity_score: Optional[float] = None
+
+
+class ExtraInfo(BaseModel):
+    sentence: str = Field()
+    index: int
+    similarity_score: Optional[float] = None
+
+
+class ArticleComparisonResponse(BaseModel):
+    missing_info: List[MissingInfo]
+    extra_info: List[ExtraInfo]
+    model_name: str = Field(
+        default="sentence-transformers/LaBSE",
+        description="Name of the model used for comparison",
+    )
+    similarity_threshold: float = Field(
+        default=0.75,
+        ge=0.0,
+        le=1.0,
+        description="Similarity threshold used for comparison",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Section-level comparison models
+# ---------------------------------------------------------------------------
 
 
 class SectionCompareRequest(BaseModel):

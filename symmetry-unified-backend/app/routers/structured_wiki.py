@@ -5,19 +5,18 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Query, HTTPException
 
-from app.ai.translations import translate
-from app.models.wiki_structure import Section
+from app.models.translation.engine import translate
+from app.models.wiki.structure import Section
 
-from app.models import (
+from app.models.wiki.responses import (
     StructuredArticleResponse,
     StructuredSectionResponse,
     StructuredCitationResponse,
     StructuredReferenceResponse,
-    FactExtractionRequest,
-    FactExtractionResponse,
 )
+from app.models.extraction.models import FactExtractionRequest, FactExtractionResponse
 from app.services.article_parser import article_fetcher
-from app.ai.fact_extraction import (
+from app.models.extraction.engine import (
     extract_facts,
     get_available_models,
     get_model_config,

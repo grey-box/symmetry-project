@@ -117,7 +117,7 @@ def _split_into_sentences(text: str) -> List[str]:
 def _chunk_by_sentence_count(sentences: List[str], num_chunks: int) -> List[List[str]]:
     """
     Divide sentences into chunks based on sentence count.
-    
+
     Each chunk will contain approximately len(sentences) / num_chunks sentences.
     This ensures that n facts are extracted from n equal groups of sentences.
 
@@ -131,29 +131,25 @@ def _chunk_by_sentence_count(sentences: List[str], num_chunks: int) -> List[List
     if not sentences:
         return []
 
-    # Cap num_chunks to number of sentences
     num_chunks = min(num_chunks, len(sentences))
-    
+
     if num_chunks == 0:
         return []
 
-    # Calculate sentences per chunk
     sentences_per_chunk = len(sentences) // num_chunks
-    
-    # Handle edge case: if sentences_per_chunk is 0 (more chunks than sentences)
+
     if sentences_per_chunk == 0:
         return [[s] for s in sentences[:num_chunks]]
 
     chunks: List[List[str]] = []
-    
+
     for i in range(num_chunks):
         start_idx = i * sentences_per_chunk
-        # Last chunk gets any remaining sentences
         if i == num_chunks - 1:
             end_idx = len(sentences)
         else:
             end_idx = (i + 1) * sentences_per_chunk
-        
+
         chunk = sentences[start_idx:end_idx]
         if chunk:
             chunks.append(chunk)
@@ -177,17 +173,14 @@ def get_model_config(model_id: str) -> Dict[str, Any]:
     if config:
         return config
 
-    # If not in predefined configs, treat as custom HuggingFace model
-    # Validate that the model exists on HF Hub
     if model_exists_on_hf(model_id):
-        # Return a minimal config for custom models
         return {
             "id": model_id,
             "name": model_id,
             "provider": "huggingface",
             "model_name": model_id,
             "description": f"Custom HuggingFace model: {model_id}",
-            "task": "text2text-generation",  # Default, will be auto-detected
+            "task": "text2text-generation",
             "prompt_style": "instruction",
             "use_chat_template": False,
         }
@@ -288,7 +281,7 @@ def _call_openrouter_api(prompt: str, model_name: str, max_tokens: int = 256) ->
         "model": model_name,
         "messages": _build_chat_messages(prompt),
         "max_tokens": max_tokens,
-        "temperature": 0.0,  # Deterministic output for fact extraction
+        "temperature": 0.0,
         "top_p": 1.0,
     }
 
@@ -325,7 +318,7 @@ def _call_openrouter_api(prompt: str, model_name: str, max_tokens: int = 256) ->
 
 
 # ---------------------------------------------------------------------
-# Main extraction function (simplified)
+# Main extraction function
 # ---------------------------------------------------------------------
 
 
@@ -357,11 +350,9 @@ def extract_facts(
     provider = config.get("provider", "huggingface").lower()
     model_name = config["model_name"]
 
-    # If num_facts is 1, process the whole text at once (backward compatible)
     if num_facts == 1:
         chunks = [text]
     else:
-        # Split text into sentences and chunk
         sentences = _split_into_sentences(text)
         if not sentences:
             return [], []
@@ -375,18 +366,13 @@ def extract_facts(
         if not chunk.strip():
             continue
 
-        # Build prompt based on prompt_style in model config
         prompt_style = config.get("prompt_style", "plain")
 
         if prompt_style == "prefix":
-            # T5-style models expect a task prefix rather than an instruction wrapper
             prefix = config.get("prompt_prefix", "")
             prompt = f"{prefix}{chunk}"
-
         elif prompt_style == "plain":
-            # Summarization models (e.g. distilbart) were trained on raw text
             prompt = chunk
-
         else:
             prompt = (
                 "Extract all explicit facts from the text below.\n\n"
@@ -395,13 +381,9 @@ def extract_facts(
                 "Facts:"
             )
 
-        # Generate based on provider
         if provider == "openrouter":
-            # OpenRouter API call
             raw_output = _call_openrouter_api(prompt, model_name, max_tokens=256)
         else:
-            # HuggingFace local model (default)
-            # Load model if not cached
             if model_name not in _model_cache:
                 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -446,8 +428,7 @@ def extract_facts(
                 )
 
             raw_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Parse the output into individual facts (handle bullet points and newlines)
+
         facts_from_chunk = _parse_facts(raw_output)
         all_facts.extend(facts_from_chunk)
         processed_chunks.append(chunk)
@@ -460,7 +441,6 @@ def _parse_facts(raw_output: str) -> List[str]:
     Parse raw model output into a list of individual facts.
     Handles bullet points, numbered lists, and newline-separated facts.
     """
-    # Split by newlines
     lines = raw_output.strip().split("\n")
 
     facts = []
@@ -469,15 +449,12 @@ def _parse_facts(raw_output: str) -> List[str]:
         if not line:
             continue
 
-        # Remove bullet point markers and numbering
-        # Handles: -, *, •, 1., 1), etc.
         cleaned = re.sub(r"^[\s]*([-*•]|\d+[.)])\s+", "", line)
         cleaned = cleaned.strip()
 
         if cleaned:
             facts.append(cleaned)
 
-    # If no bullet points found, treat the whole output as one fact
     if not facts and raw_output.strip():
         return [raw_output.strip()]
 

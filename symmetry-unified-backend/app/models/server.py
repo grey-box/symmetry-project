@@ -3,8 +3,8 @@ from pathlib import Path
 from typing import List, Optional
 import wikipediaapi
 import re
-from ..ai.semantic_comparison import semantic_compare
-from ..ai.translation import translate_text
+from app.models.comparison.engine import semantic_compare
+from app.models.translation.engine import translate
 from huggingface_hub import model_info
 from app.core.config import load_config, save_config
 
@@ -159,7 +159,6 @@ class ServerModel:
         if model in self.hf_comparison_models:
             return True
 
-        # write model name to comparison models in json
         update_json("huggingface", "comparison", model)
         self.hf_comparison_models.append(model)
 
@@ -223,7 +222,6 @@ class ServerModel:
 
     def delete_translation_model(self, model: str) -> bool:
         if model in self.hf_translation_models:
-            # remove from json
             remove_from_json("huggingface", "translation", model)
             self.hf_translation_models.remove(model)
             return True
@@ -255,7 +253,6 @@ class ServerModel:
 
     def delete_comparison_model(self, model: str) -> bool:
         if model in self.hf_comparison_models:
-            # remove from json
             remove_from_json("huggingface", "comparison", model)
             self.hf_comparison_models.remove(model)
             return True
@@ -305,7 +302,6 @@ class ServerModel:
         target_language,
         sim_threshold,
     ):
-
         return semantic_compare(
             original_blob,
             translated_blob,
@@ -315,5 +311,5 @@ class ServerModel:
             self.selected_comparison_model,
         )
 
-    def text_translate(self, target_text: str, target_language: str):
-        return translate_text(target_text, target_language)
+    def text_translate(self, source_text: str, target_language: str) -> str:
+        return translate(source_text, "en", target_language)
