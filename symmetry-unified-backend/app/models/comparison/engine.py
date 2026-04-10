@@ -264,10 +264,10 @@ def perform_semantic_comparison(request_data):
         ]
     }
     """
-    source_article = request_data["original_article_content"]
-    target_article = request_data["translated_article_content"]
-    source_language = request_data["original_language"]
-    target_language = request_data["translated_language"]
+    source_article = request_data.get("original_article_content", "")
+    target_article = request_data.get("translated_article_content", "")
+    source_language = request_data.get("original_language", "en")
+    target_language = request_data.get("translated_language", "en")
     sim_threshold = request_data.get("comparison_threshold", _DEFAULT_SIMILARITY_THRESHOLD)
     model_name = request_data.get("model_name", DEFAULT_MODEL)
 
