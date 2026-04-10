@@ -10,6 +10,8 @@ from pathlib import Path
 import json
 from typing import List
 
+from app.core.config import load_config
+
 _DEFAULT_MODELS: List[str] = [
     "sentence-transformers/LaBSE",
     "xlm-roberta-base",
@@ -21,14 +23,17 @@ _DEFAULT_MODEL = "sentence-transformers/LaBSE"
 
 
 def _load_from_config() -> dict:
-    """Search upward for config.json and load it if present."""
+    """Load backend config from TOML if available, else search parent config.json."""
+    config = load_config()
+    if config:
+        return config
+
     for p in Path(__file__).resolve().parents:
         cfg = p / "config.json"
         if cfg.is_file():
             try:
                 return json.loads(cfg.read_text(encoding="utf-8"))
             except Exception:
-                # If config exists but is invalid, ignore and fall back
                 return {}
     return {}
 
