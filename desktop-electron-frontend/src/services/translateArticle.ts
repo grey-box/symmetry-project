@@ -2,7 +2,12 @@ import { AxiosResponse } from 'axios'
 import { getAxiosInstance } from '@/services/axios'
 import { TranslateArticleResponse } from '@/models/apis/TranslateArticleResponse'
 
-export async function translateArticle(article_name: string, target_language: string): Promise<AxiosResponse<TranslateArticleResponse>> {
+export async function translateArticle(
+  sourceText: string,
+  sourceLanguage: string,
+  targetLanguage: string,
+  signal?: AbortSignal
+): Promise<AxiosResponse<TranslateArticleResponse>> {
   try {
     const axiosInstance = await getAxiosInstance();
     
@@ -13,16 +18,9 @@ export async function translateArticle(article_name: string, target_language: st
         title: article_name,
         language: target_language
       },
-      paramsSerializer: (params) => {
-        const paramsArray: string[] = []
-        Object.entries(params).forEach(([key, value]) => {
-          if (key === 'title') {
-            paramsArray.push(`${key}=${value}`)
-          } else {
-            paramsArray.push(`${key}=${encodeURIComponent(value)}`)
-          }
-        })
-        return paramsArray.join('&')
+      {
+        timeout: 600000,
+        signal,
       }
     );
   } catch (error) {

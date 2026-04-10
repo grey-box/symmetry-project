@@ -326,9 +326,8 @@ def translate_text_endpoint(
     description="Translates long text using the chunked translation pipeline.",
 )
 def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
-    from app.ai.translations import translate as chunked_translate
-
     try:
+        from app.ai.translations import translate as chunked_translate
         logging.info(
             "Chunked translation request (source='%s', target='%s', chars=%d)",
             payload.source_language,
