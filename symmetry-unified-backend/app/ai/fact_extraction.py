@@ -4,8 +4,10 @@ import re
 from collections import OrderedDict
 from pathlib import Path
 from typing import List, Dict, Any, Tuple
+import asyncio
 import os
-import requests
+
+import httpx
 
 from starlette.config import Config
 
@@ -117,7 +119,7 @@ def _split_into_sentences(text: str) -> List[str]:
 def _chunk_by_sentence_count(sentences: List[str], num_chunks: int) -> List[List[str]]:
     """
     Divide sentences into chunks based on sentence count.
-    
+
     Each chunk will contain approximately len(sentences) / num_chunks sentences.
     This ensures that n facts are extracted from n equal groups of sentences.
 
@@ -133,19 +135,19 @@ def _chunk_by_sentence_count(sentences: List[str], num_chunks: int) -> List[List
 
     # Cap num_chunks to number of sentences
     num_chunks = min(num_chunks, len(sentences))
-    
+
     if num_chunks == 0:
         return []
 
     # Calculate sentences per chunk
     sentences_per_chunk = len(sentences) // num_chunks
-    
+
     # Handle edge case: if sentences_per_chunk is 0 (more chunks than sentences)
     if sentences_per_chunk == 0:
         return [[s] for s in sentences[:num_chunks]]
 
     chunks: List[List[str]] = []
-    
+
     for i in range(num_chunks):
         start_idx = i * sentences_per_chunk
         # Last chunk gets any remaining sentences
@@ -153,7 +155,7 @@ def _chunk_by_sentence_count(sentences: List[str], num_chunks: int) -> List[List
             end_idx = len(sentences)
         else:
             end_idx = (i + 1) * sentences_per_chunk
-        
+
         chunk = sentences[start_idx:end_idx]
         if chunk:
             chunks.append(chunk)
@@ -247,17 +249,16 @@ def _build_chat_messages(prompt: str) -> List[Dict[str, str]]:
     Returns:
         List of message dictionaries in chat format
     """
-    return [
-        {
-            "role": "user",
-            "content": prompt
-        }
-    ]
+    return [{"role": "user", "content": prompt}]
 
 
-def _call_openrouter_api(prompt: str, model_name: str, max_tokens: int = 256) -> str:
+async def _call_openrouter_api(
+    prompt: str, model_name: str, max_tokens: int = 256
+) -> str:
     """
     Call OpenRouter API to generate text using a chat model.
+
+    Uses httpx.AsyncClient so the FastAPI event loop is never blocked.
 
     Args:
         prompt: The prompt to send to the model
@@ -293,8 +294,9 @@ def _call_openrouter_api(prompt: str, model_name: str, max_tokens: int = 256) ->
     }
 
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=120)
-        response.raise_for_status()
+        async with httpx.AsyncClient(timeout=120) as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
 
         result = response.json()
 
@@ -309,15 +311,18 @@ def _call_openrouter_api(prompt: str, model_name: str, max_tokens: int = 256) ->
 
         return content.strip()
 
-    except requests.exceptions.RequestException as e:
+    except httpx.HTTPStatusError as e:
         logging.error(f"OpenRouter API request failed: {e}")
-        if hasattr(e, 'response') and e.response is not None:
-            try:
-                error_detail = e.response.json()
-                logging.error(f"OpenRouter error detail: {error_detail}")
-                raise ValueError(f"OpenRouter API error: {error_detail.get('error', str(e))}")
-            except ValueError:
-                raise ValueError(f"OpenRouter API request failed: {str(e)}")
+        try:
+            error_detail = e.response.json()
+            logging.error(f"OpenRouter error detail: {error_detail}")
+            raise ValueError(
+                f"OpenRouter API error: {error_detail.get('error', str(e))}"
+            )
+        except (json.JSONDecodeError, KeyError):
+            raise ValueError(f"OpenRouter API request failed: {str(e)}")
+    except httpx.RequestError as e:
+        logging.error(f"OpenRouter API request failed: {e}")
         raise ValueError(f"OpenRouter API request failed: {str(e)}")
     except (KeyError, IndexError, json.JSONDecodeError) as e:
         logging.error(f"Failed to parse OpenRouter response: {e}")
@@ -325,11 +330,42 @@ def _call_openrouter_api(prompt: str, model_name: str, max_tokens: int = 256) ->
 
 
 # ---------------------------------------------------------------------
+# HuggingFace inference helper (runs in a thread pool via asyncio.to_thread)
+# ---------------------------------------------------------------------
+
+
+def _hf_inference(
+    model: Any,
+    tokenizer: Any,
+    device: str,
+    rep_penalty: float,
+    prompt: str,
+) -> str:
+    """Run a single HuggingFace forward pass synchronously.
+
+    Designed to be called via ``asyncio.to_thread`` so that CPU/GPU-bound
+    PyTorch work never blocks the FastAPI event loop.
+    """
+    inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
+    inputs_on_device = {k: v.to(device) for k, v in inputs.items()}
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs_on_device,
+            max_new_tokens=256,
+            do_sample=False,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id,
+            repetition_penalty=rep_penalty,
+        )
+    return tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+
+# ---------------------------------------------------------------------
 # Main extraction function (simplified)
 # ---------------------------------------------------------------------
 
 
-def extract_facts(
+async def extract_facts(
     text: str, model_id: str, num_facts: int = 1
 ) -> Tuple[List[str], List[str]]:
     """
@@ -357,16 +393,51 @@ def extract_facts(
     provider = config.get("provider", "huggingface").lower()
     model_name = config["model_name"]
 
-    # If num_facts is 1, process the whole text at once (backward compatible)
+    # Build chunk list once
     if num_facts == 1:
         chunks = [text]
     else:
-        # Split text into sentences and chunk
         sentences = _split_into_sentences(text)
         if not sentences:
             return [], []
         chunks_sentences = _chunk_by_sentence_count(sentences, num_facts)
         chunks = [" ".join(chunk_sentences) for chunk_sentences in chunks_sentences]
+
+    # Load / retrieve the HuggingFace model once before the chunk loop so that
+    # model.to(device) and tokenizer configuration happen exactly once per call,
+    # regardless of how many chunks are processed.
+    hf_model = None
+    hf_tokenizer = None
+    device: str = "cpu"
+    rep_penalty: float = 1.0
+
+    if provider != "openrouter":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        rep_penalty = config.get("repetition_penalty", 1.0)
+
+        if model_name not in _model_cache:
+            hf_tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+            hf_config = AutoConfig.from_pretrained(model_name)
+            if hf_config.is_encoder_decoder:
+                hf_model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+            else:
+                hf_model = AutoModelForCausalLM.from_pretrained(model_name)
+
+            hf_model.eval()
+            hf_model.to(device)
+
+            if hf_tokenizer.pad_token_id is None:
+                hf_tokenizer.pad_token = hf_tokenizer.eos_token
+                hf_model.config.pad_token_id = hf_tokenizer.pad_token_id
+
+            if len(_model_cache) >= MODEL_CACHE_MAX_SIZE:
+                _evict_lru_model()
+
+            _model_cache[model_name] = (hf_model, hf_tokenizer)
+        else:
+            _model_cache.move_to_end(model_name)
+            hf_model, hf_tokenizer = _model_cache[model_name]
 
     all_facts: List[str] = []
     processed_chunks: List[str] = []
@@ -382,11 +453,9 @@ def extract_facts(
             # T5-style models expect a task prefix rather than an instruction wrapper
             prefix = config.get("prompt_prefix", "")
             prompt = f"{prefix}{chunk}"
-
         elif prompt_style == "plain":
             # Summarization models (e.g. distilbart) were trained on raw text
             prompt = chunk
-
         else:
             prompt = (
                 "Extract all explicit facts from the text below.\n\n"
@@ -395,58 +464,15 @@ def extract_facts(
                 "Facts:"
             )
 
-        # Generate based on provider
         if provider == "openrouter":
-            # OpenRouter API call
-            raw_output = _call_openrouter_api(prompt, model_name, max_tokens=256)
+            raw_output = await _call_openrouter_api(prompt, model_name, max_tokens=256)
         else:
-            # HuggingFace local model (default)
-            # Load model if not cached
-            if model_name not in _model_cache:
-                tokenizer = AutoTokenizer.from_pretrained(model_name)
+            # Run CPU/GPU-bound PyTorch inference in a thread pool so the
+            # FastAPI event loop is never blocked.
+            raw_output = await asyncio.to_thread(
+                _hf_inference, hf_model, hf_tokenizer, device, rep_penalty, prompt
+            )
 
-                model_config = AutoConfig.from_pretrained(model_name)
-
-                if model_config.is_encoder_decoder:
-                    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-                else:
-                    model = AutoModelForCausalLM.from_pretrained(model_name)
-
-                model.eval()
-
-                if len(_model_cache) >= MODEL_CACHE_MAX_SIZE:
-                    _evict_lru_model()
-
-                _model_cache[model_name] = (model, tokenizer)
-            else:
-                _model_cache.move_to_end(model_name)
-
-            model, tokenizer = _model_cache[model_name]
-
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            model.to(device)
-
-            if tokenizer.pad_token_id is None:
-                tokenizer.pad_token = tokenizer.eos_token
-                model.config.pad_token_id = tokenizer.pad_token_id
-
-            inputs = tokenizer(prompt, return_tensors="pt", truncation=True)
-            inputs = {k: v.to(device) for k, v in inputs.items()}
-
-            rep_penalty = config.get("repetition_penalty", 1.0)
-
-            with torch.no_grad():
-                outputs = model.generate(
-                    **inputs,
-                    max_new_tokens=256,
-                    do_sample=False,
-                    eos_token_id=tokenizer.eos_token_id,
-                    pad_token_id=tokenizer.pad_token_id,
-                    repetition_penalty=rep_penalty,
-                )
-
-            raw_output = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
         # Parse the output into individual facts (handle bullet points and newlines)
         facts_from_chunk = _parse_facts(raw_output)
         all_facts.extend(facts_from_chunk)
