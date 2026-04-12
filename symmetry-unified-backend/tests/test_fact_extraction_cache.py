@@ -1,4 +1,5 @@
 import pytest
+import anyio
 import torch
 from types import SimpleNamespace
 
@@ -68,7 +69,8 @@ def patch_model_loading(monkeypatch):
     fact_extraction._model_cache.clear()
 
 
-def test_model_cache_eviction_lru_order(monkeypatch):
+@pytest.mark.anyio
+async def test_model_cache_eviction_lru_order(monkeypatch):
     monkeypatch.setattr(
         fact_extraction,
         "get_model_config",
@@ -83,9 +85,9 @@ def test_model_cache_eviction_lru_order(monkeypatch):
     assert fact_extraction.MODEL_CACHE_MAX_SIZE == 3
 
     # Warm up the cache with three models.
-    fact_extraction.extract_facts("text A", "model_a")
-    fact_extraction.extract_facts("text B", "model_b")
-    fact_extraction.extract_facts("text C", "model_c")
+    await fact_extraction.extract_facts("text A", "model_a")
+    await fact_extraction.extract_facts("text B", "model_b")
+    await fact_extraction.extract_facts("text C", "model_c")
 
     assert list(fact_extraction._model_cache.keys()) == [
         "model_a",
@@ -94,7 +96,7 @@ def test_model_cache_eviction_lru_order(monkeypatch):
     ]
 
     # Access model_a again to update its recency.
-    fact_extraction.extract_facts("text A", "model_a")
+    await fact_extraction.extract_facts("text A", "model_a")
     assert list(fact_extraction._model_cache.keys()) == [
         "model_b",
         "model_c",
@@ -102,7 +104,7 @@ def test_model_cache_eviction_lru_order(monkeypatch):
     ]
 
     # Adding a fourth model should evict the least recently used model_b.
-    fact_extraction.extract_facts("text D", "model_d")
+    await fact_extraction.extract_facts("text D", "model_d")
     assert list(fact_extraction._model_cache.keys()) == [
         "model_c",
         "model_a",
@@ -111,7 +113,8 @@ def test_model_cache_eviction_lru_order(monkeypatch):
     assert "model_b" not in fact_extraction._model_cache
 
 
-def test_model_cache_reuses_cached_model(monkeypatch):
+@pytest.mark.anyio
+async def test_model_cache_reuses_cached_model(monkeypatch):
     monkeypatch.setattr(
         fact_extraction,
         "get_model_config",
@@ -122,10 +125,10 @@ def test_model_cache_reuses_cached_model(monkeypatch):
         },
     )
 
-    fact_extraction.extract_facts("text", "model_x")
+    await fact_extraction.extract_facts("text", "model_x")
     first_model = fact_extraction._model_cache["model_x"][0]
 
-    fact_extraction.extract_facts("text", "model_x")
+    await fact_extraction.extract_facts("text", "model_x")
     second_model = fact_extraction._model_cache["model_x"][0]
 
     assert first_model is second_model
