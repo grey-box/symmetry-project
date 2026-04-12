@@ -1,26 +1,50 @@
 import { AxiosResponse } from 'axios'
 import { getAxiosInstance } from '@/services/axios'
 
-// API call for semantic comparison of articles
-export async function compareArticles(textA: string, textB: string): Promise<AxiosResponse<{
-  missing_info: Array<{ missing_information: string }>;
-  extra_info: Array<{ extra_information: string }>;
+/**
+ * Compare two article texts using semantic similarity (legacy plain-text comparison).
+ * Calls POST /symmetry/v1/articles/compare with LaBSE embeddings.
+ */
+export async function compareArticles(
+  sourceArticleContent: string,
+  targetArticleContent: string,
+  sourceLanguage: string,
+  targetLanguage: string,
+  similarityThreshold: number = 0.65
+): Promise<AxiosResponse<{
+  comparisons: Array<{
+    left_article_array: string[]
+    right_article_array: string[]
+    left_article_missing_info_index: number[]
+    right_article_extra_info_index: number[]
+  }>
 }>> {
   try {
-    const axiosInstance = await getAxiosInstance();
-    
-    console.log('[DEBUG] compareArticles called with textA length:', textA.length, 'textB length:', textB.length);
-    
+    const axiosInstance = await getAxiosInstance()
+
+    console.log(
+      '[DEBUG] compareArticles called with original length:',
+      sourceArticleContent.length,
+      'translated length:',
+      targetArticleContent.length
+    )
+    console.log(
+      '[DEBUG] Languages - original:',
+      sourceLanguage,
+      'translated:',
+      targetLanguage
+    )
+
     return axiosInstance.post('/symmetry/v1/articles/compare', {
-      article_text_blob_1: textA,
-      article_text_blob_2: textB,
-      article_text_blob_1_language: 'en',
-      article_text_blob_2_language: 'en',
-      comparison_threshold: 0.5,
-      model_name: 'default'
-    });
+      original_article_content: sourceArticleContent,
+      translated_article_content: targetArticleContent,
+      original_language: sourceLanguage,
+      translated_language: targetLanguage,
+      similarity_threshold: similarityThreshold,
+      model_name: 'sentence-transformers/LaBSE',
+    })
   } catch (error) {
-    console.error('Failed to get axios instance:', error);
-    throw error;
+    console.error('Failed to get axios instance:', error)
+    throw error
   }
 }

@@ -6,6 +6,8 @@
   "description": "Cross language wikipedia article gap analysis tool",
   "main": ".vite/build/main.js",
   "scripts": {
+    "dev": "vite --config vite.renderer.config.mjs --host",
+    "build:web": "vite build --config vite.renderer.config.mjs",
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
@@ -58,5 +60,6 @@
     "react-router-dom": "^6.23.0",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7"
-  }
+  },
+  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }

@@ -7,8 +7,11 @@ import {
   StructuredSectionRequest,
   CitationAnalysisRequest,
   ReferenceAnalysisRequest,
+  SectionCompareRequest,
+  SectionCompareResponse,
   Section
 } from '../models/structured-wiki';
+import { FactExtractionModel, FactExtractionRequest, FactExtractionResponse } from '../models/FactExtraction';
 
 // Get API base URL from constants
 const API_BASE_URL = 'http://127.0.0.1:8000';
@@ -17,7 +20,7 @@ const API_BASE_URL = 'http://127.0.0.1:8000';
  * Service for interacting with structured Wikipedia API endpoints
  */
 class StructuredWikiService {
-  
+
   /**
    * Generic fetch wrapper with error handling
    */
@@ -47,6 +50,32 @@ class StructuredWikiService {
     const url = `${API_BASE_URL}/symmetry/v1/wiki/structured-article?${params.toString()}`;
     return this.fetchWithErrorHandling<StructuredArticleResponse>(url);
   }
+
+  /**
+   * Get a translated version of a structured article
+   */
+  async getTranslatedStructuredArticle(params: {
+    source_lang: string;
+    target_lang: string;
+    title?: string;
+    url?: string;
+  }): Promise<StructuredArticleResponse> {
+    const searchParams = new URLSearchParams();
+
+    searchParams.append('source_lang', params.source_lang);
+    searchParams.append('target_lang', params.target_lang);
+
+    if (params.title) {
+      searchParams.append('title', params.title);
+    }
+    if (params.url) {
+      searchParams.append('url', params.url);
+    }
+
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/structured-translated-article?${searchParams.toString()}`;
+    return this.fetchWithErrorHandling<StructuredArticleResponse>(url);
+  }
+
 
   /**
    * Get a specific section from a structured article
@@ -92,20 +121,39 @@ class StructuredWikiService {
   }
 
   /**
+   * Compare two Wikipedia articles section-by-section using semantic + Levenshtein analysis.
+   * Returns paragraph-level diffs for each matched/missing/added section.
+   */
+  async compareSections(request: SectionCompareRequest): Promise<SectionCompareResponse> {
+    const response = await fetch(`${API_BASE_URL}/symmetry/v1/articles/compare-sections`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Section comparison failed (${response.status}): ${errorBody}`);
+    }
+
+    return response.json();
+  }
+
+  /**
    * Utility method to parse Wikipedia URL and extract title and language
    */
   parseWikipediaUrl(url: string): { title: string; lang: string } | null {
     try {
       const urlPattern = /https?:\/\/([a-z]{2})\.wikipedia\.org\/wiki\/(.+)/;
       const match = url.match(urlPattern);
-      
+
       if (match) {
         return {
           lang: match[1],
           title: decodeURIComponent(match[2].replace(/_/g, ' '))
         };
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error parsing Wikipedia URL:', error);
@@ -143,7 +191,7 @@ class StructuredWikiService {
    */
   getArticleStats(article: StructuredArticleResponse) {
     const totalWords = article.sections.reduce((sum, s) => sum + s.clean_content.split(' ').length, 0);
-    
+
     return {
       title: article.title,
       language: article.lang,
@@ -151,9 +199,9 @@ class StructuredWikiService {
       totalCitations: article.total_citations,
       totalReferences: article.total_references,
       totalWords,
-      averageCitationsPerSection: article.total_sections > 0 ? 
+      averageCitationsPerSection: article.total_sections > 0 ?
         (article.total_citations / article.total_sections).toFixed(1) : '0',
-      referenceDensity: totalWords > 0 ? 
+      referenceDensity: totalWords > 0 ?
         (article.total_references / totalWords * 1000).toFixed(2) : '0'
     };
   }
@@ -167,7 +215,7 @@ class StructuredWikiService {
     }
 
     const term = searchTerm.toLowerCase();
-    return article.sections.filter(section => 
+    return article.sections.filter(section =>
       section.title.toLowerCase().includes(term) ||
       section.clean_content.toLowerCase().includes(term)
     );
@@ -185,11 +233,8 @@ class StructuredWikiService {
   /**
    * Format section content for display
    */
-  formatSectionContent(section: Section, maxLength: number = 500): string {
-    if (section.clean_content.length <= maxLength) {
-      return section.clean_content;
-    }
-    return section.clean_content.substring(0, maxLength) + '...';
+  formatSectionContent(section: Section): string {
+    return section.clean_content;
   }
 
   /**
@@ -200,6 +245,43 @@ class StructuredWikiService {
       return 'No citations found';
     }
     return positions.slice(0, 5).join(', ') + (positions.length > 5 ? '...' : '');
+  }
+
+  /**
+   * Get available fact extraction models
+   */
+  async getFactExtractionModels(): Promise<FactExtractionModel[]> {
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/fact-extraction-models`;
+    return this.fetchWithErrorHandling<FactExtractionModel[]>(url);
+  }
+
+  /**
+   * Extract facts from a section's content using a specific model
+   */
+  async extractFacts(request: FactExtractionRequest): Promise<FactExtractionResponse> {
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/extract-facts`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Validate a custom fact extraction model
+   */
+  async validateFactExtractionModel(modelId: string): Promise<{ valid: boolean; model?: FactExtractionModel; error?: string }> {
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/fact-extraction-validate?model_id=${encodeURIComponent(modelId)}`;
+    return this.fetchWithErrorHandling<{ valid: boolean; model?: FactExtractionModel; error?: string }>(url);
   }
 }
 

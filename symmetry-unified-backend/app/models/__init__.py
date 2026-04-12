@@ -6,7 +6,12 @@ from app.models.response import (
     MissingInfo,
     ExtraInfo,
 )
-from app.models.comparison import CompareRequest, ComparisonResult, CompareResponse
+from app.models.comparison import (
+    CompareRequest,
+    ComparisonResult,
+    CompareResponse,
+    SentenceDiff,
+)
 from app.models.structured_response import (
     StructuredArticleResponse,
     StructuredSectionResponse,
@@ -26,9 +31,15 @@ from app.models.structural_analysis import (
     InfoBoxAttribute,
 )
 from app.models.comparison_request import (
-    LLMCompareRequest,
     SemanticCompareRequest,
     BaseCompareRequest,
+    ChunkedTranslateRequest,
+)
+from app.models.api_models import (
+    ModelSelectionResponse,
+    ListResponse,
+    FactExtractionRequest,
+    FactExtractionResponse,
 )
 
 __all__ = [
@@ -44,6 +55,7 @@ __all__ = [
     "CompareRequest",
     "ComparisonResult",
     "CompareResponse",
+    "SentenceDiff",
     "StructuredArticleResponse",
     "StructuredSectionResponse",
     "StructuredCitationResponse",
@@ -58,7 +70,15 @@ __all__ = [
     "AnalysisResultsResponse",
     "TableInfo",
     "InfoBoxAttribute",
-    "LLMCompareRequest",
     "SemanticCompareRequest",
     "BaseCompareRequest",
+    "ChunkedTranslateRequest",
+    "ModelSelectionResponse",
+    "ListResponse",
+    "SectionCompareRequest",
+    "SectionCompareResponse",
+    "SectionDiff",
+    "ParagraphDiff",
+    "FactExtractionRequest",
+    "FactExtractionResponse",
 ]

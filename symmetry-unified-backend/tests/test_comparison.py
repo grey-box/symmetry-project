@@ -33,14 +33,14 @@ class TestComparisonRouter:
             assert len(data["comparisons"]) == 1
 
     def test_compare_articles_with_obama_data(
-        self, client, sample_obama_text_a, sample_obama_text_b
+        self, client, sample_obama_original_text, sample_obama_translated_text
     ):
         """Test comparison with real Obama article data"""
         request_data = {
-            "article_text_blob_1": sample_obama_text_a,
-            "article_text_blob_2": sample_obama_text_b,
-            "article_text_blob_1_language": "en",
-            "article_text_blob_2_language": "en",
+            "original_article_content": sample_obama_original_text,
+            "translated_article_content": sample_obama_translated_text,
+            "original_language": "en",
+            "translated_language": "en",
             "comparison_threshold": 0.65,
             "model_name": "sentence-transformers/LaBSE",
         }
@@ -48,8 +48,8 @@ class TestComparisonRouter:
         mock_response = {
             "comparisons": [
                 {
-                    "left_article_array": sample_obama_text_a.split("\n"),
-                    "right_article_array": sample_obama_text_b.split("\n"),
+                    "left_article_array": sample_obama_original_text.split("\n"),
+                    "right_article_array": sample_obama_translated_text.split("\n"),
                     "left_article_missing_info_index": [2, 6],
                     "right_article_extra_info_index": [1, 5],
                 }
@@ -69,7 +69,7 @@ class TestComparisonRouter:
     def test_compare_articles_missing_required_field(self, client):
         """Test comparison request missing required fields"""
         incomplete_request = {
-            "article_text_blob_1": "First article",
+            "original_article_content": "First article",
         }
 
         response = client.post("/symmetry/v1/articles/compare", json=incomplete_request)
@@ -79,7 +79,7 @@ class TestComparisonRouter:
     def test_compare_articles_invalid_threshold(self, client, valid_compare_request):
         """Test comparison with invalid threshold value"""
         invalid_request = valid_compare_request.copy()
-        invalid_request["comparison_threshold"] = 1.5
+        invalid_request["similarity_threshold"] = 1.5
 
         response = client.post("/symmetry/v1/articles/compare", json=invalid_request)
 
@@ -88,66 +88,18 @@ class TestComparisonRouter:
     def test_compare_articles_invalid_language_length(
         self, client, valid_compare_request
     ):
-        """Test comparison with invalid language code length"""
-        invalid_request = valid_compare_request.copy()
-        invalid_request["article_text_blob_1_language"] = "verylonglanguagecode"
+        """Test comparison accepts long language codes (no length constraint)"""
+        valid_request = valid_compare_request.copy()
+        valid_request["original_language"] = "verylonglanguagecode"
 
-        response = client.post("/symmetry/v1/articles/compare", json=invalid_request)
-
-        assert response.status_code == 422
-
-    def test_compare_llm_get_success(self, client, valid_llm_compare_request):
-        """Test successful GET request for LLM comparison"""
-        mock_response = {
-            "missing_info": [{"sentence": "Missing sentence", "index": 1}],
-            "extra_info": [{"sentence": "Extra sentence", "index": 2}],
-        }
-
+        mock_response = {"comparisons": []}
         with patch(
-            "app.routers.comparison.llm_semantic_comparison", return_value=mock_response
+            "app.routers.comparison.perform_semantic_comparison",
+            return_value=mock_response,
         ):
-            response = client.get(
-                "/symmetry/v1/comparison/llm",
-                params=valid_llm_compare_request,
-            )
+            response = client.post("/symmetry/v1/articles/compare", json=valid_request)
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "missing_info" in data
-            assert "extra_info" in data
-
-    def test_compare_llm_get_missing_text(self, client):
-        """Test LLM comparison GET with missing text parameters"""
-        response = client.get("/symmetry/v1/comparison/llm", params={"text_a": "Test"})
-
-        assert response.status_code == 422
-
-    def test_compare_llm_post_success(self, client, valid_llm_compare_request):
-        """Test successful POST request for LLM comparison"""
-        mock_response = {
-            "missing_info": [{"sentence": "Missing sentence", "index": 1}],
-            "extra_info": [{"sentence": "Extra sentence", "index": 2}],
-        }
-
-        with patch(
-            "app.routers.comparison.llm_semantic_comparison", return_value=mock_response
-        ):
-            response = client.post(
-                "/symmetry/v1/comparison/llm", json=valid_llm_compare_request
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "missing_info" in data
-            assert "extra_info" in data
-
-    def test_compare_llm_post_missing_text(self, client):
-        """Test LLM comparison POST with missing text"""
-        incomplete_request = {"text_a": "Test text"}
-
-        response = client.post("/symmetry/v1/comparison/llm", json=incomplete_request)
-
-        assert response.status_code == 422
+        assert response.status_code == 200
 
     def test_compare_semantic_get_success(self, client, valid_semantic_compare_request):
         """Test successful GET request for semantic comparison"""
@@ -179,18 +131,22 @@ class TestComparisonRouter:
         """Test semantic comparison GET with invalid threshold"""
         response = client.get(
             "/symmetry/v1/comparison/semantic",
-            params={"text_a": "Test", "text_b": "Test", "similarity_threshold": 2.0},
+            params={
+                "original_article_content": "Test",
+                "translated_article_content": "Test",
+                "similarity_threshold": 2.0,
+            },
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 422  # FastAPI validates ge/le at framework level
 
     def test_compare_semantic_get_invalid_model(self, client):
         """Test semantic comparison GET with invalid model name"""
         response = client.get(
             "/symmetry/v1/comparison/semantic",
             params={
-                "text_a": "Test",
-                "text_b": "Test",
+                "original_article_content": "Test",
+                "translated_article_content": "Test",
                 "model_name": "invalid-model-name",
             },
         )
@@ -252,20 +208,25 @@ class TestComparisonRouter:
         mock_page = Mock()
         mock_page.exists.return_value = True
         mock_page.text = "Translated content"
+        mock_page.langlinks = {"fr": "Article_Test"}
+        mock_page.title.return_value = "Test Article"
         mock_wiki.page.return_value = mock_page
 
         with patch("wikipediaapi.Wikipedia", return_value=mock_wiki):
-            response = client.get(
-                "/symmetry/v1/wiki_translate/source_article",
-                params={
-                    "url": "https://en.wikipedia.org/wiki/Test_Article",
-                    "language": "fr",
-                },
-            )
+            with patch(
+                "app.services.wiki_utils.get_translation", return_value="Article_Test"
+            ):
+                response = client.get(
+                    "/symmetry/v1/wiki_translate/source_article",
+                    params={
+                        "url": "https://en.wikipedia.org/wiki/Test_Article",
+                        "language": "fr",
+                    },
+                )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "translatedArticle" in data
+                assert response.status_code == 200
+                data = response.json()
+                assert "translatedArticle" in data
 
     def test_wiki_translate_with_title(self, client):
         """Test wiki translation with title"""
@@ -273,23 +234,30 @@ class TestComparisonRouter:
         mock_page = Mock()
         mock_page.exists.return_value = True
         mock_page.text = "Translated content"
+        mock_page.langlinks = {"fr": "Article_Test"}
+        mock_page.title.return_value = "Test Article"
         mock_wiki.page.return_value = mock_page
 
         with patch("wikipediaapi.Wikipedia", return_value=mock_wiki):
-            response = client.get(
-                "/symmetry/v1/wiki_translate/source_article",
-                params={"title": "Test_Article", "language": "fr"},
-            )
+            with patch(
+                "app.services.wiki_utils.get_translation", return_value="Article_Test"
+            ):
+                response = client.get(
+                    "/symmetry/v1/wiki_translate/source_article",
+                    params={"title": "Test_Article", "language": "fr"},
+                )
 
-            assert response.status_code == 200
-            data = response.json()
-            assert "translatedArticle" in data
+                assert response.status_code == 200
+                data = response.json()
+                assert "translatedArticle" in data
 
     def test_wiki_translate_missing_params(self, client):
         """Test wiki translation without required parameters"""
         response = client.get("/symmetry/v1/wiki_translate/source_article")
 
-        assert response.status_code == 400
+        assert (
+            response.status_code == 422
+        )  # FastAPI returns 422 for missing required query params
 
     def test_wiki_translate_article_not_found(self, client):
         """Test wiki translation for non-existent article"""
@@ -305,3 +273,60 @@ class TestComparisonRouter:
             )
 
             assert response.status_code == 404
+
+    def test_chunked_text_translate_success(self, client):
+        """Test chunked translation endpoint returns translatedArticle on success"""
+        with patch(
+            "app.ai.translations.translate",
+            return_value="Hola mundo",
+        ):
+            response = client.post(
+                "/symmetry/v1/wiki_translate/chunked_text",
+                json={
+                    "source_language": "en",
+                    "target_language": "es",
+                    "text": "Hello world",
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "translatedArticle" in data
+            assert data["translatedArticle"] == "Hola mundo"
+
+    def test_chunked_text_translate_value_error_returns_400(self, client):
+        """Test chunked translation endpoint maps ValueError to 400"""
+        with patch(
+            "app.ai.translations.translate",
+            side_effect=ValueError("Unsupported language pair"),
+        ):
+            response = client.post(
+                "/symmetry/v1/wiki_translate/chunked_text",
+                json={
+                    "source_language": "xx",
+                    "target_language": "yy",
+                    "text": "Hello world",
+                },
+            )
+
+            assert response.status_code == 400
+            assert "Unsupported language pair" in response.json()["detail"]
+
+    def test_chunked_text_translate_import_error_returns_500(self, client):
+        """Test chunked translation endpoint maps ImportError to 500 with helpful message"""
+        import sys
+
+        # Setting a module key to None in sys.modules causes ImportError on next import
+        with patch.dict(sys.modules, {"app.ai.translations": None}):
+            response = client.post(
+                "/symmetry/v1/wiki_translate/chunked_text",
+                json={
+                    "source_language": "en",
+                    "target_language": "es",
+                    "text": "Hello world",
+                },
+            )
+
+        assert response.status_code == 500
+        assert "Missing translation dependency" in response.json()["detail"]
+

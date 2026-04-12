@@ -8,20 +8,20 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 import uvicorn
 
-from app.routers import wiki_articles, comparison, structured_wiki, structural_analysis
+from app.routers import (
+    wiki_articles,
+    comparison,
+    structured_wiki,
+    structural_analysis,
+    models,
+    config as config_router,
+)
 
 config = Config(".env")
 
 LOG_LEVEL = config.get("LOG_LEVEL", default="INFO")
 FASTAPI_DEBUG = config.get("FASTAPI_DEBUG", cast=bool, default=False)
-
-comparison_models = [
-    "sentence-transformers/LaBSE",
-    "xlm-roberta-base",
-    "multi-qa-distilbert-cos-v1",
-    "multi-qa-MiniLM-L6-cos-v1",
-    "multi-qa-mpnet-base-cos-v1",
-]
+SIMILARITY_THRESHOLD = config.get("SIMILARITY_THRESHOLD", cast=float, default=0.65)
 
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(message)s")
 
@@ -58,9 +58,15 @@ app.include_router(wiki_articles.router)
 app.include_router(comparison.router)
 app.include_router(structured_wiki.router)
 app.include_router(structural_analysis.router)
+app.include_router(models.router)
+app.include_router(config_router.router)
 
 
-@app.get("/")
+@app.get(
+    "/",
+    summary="API Root",
+    description="Returns API information, version, and available endpoint categories. Use /docs for interactive documentation.",
+)
 async def root():
     return {
         "message": "Symmetry Unified API",
@@ -73,7 +79,11 @@ async def root():
     }
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    summary="Health Check",
+    description="Simple health check endpoint that returns the current service status. Can be used by load balancers and monitoring systems.",
+)
 async def health_check():
     return {"status": "healthy"}
 

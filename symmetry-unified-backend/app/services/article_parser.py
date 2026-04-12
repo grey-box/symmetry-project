@@ -66,7 +66,7 @@ def article_fetcher(title: str, lang: str) -> Article:
                         "/wiki/"
                     ):
                         text = element.get_text(strip=True)
-                        position = char_count + 1 if char_count > 0 else char_count
+                        position = len(clean_current.strip())
 
                         hyperlink = (
                             f"https://{lang}.wikipedia.org{element.get('href', '')}"
@@ -74,24 +74,33 @@ def article_fetcher(title: str, lang: str) -> Article:
                         current_citations.append(Citation(label=text, url=hyperlink))
                         current_citation_positions.append(f"{text}:{position}")
 
-                        clean_current += " " + text
-                        rich_current += " " + text
-                        char_count += 1 + len(text)
+                        if clean_current.strip():
+                            clean_current += " " + text
+                            rich_current += " " + text
+                        else:
+                            clean_current += text
+                            rich_current += text
                         continue
 
                     else:
                         text = element.get_text(strip=True)
                         if text:
-                            clean_current += " " + text
-                            rich_current += " " + text
-                            char_count += 1 + len(text)
+                            if clean_current.strip():
+                                clean_current += " " + text
+                                rich_current += " " + text
+                            else:
+                                clean_current += text
+                                rich_current += text
 
                 else:
                     text = str(element).strip()
                     if text:
-                        clean_current += " " + text
-                        rich_current += " " + text
-                        char_count += 1 + len(text)
+                        if clean_current.strip():
+                            clean_current += " " + text
+                            rich_current += " " + text
+                        else:
+                            clean_current += text
+                            rich_current += text
 
     if clean_current.strip():
         section = Section(

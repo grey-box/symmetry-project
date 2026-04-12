@@ -1,11 +1,12 @@
 import logging
 import asyncio
 import urllib.request
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
 from urllib.error import URLError
 from typing import Dict, Optional, Annotated
 
 import wikipediaapi
+import pycountry
 from fastapi import APIRouter, Query, HTTPException, Request
 
 from app.models import SourceArticleResponse
@@ -15,15 +16,37 @@ router = APIRouter(prefix="/symmetry/v1/wiki", tags=["wiki"])
 
 language_cache: Dict[str, bool] = {}
 
+VALID_LANGUAGE_CODES = {
+    lang.alpha_2
+    for lang in pycountry.languages
+    if hasattr(lang, "alpha_2") and lang.alpha_2
+} | {
+    lang.alpha_3
+    for lang in pycountry.languages
+    if hasattr(lang, "alpha_3") and lang.alpha_3
+}
 
-@router.get("/articles", response_model=SourceArticleResponse)
+
+@router.get(
+    "/articles",
+    response_model=SourceArticleResponse,
+    summary="Fetch Wikipedia Article",
+    description="Retrieves a Wikipedia article by URL or title. Supports automatic language detection from URL or explicit language parameter. Returns article content and available translations.",
+)
 async def get_article(
     request: Request,
     query: Annotated[
         Optional[str],
-        Query(description="Either a full Wikipedia URL or a keyword/title"),
+        Query(
+            description="Either a full Wikipedia URL (e.g., https://en.wikipedia.org/wiki/Python) or a keyword/title (e.g., 'Python')"
+        ),
     ] = None,
-    lang: Annotated[Optional[str], Query(description="Article language code")] = None,
+    lang: Annotated[
+        Optional[str],
+        Query(
+            description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided"
+        ),
+    ] = None,
 ):
     logging.info("Calling get Wikipedia article endpoint (query='%s')", query)
 
@@ -121,7 +144,7 @@ def _extract_wiki_title(url: str) -> str:
             title = title[0:index]
             break
 
-    return title.replace("_", " ")
+    return unquote(title.replace("_", " "))
 
 
 async def validate_language_code(language_code: str):
@@ -129,29 +152,12 @@ async def validate_language_code(language_code: str):
         logging.info(f"Using cached validation for language code: {language_code}")
         return language_cache[language_code]
 
-    url = f"https://{language_code}.wikipedia.org/wiki/Main_Page"
-
-    try:
-        response = await asyncio.to_thread(urllib.request.urlopen, url)
-
-        if response.status == 200:
-            logging.info(f"Valid language code: {language_code}")
-            language_cache[language_code] = True
-            return True
-        else:
-            language_cache[language_code] = False
-            raise HTTPException(
-                status_code=400, detail=f"Invalid language code '{language_code}'."
-            )
-
-    except URLError:
+    if language_code not in VALID_LANGUAGE_CODES:
         language_cache[language_code] = False
         raise HTTPException(
             status_code=400, detail=f"Invalid language code '{language_code}'."
         )
-    except Exception as e:
-        language_cache[language_code] = False
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error occurred during language code validation: {str(e)}",
-        )
+
+    logging.info(f"Valid language code (whitelist): {language_code}")
+    language_cache[language_code] = True
+    return True

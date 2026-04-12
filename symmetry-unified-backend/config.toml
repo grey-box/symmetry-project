@@ -1,0 +1,209 @@
+# Backend configuration file for symmetry-unified-backend
+# Consolidates translation model selection, fact extraction models, and saved models.
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "es"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-en-es"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "fr"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-en-fr"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "de"
+similarity_threshold = 0.50
+model_name = "Helsinki-NLP/opus-mt-en-de"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "it"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-en-it"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "pt"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-en-pt"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "nl"
+similarity_threshold = 0.50
+model_name = "Helsinki-NLP/opus-mt-en-nl"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "pl"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-en-pl"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "ru"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-en-ru"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "zh"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-en-zh"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "ja"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-en-ja"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "ko"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-en-ko"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "ar"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-en-ar"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "hi"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-en-hi"
+
+[[translation_models]]
+source_lang = "en"
+target_lang = "tr"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-en-tr"
+
+[[translation_models]]
+source_lang = "es"
+target_lang = "en"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-es-en"
+
+[[translation_models]]
+source_lang = "fr"
+target_lang = "en"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-fr-en"
+
+[[translation_models]]
+source_lang = "de"
+target_lang = "en"
+similarity_threshold = 0.50
+model_name = "Helsinki-NLP/opus-mt-de-en"
+
+[[translation_models]]
+source_lang = "it"
+target_lang = "en"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-it-en"
+
+[[translation_models]]
+source_lang = "pt"
+target_lang = "en"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-pt-en"
+
+[[translation_models]]
+source_lang = "nl"
+target_lang = "en"
+similarity_threshold = 0.50
+model_name = "Helsinki-NLP/opus-mt-nl-en"
+
+[[translation_models]]
+source_lang = "pl"
+target_lang = "en"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-pl-en"
+
+[[translation_models]]
+source_lang = "ru"
+target_lang = "en"
+similarity_threshold = 0.55
+model_name = "Helsinki-NLP/opus-mt-ru-en"
+
+[[translation_models]]
+source_lang = "zh"
+target_lang = "en"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-zh-en"
+
+[[translation_models]]
+source_lang = "ja"
+target_lang = "en"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-ja-en"
+
+[[translation_models]]
+source_lang = "ko"
+target_lang = "en"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-ko-en"
+
+[[translation_models]]
+source_lang = "ar"
+target_lang = "en"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-ar-en"
+
+[[translation_models]]
+source_lang = "hi"
+target_lang = "en"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-hi-en"
+
+[[translation_models]]
+source_lang = "tr"
+target_lang = "en"
+similarity_threshold = 0.70
+model_name = "Helsinki-NLP/opus-mt-tr-en"
+
+[[fact_extraction_models]]
+id = "distilbart-cnn-12-6"
+name = "DistilBART CNN 12-6"
+provider = "huggingface"
+model_name = "sshleifer/distilbart-cnn-12-6"
+description = "Distilled BART model fine-tuned on CNN/DailyMail, good for extractive-style summarization on CPU"
+task = "summarization"
+prompt_style = "plain"
+use_chat_template = false
+
+[[fact_extraction_models]]
+id = "t5-small"
+name = "T5 Small"
+provider = "huggingface"
+model_name = "google-t5/t5-small"
+description = "Lightweight T5 model at ~240MB, requires instruction prefix. Good CPU performance for summarization tasks."
+task = "summarization"
+prompt_style = "prefix"
+use_chat_template = false
+prompt_prefix = "summarize: "
+
+[saved_models.huggingface]
+comparison = [
+  "sentence-transformers/LaBSE",
+  "xlm-roberta-base",
+  "multi-qa-distilbert-cos-v1",
+  "multi-qa-MiniLM-L6-cos-v1",
+  "multi-qa-mpnet-base-cos-v1",
+]
+translation = []
+
+[saved_models.custom]
+comparison = []
+translation = []
+
+[saved_models.selected]
+comparison = "sentence-transformers/LaBSE"
+translation = "/path/to/T5-custom"
