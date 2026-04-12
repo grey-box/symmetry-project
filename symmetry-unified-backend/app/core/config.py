@@ -32,7 +32,8 @@ def _format_toml_value(value: Any) -> str:
     if isinstance(value, float):
         return str(value)
     if isinstance(value, str):
-        return f'"{value.replace("\\", "\\\\").replace('"', '\\"')}"'
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
     if isinstance(value, list):
         inner = ", ".join(_format_toml_value(item) for item in value)
         return f"[{inner}]"
