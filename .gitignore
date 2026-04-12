@@ -5,3 +5,6 @@ backend_test.log
 backend.log
 datasets/
 .DS_Store
+**/tempCodeRunnerFile.py
+# Build artifacts
+/desktop-electron-frontend/dist/
