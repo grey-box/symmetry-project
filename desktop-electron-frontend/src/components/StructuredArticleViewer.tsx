@@ -1,28 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   StructuredArticleResponse,
   StructuredCitationResponse,
   StructuredReferenceResponse,
-  SectionCompareResponse,
   Section
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
-import SectionComparisonView from './SectionComparisonView';
 import { FactExtractionModel, FactExtractionResponse } from '../models/FactExtraction';
-
-const languageCodes = [
-  'en', 'es', 'fr', 'de', 'it', 'pt',
-  'nl', 'pl', 'ru', 'zh', 'ja',
-  'ko', 'ar', 'hi', 'tr',
-];
-
-const displayNames = new Intl.DisplayNames(['en'], { type: 'language' });
-const TRANSLATION_LANGUAGES = languageCodes.map(code => ({
-  code,
-  label: displayNames.of(code) ?? code,
-}));
-
 
 
 interface StructuredArticleViewerProps {
@@ -42,8 +27,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [searchTerm, setSearchTerm] = useState(''); // For section search
   const [searchInput, setSearchInput] = useState(''); // For article search input
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
-  const [targetLang, setTargetLang] = useState(initialLang);
-  const [translating, setTranslating] = useState(false);
 
   // Fact extraction states
   const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
@@ -53,21 +36,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [factError, setFactError] = useState<string | null>(null);
   const [numFacts, setNumFacts] = useState<number>(1);
   const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
-
-  // Section comparison state
-  const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
-  const [compareLang, setCompareLang] = useState('es');
-  const [comparing, setComparing] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
-
-  // Progress bar state for comparison
-  const [compareProgress, setCompareProgress] = useState(0);
-  const [compareStage, setCompareStage] = useState('');
-  const rafRef = useRef<number | null>(null);
-  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const animatingRef = useRef(false);
-
-
 
   // Load article data
   const loadArticle = async (query: string, lang: string) => {
@@ -92,57 +60,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
       setError(err instanceof Error ? err.message : 'Failed to load article');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const translateArticle = async () => {
-    if (!article) return;
-
-    setTranslating(true);
-    setError(null);
-
-    try {
-      const translatedArticle =
-        await structuredWikiService.getTranslatedStructuredArticle({
-          source_lang: article.lang,
-          target_lang: targetLang,
-          title: article.title,
-        });
-
-      setArticle(translatedArticle);
-      setTargetLang(translatedArticle.lang);
-      setCitationAnalysis(null); // These are temporarily set to NULL, as we only want content translated.
-      setReferenceAnalysis(null); // In the future, we may use this to compare citations/references between languages.
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to translate article');
-    } finally {
-      setTranslating(false);
-    }
-  };
-
-
-  /** Run section-by-section comparison against another language */
-  const runSectionComparison = async () => {
-    if (!article) return;
-
-    setComparing(true);
-    setError(null);
-
-    try {
-      const result = await structuredWikiService.compareSections({
-        source_query: article.title,
-        target_query: article.title, // same article, different language
-        source_lang: article.lang,
-        target_lang: compareLang,
-        similarity_threshold: 0.5,
-      });
-
-      setComparisonResult(result);
-      setShowComparison(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Section comparison failed');
-    } finally {
-      setComparing(false);
     }
   };
 
@@ -203,71 +120,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
 
     loadFactModels();
   }, []);
-
-  // Animate comparison progress bar through stages while the request is in flight.
-  // Stages are time-based estimates; the bar snaps to 100% when the response arrives.
-  useEffect(() => {
-    if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
-
-    if (!comparing) {
-      if (animatingRef.current) {
-        animatingRef.current = false;
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        setCompareProgress(100);
-        setCompareStage('Complete');
-        resetTimerRef.current = setTimeout(() => {
-          setCompareProgress(0);
-          setCompareStage('');
-        }, 1000);
-      }
-      return;
-    }
-
-    animatingRef.current = true;
-    setCompareProgress(0);
-
-    // Each stage: target % to reach and estimated ms to get there
-    const stages: { to: number; ms: number; label: string }[] = [
-      { to: 15, ms: 2500,   label: 'Fetching articles...' },
-      { to: 35, ms: 4000,   label: 'Matching sections...' },
-      { to: 83, ms: 35000,  label: 'Comparing paragraphs...' },
-      { to: 91, ms: 7000,   label: 'Finalizing results...' },
-      // Slow creep to 99% so the bar never freezes while waiting for the response.
-      // This stage has a very long budget — the bar snaps to 100% whenever the
-      // response actually arrives, regardless of how far along this stage is.
-      { to: 99, ms: 120000, label: 'Finalizing results...' },
-    ];
-
-    let stageIdx = 0;
-    let from = 0;
-    let stageStart = Date.now();
-    setCompareStage(stages[0].label);
-
-    const tick = () => {
-      if (!animatingRef.current) return;
-      const stage = stages[stageIdx];
-      const elapsed = Date.now() - stageStart;
-      const t = Math.min(elapsed / stage.ms, 1);
-      // Ease-out cubic so the bar slows as it approaches the stage target
-      const eased = 1 - Math.pow(1 - t, 3);
-      setCompareProgress(Math.floor(from + (stage.to - from) * eased));
-
-      if (t >= 1 && stageIdx < stages.length - 1) {
-        from = stage.to;
-        stageIdx++;
-        stageStart = Date.now();
-        setCompareStage(stages[stageIdx].label);
-      }
-
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    rafRef.current = requestAnimationFrame(tick);
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [comparing]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,92 +196,9 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Actions bar: Translate + Compare Sections + Fact Extraction */}
+        {/* Actions bar: Fact Extraction */}
         {article && (
           <div className="mb-6 space-y-3">
-            {/* Translation Controls */}
-            <div className="flex items-center gap-4">
-              <select
-                value={targetLang}
-                onChange={(e) => setTargetLang(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
-                disabled={translating}
-              >
-                {TRANSLATION_LANGUAGES.map(lang => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.label}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                onClick={translateArticle}
-                disabled={translating || targetLang === article.lang}
-                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {translating ? 'Translating...' : 'Translate'}
-              </button>
-
-              <span className="text-sm text-gray-500">
-                {article.lang} → {targetLang}
-              </span>
-            </div>
-
-            {/* Compare sections row */}
-            <div className="flex items-center gap-4">
-              <select
-                value={compareLang}
-                onChange={(e) => setCompareLang(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                disabled={comparing}
-              >
-                {TRANSLATION_LANGUAGES.filter(l => l.code !== article.lang).map(lang => (
-                  <option key={lang.code} value={lang.code}>
-                    {lang.label}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                onClick={runSectionComparison}
-                disabled={comparing}
-                className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {comparing ? 'Comparing...' : 'Compare Sections'}
-              </button>
-
-              <span className="text-sm text-gray-500">
-                Compare {article.lang} → {compareLang} section-by-section
-              </span>
-
-              {comparisonResult && (
-                <button
-                  onClick={() => setShowComparison(!showComparison)}
-                  className="ml-auto px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                >
-                  {showComparison ? 'Show Article' : 'Show Comparison'}
-                </button>
-              )}
-            </div>
-
-            {/* Comparison progress bar */}
-            {(comparing || compareProgress > 0) && (
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>{compareStage}</span>
-                  <span>{compareProgress}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                  <div
-                    className={`h-2 rounded-full transition-all duration-300 ease-out ${
-                      compareProgress === 100 ? 'bg-green-500' : 'bg-indigo-500'
-                    }`}
-                    style={{ width: `${compareProgress}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
             {/* Fact Extraction Model Selection */}
             <div className="flex items-center gap-4">
               <select
@@ -495,11 +264,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Section Comparison View (shown when comparison is active) */}
-        {showComparison && comparisonResult && (
-          <SectionComparisonView comparisonResult={comparisonResult} />
-        )}
-
         {/* Fact Extraction Error Display */}
         {factError && (
           <div className="mb-6 p-4 bg-orange-100 border border-orange-400 text-orange-700 rounded">
@@ -507,8 +271,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
           </div>
         )}
 
-        {/* Article Statistics (hidden when comparison is shown) */}
-        {!showComparison && articleStats && (
+        {/* Article Statistics */}
+        {articleStats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="bg-blue-50 p-4 rounded-lg">
               <h3 className="text-sm font-medium text-blue-600">Sections</h3>
@@ -530,7 +294,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Most Cited Articles */}
-        {!showComparison && mostCited.length > 0 && (
+        {mostCited.length > 0 && (
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Most Cited Articles</h3>
             <div className="space-y-2">
@@ -547,7 +311,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Article Content */}
-        {!showComparison && article && (
+        {article && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Section Navigation */}
             <div className="lg:col-span-1">
@@ -692,7 +456,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* References Section */}
-        {!showComparison && referenceAnalysis && referenceAnalysis.references.length > 0 && (
+        {referenceAnalysis && referenceAnalysis.references.length > 0 && (
           <div className="mt-8 pt-8 border-t border-gray-200">
             <h3 className="text-xl font-bold text-gray-800 mb-4">
               References ({referenceAnalysis.total_references})
