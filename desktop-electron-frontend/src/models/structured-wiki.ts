@@ -87,6 +87,8 @@ export interface ParagraphDiff {
   similarity_score: number;
   levenshtein_score: number | null;
   status: 'matched' | 'missing_in_target' | 'added_in_target';
+  source_exclusive_keywords: string[];
+  target_exclusive_keywords: string[];
 }
 
 export interface SectionDiff {
