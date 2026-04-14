@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 import requests
 from urllib.parse import urlparse, unquote
 
@@ -38,7 +38,7 @@ def resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
             title = unquote(parsed.path.split("/wiki/")[-1].replace("_", " "))
             return title, lang
         raise ValueError(f"Invalid Wikipedia URL: {query}")
-    return query, default_lang
+    return query.replace("_", " "), default_lang
 
 
 # Language validation moved here to centralize checks across routers
@@ -67,8 +67,6 @@ def validate_language_code(language_code: str) -> bool:
     is_valid = language_code in VALID_LANGUAGE_CODES
     _language_cache[language_code] = is_valid
     return is_valid
-
-
 
 
 def page_exists(title: str, source_language: str = "en") -> bool:

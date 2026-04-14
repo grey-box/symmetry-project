@@ -1,5 +1,4 @@
 import logging
-import re
 from typing import Dict, Optional, List, Any
 from fastapi import APIRouter, Query, HTTPException
 
@@ -8,6 +7,7 @@ from app.models.wiki.responses import (
     StructuredSectionResponse,
     StructuredCitationResponse,
     StructuredReferenceResponse,
+    CitedArticle,
 )
 from app.models.extraction.models import FactExtractionRequest, FactExtractionResponse
 from app.services.article_parser import article_fetcher
@@ -18,11 +18,12 @@ from app.models.extraction.engine import (
     validate_model,
 )
 from app.services.wiki_utils import parse_wikipedia_url
+from app.services.router_utils import resolve_and_fetch_article
 from app.services.structured_translation import translate_article
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
-structured_cache: Dict[str, Dict] = {}
+structured_cache: Dict[str, StructuredArticleResponse] = {}
 
 
 @router.get(
@@ -45,13 +46,18 @@ async def get_structured_article(
         "Calling structured article endpoint (query='%s', lang='%s')", query, lang
     )
 
+    if not query:
+        raise HTTPException(status_code=400, detail="Query parameter is required.")
+
     # Resolve and fetch article (URL or title) using shared router util
     from app.services.router_utils import resolve_and_fetch_article
 
     try:
         article = resolve_and_fetch_article(query, lang or "en")
 
-        total_citations = sum(len(section.citations or []) for section in article.sections)
+        total_citations = sum(
+            len(section.citations or []) for section in article.sections
+        )
         total_references = len(article.references)
 
         response = StructuredArticleResponse(
@@ -69,7 +75,7 @@ async def get_structured_article(
 
         logging.info(
             "Successfully parsed structured article: %s (%d sections, %d citations)",
-            title,
+            article.title,
             len(article.sections),
             total_citations,
         )
@@ -77,7 +83,7 @@ async def get_structured_article(
         return response
 
     except Exception as e:
-        logging.error("Error parsing structured article '%s': %s", title, str(e))
+        logging.error("Error parsing structured article '%s': %s", query, str(e))
         raise HTTPException(
             status_code=500, detail=f"Failed to parse article: {str(e)}"
         )
@@ -109,12 +115,13 @@ async def get_structured_section(
         section_title,
     )
 
-    # Resolve and fetch article, then find section
-    from app.services.router_utils import resolve_and_fetch_article
+    try:
+        # Resolve and fetch article, then find section
+        from app.services.router_utils import resolve_and_fetch_article
 
-    article = resolve_and_fetch_article(query, lang or "en")
+        article = resolve_and_fetch_article(query, lang or "en")
 
-    target_section = None
+        target_section = None
         for section in article.sections:
             if section.title.lower() == section_title.lower():
                 target_section = section
@@ -146,7 +153,7 @@ async def get_structured_section(
         logging.error(
             "Error parsing section '%s' from article '%s': %s",
             section_title,
-            title,
+            query,
             str(e),
         )
         raise HTTPException(
@@ -172,22 +179,24 @@ async def get_citation_analysis(
 ):
     logging.info("Calling citation analysis endpoint (query='%s')", query)
 
-    if "://" in query:
-        try:
-            lang, title = await parse_wikipedia_url(query)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
-    else:
-        title = query
-        if not lang:
-            lang = "en"
+    try:
+        if "://" in query:
+            try:
+                lang, title = parse_wikipedia_url(query)
+            except ValueError:
+                raise HTTPException(
+                    status_code=400, detail="Invalid Wikipedia URL format."
+                )
+        else:
+            if not lang:
+                lang = "en"
 
-    article = resolve_and_fetch_article(query, lang or "en")
+        article = resolve_and_fetch_article(query, lang or "en")
 
-    all_citations = []
-    for section in article.sections:
-        if section.citations:
-            all_citations.extend(section.citations)
+        all_citations = []
+        for section in article.sections:
+            if section.citations:
+                all_citations.extend(section.citations)
 
         total_citations = len(all_citations)
         unique_targets = len(set(cit.url for cit in all_citations if cit.url))
@@ -199,7 +208,7 @@ async def get_citation_analysis(
 
         url_to_title = {cit.url: cit.label for cit in all_citations if cit.url}
         most_cited = [
-            {"title": url_to_title.get(url, "Unknown"), "count": count}
+            CitedArticle(title=url_to_title.get(url, "Unknown"), count=count)
             for url, count in sorted(
                 citation_counts.items(), key=lambda x: x[1], reverse=True
             )[:10]
@@ -215,7 +224,7 @@ async def get_citation_analysis(
         return response
 
     except Exception as e:
-        logging.error("Error analyzing citations for '%s': %s", title, str(e))
+        logging.error("Error analyzing citations for '%s': %s", query, str(e))
         raise HTTPException(
             status_code=500, detail=f"Failed to analyze citations: {str(e)}"
         )
@@ -239,22 +248,27 @@ async def get_reference_analysis(
 ):
     logging.info("Calling reference analysis endpoint (query='%s')", query)
 
-    if "://" in query:
-        try:
-            lang, title = await parse_wikipedia_url(query)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
-    else:
-        title = query
-        if not lang:
-            lang = "en"
+    try:
+        if "://" in query:
+            try:
+                lang, title = parse_wikipedia_url(query)
+            except ValueError:
+                raise HTTPException(
+                    status_code=400, detail="Invalid Wikipedia URL format."
+                )
+        else:
+            title = query
+            if not lang:
+                lang = "en"
 
-    article = resolve_and_fetch_article(title or "", lang or "en")
+        article = resolve_and_fetch_article(title or "", lang or "en")
 
-    total_references = len(article.references)
-    references_with_urls = sum(1 for ref in article.references if ref.url)
+        total_references = len(article.references)
+        references_with_urls = sum(1 for ref in article.references if ref.url)
 
-    total_words = sum(len(section.clean_content.split()) for section in article.sections)
+        total_words = sum(
+            len(section.clean_content.split()) for section in article.sections
+        )
         reference_density = (
             (total_references / total_words * 1000) if total_words > 0 else 0
         )
@@ -269,7 +283,7 @@ async def get_reference_analysis(
         return response
 
     except Exception as e:
-        logging.error("Error analyzing references for '%s': %s", title, str(e))
+        logging.error("Error analyzing references for '%s': %s", query, str(e))
         raise HTTPException(
             status_code=500, detail=f"Failed to analyze references: {str(e)}"
         )

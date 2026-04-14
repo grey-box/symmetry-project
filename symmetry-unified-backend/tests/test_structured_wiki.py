@@ -13,7 +13,7 @@ class TestStructuredWikiRouter:
     def test_get_structured_article_with_title(self, client, mock_article_parser):
         """Test fetching structured article by title"""
         with patch(
-            "app.routers.structured_wiki.article_fetcher",
+            "app.services.router_utils.article_fetcher",
             side_effect=mock_article_parser,
         ):
             response = client.get(
@@ -37,7 +37,7 @@ class TestStructuredWikiRouter:
             return_value=("en", "Test"),
         ):
             with patch(
-                "app.routers.structured_wiki.article_fetcher",
+                "app.services.router_utils.article_fetcher",
                 side_effect=mock_article_parser,
             ):
                 response = client.get(
@@ -57,7 +57,7 @@ class TestStructuredWikiRouter:
     def test_get_structured_article_with_language(self, client, mock_article_parser):
         """Test structured article with specified language"""
         with patch(
-            "app.routers.structured_wiki.article_fetcher",
+            "app.services.router_utils.article_fetcher",
             side_effect=mock_article_parser,
         ):
             response = client.get(
@@ -93,7 +93,7 @@ class TestStructuredWikiRouter:
 
         with patch("app.routers.structured_wiki.structured_cache", {}):
             with patch(
-                "app.routers.structured_wiki.article_fetcher",
+                "app.services.router_utils.article_fetcher",
                 side_effect=mock_citations_fetcher,
             ):
                 response = client.get("/symmetry/v1/wiki/structured-article?query=Test")
@@ -106,7 +106,7 @@ class TestStructuredWikiRouter:
     def test_get_structured_article_default_language(self, client, mock_article_parser):
         """Test that English is default language for structured articles"""
         with patch(
-            "app.routers.structured_wiki.article_fetcher",
+            "app.services.router_utils.article_fetcher",
             side_effect=mock_article_parser,
         ):
             response = client.get("/symmetry/v1/wiki/structured-article?query=Test")
@@ -118,7 +118,7 @@ class TestStructuredWikiRouter:
     def test_get_structured_section(self, client, mock_article_parser):
         """Test fetching specific section from article"""
         with patch(
-            "app.routers.structured_wiki.article_fetcher",
+            "app.services.router_utils.article_fetcher",
             return_value=mock_article_parser(),
         ):
             response = client.get(
@@ -134,7 +134,7 @@ class TestStructuredWikiRouter:
     def test_get_structured_section_not_found(self, client, mock_article_parser):
         """Test requesting non-existent section returns 404"""
         with patch(
-            "app.routers.structured_wiki.article_fetcher",
+            "app.services.router_utils.article_fetcher",
             return_value=mock_article_parser(),
         ):
             response = client.get(
@@ -151,7 +151,7 @@ class TestStructuredWikiRouter:
             return_value=("en", "Test"),
         ):
             with patch(
-                "app.routers.structured_wiki.article_fetcher",
+                "app.services.router_utils.article_fetcher",
                 return_value=mock_article_parser(),
             ):
                 response = client.get(
@@ -181,7 +181,7 @@ class TestStructuredWikiRouter:
             Mock(citations=[Citation(label="4", url="http://example.com/ref3")]),
         ]
 
-        with patch("app.routers.structured_wiki.article_fetcher", return_value=article):
+        with patch("app.services.router_utils.article_fetcher", return_value=article):
             response = client.get("/symmetry/v1/wiki/citation-analysis?query=Test")
 
             assert response.status_code == 200
@@ -197,7 +197,7 @@ class TestStructuredWikiRouter:
         article.title = "Test Article"
         article.sections = [Mock(citations=None)]
 
-        with patch("app.routers.structured_wiki.article_fetcher", return_value=article):
+        with patch("app.services.router_utils.article_fetcher", return_value=article):
             response = client.get("/symmetry/v1/wiki/citation-analysis?query=Test")
 
             assert response.status_code == 200
@@ -220,7 +220,7 @@ class TestStructuredWikiRouter:
             )
         ]
 
-        with patch("app.routers.structured_wiki.article_fetcher", return_value=article):
+        with patch("app.services.router_utils.article_fetcher", return_value=article):
             response = client.get("/symmetry/v1/wiki/citation-analysis?query=Test")
 
             assert response.status_code == 200
@@ -243,7 +243,7 @@ class TestStructuredWikiRouter:
             Reference(label="Ref3", id="ref3", url=None),
         ]
 
-        with patch("app.routers.structured_wiki.article_fetcher", return_value=article):
+        with patch("app.services.router_utils.article_fetcher", return_value=article):
             response = client.get("/symmetry/v1/wiki/reference-analysis?query=Test")
 
             assert response.status_code == 200
@@ -259,7 +259,7 @@ class TestStructuredWikiRouter:
         article.sections = [Mock(clean_content="Test content.")]
         article.references = []
 
-        with patch("app.routers.structured_wiki.article_fetcher", return_value=article):
+        with patch("app.services.router_utils.article_fetcher", return_value=article):
             response = client.get("/symmetry/v1/wiki/reference-analysis?query=Test")
 
             assert response.status_code == 200
@@ -277,7 +277,7 @@ class TestStructuredWikiRouter:
             Reference(label=str(i), url="http://example.com") for i in range(5)
         ]
 
-        with patch("app.routers.structured_wiki.article_fetcher", return_value=article):
+        with patch("app.services.router_utils.article_fetcher", return_value=article):
             response = client.get("/symmetry/v1/wiki/reference-analysis?query=Test")
 
             assert response.status_code == 200

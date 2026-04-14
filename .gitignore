@@ -8,3 +8,4 @@ datasets/
 **/tempCodeRunnerFile.py
 # Build artifacts
 /desktop-electron-frontend/dist/
+symmetry-unified-backend/report.xml
