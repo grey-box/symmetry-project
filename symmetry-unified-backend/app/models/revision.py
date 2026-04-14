@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -38,3 +39,30 @@ class DiffResponse(BaseModel):
     total_chars_old: int
     total_chars_new: int
     flags: Optional[List[Flag]] = None
+
+
+class SectionChange(BaseModel):
+    section_title: str
+    old_content: Optional[str] = None
+    new_content: Optional[str] = None
+    similarity_score: float  # 0.0 for added/removed, 0.0–1.0 for modified
+
+
+class RevisionDiffResponse(BaseModel):
+    revid_a: int
+    revid_b: int
+    title: str
+    lang: str
+    sections_added: List[SectionChange]
+    sections_removed: List[SectionChange]
+    sections_modified: List[SectionChange]
+    overall_similarity: float  # 0.0–1.0 across full article text
+
+
+class LagReport(BaseModel):
+    lang: str
+    title: Optional[str] = None  # translated title; None if no interlanguage link found
+    source_last_updated: Optional[datetime] = None
+    target_last_updated: Optional[datetime] = None
+    days_behind: Optional[float] = None  # negative means target is ahead of source
+    is_lagging: bool
