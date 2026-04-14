@@ -4,21 +4,8 @@ from typing import List
 from app.models import Citation, Reference, Section, Article
 
 
-def article_fetcher(title: str, lang: str) -> Article:
-    url = f"https://{lang}.wikipedia.org/w/api.php"
-    params = {
-        "action": "parse",
-        "page": title,
-        "prop": "text",
-        "format": "json",
-        "disableeditsection": True,
-        "disabletoc": True,
-    }
-    r = requests.get(url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"})
-    r.raise_for_status()
-    data = r.json()
-
-    html = data.get("parse", {}).get("text", {}).get("*", "")
+def _parse_article_html(html: str, title: str, lang: str, source: str) -> Article:
+    """Parse rendered Wikipedia HTML into an Article object."""
     soup = BeautifulSoup(html, "html.parser")
 
     sections = []
@@ -49,8 +36,6 @@ def article_fetcher(title: str, lang: str) -> Article:
             current_citation_positions = []
 
         elif tag.name == "p":
-            char_count = len(clean_current.strip())
-
             for element in tag.contents:
                 if hasattr(element, "name"):
                     if (
@@ -133,7 +118,43 @@ def article_fetcher(title: str, lang: str) -> Article:
     return Article(
         title=title,
         lang=lang,
-        source="action_api",
+        source=source,
         sections=sections,
         references=full_references_data,
     )
+
+
+def article_fetcher(title: str, lang: str) -> Article:
+    url = f"https://{lang}.wikipedia.org/w/api.php"
+    params = {
+        "action": "parse",
+        "page": title,
+        "prop": "text",
+        "format": "json",
+        "disableeditsection": True,
+        "disabletoc": True,
+    }
+    r = requests.get(url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"})
+    r.raise_for_status()
+    data = r.json()
+    html = data.get("parse", {}).get("text", {}).get("*", "")
+    return _parse_article_html(html, title, lang, source="action_api")
+
+
+def revision_fetcher(revid: int, lang: str) -> Article:
+    """Fetch a specific Wikipedia revision by ID and return a parsed Article."""
+    url = f"https://{lang}.wikipedia.org/w/api.php"
+    params = {
+        "action": "parse",
+        "oldid": revid,
+        "prop": "text",
+        "format": "json",
+        "disableeditsection": True,
+        "disabletoc": True,
+    }
+    r = requests.get(url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"})
+    r.raise_for_status()
+    data = r.json()
+    html = data.get("parse", {}).get("text", {}).get("*", "")
+    title = data.get("parse", {}).get("title", f"revid:{revid}")
+    return _parse_article_html(html, title, lang, source=f"revision:{revid}")

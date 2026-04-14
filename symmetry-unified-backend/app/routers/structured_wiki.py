@@ -1,11 +1,8 @@
-import difflib
 import logging
-import re
 from typing import Dict, Optional, List
 from urllib.parse import urlparse
 
 import requests
-from bs4 import BeautifulSoup
 from fastapi import APIRouter, Query, HTTPException
 
 from app.ai.translations import translate
@@ -17,12 +14,13 @@ from app.models import (
     StructuredCitationResponse,
     StructuredReferenceResponse,
     Revision,
-    SectionDiff,
-    Flag,
-    DiffResponse,
+    LagReport,
+    SectionChange,
+    RevisionDiffResponse,
 )
-from app.services.article_parser import article_fetcher
-from app.services.revision_flagging import flag_revision
+from app.services.article_parser import article_fetcher, revision_fetcher
+from app.services.wiki_utils import detect_language_lag
+from app.ai.similarity_scoring import score_article_pair
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
@@ -474,72 +472,109 @@ async def get_revision_history(
 
 
 # ---------------------------------------------------------------------------
-# Revision diff (with optional flagging)
+# Language lag detection
 # ---------------------------------------------------------------------------
 
 @router.get(
-    "/revision-diff",
-    response_model=DiffResponse,
-    summary="Diff Two Revisions",
+    "/lag",
+    response_model=List[LagReport],
+    summary="Detect Language Lag",
     description=(
-        "Compares two Wikipedia revisions section-by-section and returns a structured diff. "
-        "Pass `include_flags=true` to run the flagging rules and include any flags in the response."
+        "Compares the latest revision timestamp of a source-language Wikipedia article "
+        "against one or more target languages. Returns a lag report for each target language "
+        "indicating whether the translation is behind the source and by how many days."
     ),
 )
-async def get_revision_diff(
+async def get_language_lag(
     title: str = Query(..., description="Wikipedia article title (e.g. 'Python')"),
-    lang: Optional[str] = Query(None, description="Language code (default 'en')"),
-    old_revid: int = Query(..., description="Older revision ID"),
-    new_revid: int = Query(..., description="Newer revision ID"),
-    include_flags: bool = Query(
-        False,
-        description="Run flagging rules and include flags in the response.",
-    ),
+    source_lang: str = Query("en", description="Source language code (default 'en')"),
+    target_langs: List[str] = Query(..., description="Target language codes to compare (e.g. 'fr', 'es')"),
 ):
     logging.info(
-        "Calling revision-diff endpoint (title='%s', %d→%d, flags=%s)",
-        title, old_revid, new_revid, include_flags,
+        "Calling lag endpoint (title='%s', source='%s', targets=%s)",
+        title, source_lang, target_langs,
+    )
+    try:
+        reports = detect_language_lag(title, source_lang, target_langs)
+    except Exception as e:
+        logging.error("Error detecting language lag for '%s': %s", title, str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to detect language lag: {str(e)}")
+    return reports
+
+
+# ---------------------------------------------------------------------------
+# Revision-to-revision diff
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/diff",
+    response_model=RevisionDiffResponse,
+    summary="Diff Two Revision Snapshots",
+    description=(
+        "Given two revision IDs for the same article, fetches both snapshots and returns "
+        "a structured diff: sections added, removed, or modified, each with a similarity "
+        "score, plus an overall similarity score for the full article."
+    ),
+)
+async def get_diff(
+    revid_a: int = Query(..., description="First (older) revision ID"),
+    revid_b: int = Query(..., description="Second (newer) revision ID"),
+    title: str = Query(..., description="Wikipedia article title (e.g. 'Python')"),
+    lang: Optional[str] = Query(None, description="Language code (default 'en')"),
+):
+    logging.info(
+        "Calling diff endpoint (title='%s', revid_a=%d, revid_b=%d)",
+        title, revid_a, revid_b,
     )
 
     if not lang:
         lang = "en"
 
     try:
-        old_sections = _parse_revision_sections(old_revid, lang)
-        new_sections = _parse_revision_sections(new_revid, lang)
+        article_a = revision_fetcher(revid_a, lang)
+        article_b = revision_fetcher(revid_b, lang)
     except Exception as e:
-        logging.error("Error fetching revision content: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to fetch revision content: {str(e)}")
+        logging.error("Error fetching revisions: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to fetch revisions: {str(e)}")
 
-    section_diffs = _diff_sections(old_sections, new_sections)
+    sections_a = {s.title: s.clean_content for s in article_a.sections}
+    sections_b = {s.title: s.clean_content for s in article_b.sections}
 
-    total_chars_old = sum(len(content) for content in old_sections.values())
-    total_chars_new = sum(len(content) for content in new_sections.values())
+    titles_a = set(sections_a)
+    titles_b = set(sections_b)
 
-    flags: Optional[List[Flag]] = None
-    if include_flags:
-        diff_obj = DiffResponse(
-            old_revid=old_revid,
-            new_revid=new_revid,
-            title=title,
-            section_diffs=section_diffs,
-            total_chars_old=total_chars_old,
-            total_chars_new=total_chars_new,
+    sections_added = [
+        SectionChange(section_title=t, old_content=None, new_content=sections_b[t], similarity_score=0.0)
+        for t in titles_b - titles_a
+    ]
+    sections_removed = [
+        SectionChange(section_title=t, old_content=sections_a[t], new_content=None, similarity_score=0.0)
+        for t in titles_a - titles_b
+    ]
+    sections_modified = [
+        SectionChange(
+            section_title=t,
+            old_content=sections_a[t],
+            new_content=sections_b[t],
+            similarity_score=round(score_article_pair(sections_a[t], sections_b[t]), 4),
         )
-        try:
-            prev_revisions = _fetch_revisions(title, lang, limit=10)
-        except Exception:
-            prev_revisions = []
-        flags = flag_revision(diff_obj, prev_revisions)
+        for t in titles_a & titles_b
+        if score_article_pair(sections_a[t], sections_b[t]) < 0.99
+    ]
 
-    return DiffResponse(
-        old_revid=old_revid,
-        new_revid=new_revid,
+    full_text_a = " ".join(sections_a.values())
+    full_text_b = " ".join(sections_b.values())
+    overall_similarity = round(score_article_pair(full_text_a, full_text_b), 4)
+
+    return RevisionDiffResponse(
+        revid_a=revid_a,
+        revid_b=revid_b,
         title=title,
-        section_diffs=section_diffs,
-        total_chars_old=total_chars_old,
-        total_chars_new=total_chars_new,
-        flags=flags,
+        lang=lang,
+        sections_added=sections_added,
+        sections_removed=sections_removed,
+        sections_modified=sections_modified,
+        overall_similarity=overall_similarity,
     )
 
 
@@ -585,109 +620,3 @@ def _fetch_revisions(title: str, lang: str, limit: int = 20) -> List[Revision]:
     return revisions
 
 
-def _parse_revision_sections(revid: int, lang: str) -> Dict[str, str]:
-    """
-    Fetch rendered HTML for a specific revision and return a
-    ``{section_title: clean_text}`` mapping using the same "Lead section"
-    convention as article_parser.py.
-    """
-    url = f"https://{lang}.wikipedia.org/w/api.php"
-    params = {
-        "action": "parse",
-        "oldid": revid,
-        "prop": "text",
-        "format": "json",
-        "disableeditsection": True,
-        "disabletoc": True,
-    }
-    r = requests.get(url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"})
-    r.raise_for_status()
-    data = r.json()
-
-    html = data.get("parse", {}).get("text", {}).get("*", "")
-    soup = BeautifulSoup(html, "html.parser")
-
-    sections: Dict[str, str] = {}
-    current_title = "Lead section"
-    current_text = ""
-
-    for tag in soup.find_all(["h2", "h3", "p"]):
-        if tag.name in ["h2", "h3"]:
-            if current_text.strip():
-                sections[current_title] = current_text.strip()
-            current_title = tag.get_text(strip=True)
-            current_text = ""
-        elif tag.name == "p":
-            current_text += " " + tag.get_text(strip=True)
-
-    if current_text.strip():
-        sections[current_title] = current_text.strip()
-
-    return sections
-
-
-def _diff_sections(
-    old: Dict[str, str], new: Dict[str, str]
-) -> List[SectionDiff]:
-    """
-    Produce a SectionDiff for every section that appears in either revision.
-    """
-    all_titles = list(old.keys()) + [t for t in new.keys() if t not in old]
-    diffs: List[SectionDiff] = []
-
-    for title in all_titles:
-        old_text = old.get(title)
-        new_text = new.get(title)
-
-        if old_text is None:
-            # Section added in the new revision
-            diffs.append(SectionDiff(
-                section_title=title,
-                status="added",
-                old_content=None,
-                new_content=new_text,
-                similarity_score=None,
-                char_delta=len(new_text),
-                unified_diff=None,
-            ))
-        elif new_text is None:
-            # Section removed in the new revision
-            diffs.append(SectionDiff(
-                section_title=title,
-                status="removed",
-                old_content=old_text,
-                new_content=None,
-                similarity_score=None,
-                char_delta=-len(old_text),
-                unified_diff=None,
-            ))
-        else:
-            # Section present in both — compute similarity and diff
-            matcher = difflib.SequenceMatcher(None, old_text, new_text)
-            similarity = matcher.ratio()
-            char_delta = len(new_text) - len(old_text)
-
-            if similarity >= 0.99:
-                status = "unchanged"
-                udiff = None
-            else:
-                status = "modified"
-                udiff = list(difflib.unified_diff(
-                    old_text.splitlines(),
-                    new_text.splitlines(),
-                    fromfile=f"rev_old/{title}",
-                    tofile=f"rev_new/{title}",
-                    lineterm="",
-                ))
-
-            diffs.append(SectionDiff(
-                section_title=title,
-                status=status,
-                old_content=old_text,
-                new_content=new_text,
-                similarity_score=round(similarity, 4),
-                char_delta=char_delta,
-                unified_diff=udiff,
-            ))
-
-    return diffs
