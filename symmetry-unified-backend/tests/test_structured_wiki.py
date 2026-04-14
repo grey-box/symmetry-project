@@ -360,7 +360,7 @@ class TestLongReferenceId:
             return article
 
         with patch(
-            "app.routers.structured_wiki.article_fetcher",
+            "app.services.router_utils.article_fetcher",
             side_effect=fetcher_with_long_ref,
         ):
             response = client.get(
