@@ -174,6 +174,20 @@ class ParagraphDiff(BaseModel):
     status: str = Field(
         description="One of: 'matched', 'missing_in_target', 'added_in_target'",
     )
+    source_exclusive_keywords: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Concepts/keywords present in the source paragraph but absent from the "
+            "matched target paragraph. Only populated for 'matched' pairs."
+        ),
+    )
+    target_exclusive_keywords: List[str] = Field(
+        default_factory=list,
+        description=(
+            "Concepts/keywords present in the target paragraph but absent from the "
+            "matched source paragraph. Only populated for 'matched' pairs."
+        ),
+    )
 
 
 class SectionDiff(BaseModel):

@@ -29,6 +29,7 @@ from app.models.comparison.models import (
     SectionCompareResponse,
 )
 from app.services.similarity_scoring import normalized_levenshtein_distance
+from app.services.keyword_proximity import extract_exclusive_keywords
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +180,8 @@ def _compare_paragraphs(
     target_paragraphs: List[str],
     model: SentenceTransformer,
     threshold: float,
+    source_lang: str = "en",
+    target_lang: str = "en",
 ) -> List[ParagraphDiff]:
     """
     Compare paragraphs within a matched section pair.
@@ -264,6 +267,15 @@ def _compare_paragraphs(
 
         if best_score >= threshold:
             used_target.add(best_idx)
+
+            # Second-pass: extract distinctive keywords for matched paragraphs
+            src_kws, tgt_kws = extract_exclusive_keywords(
+                source_paragraphs[src_idx],
+                target_paragraphs[best_idx],
+                source_lang,
+                target_lang,
+            )
+
             diffs.append(
                 ParagraphDiff(
                     source_text=source_paragraphs[src_idx],
@@ -273,6 +285,8 @@ def _compare_paragraphs(
                     if levenshtein is not None
                     else None,
                     status="matched",
+                    source_exclusive_keywords=src_kws,
+                    target_exclusive_keywords=tgt_kws,
                 )
             )
         else:
@@ -532,6 +546,8 @@ def compare_article_sections(
                 target_paragraphs,
                 model,
                 similarity_threshold,
+                source_lang=source_article.lang,
+                target_lang=target_article.lang,
             )
 
         section_diffs.append(
