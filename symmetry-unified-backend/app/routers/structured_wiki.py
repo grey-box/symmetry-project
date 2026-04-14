@@ -82,7 +82,9 @@ async def get_structured_article(
             try:
                 await parse_wikipedia_url(query)
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
+                raise HTTPException(
+                    status_code=400, detail="Invalid Wikipedia URL format."
+                )
 
         if article_fetcher_module != "app.services.article_parser":
             # Local article_fetcher appears patched
@@ -165,13 +167,17 @@ async def get_structured_section(
             try:
                 await parse_wikipedia_url(query)
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
+                raise HTTPException(
+                    status_code=400, detail="Invalid Wikipedia URL format."
+                )
 
         if article_fetcher_module != "app.services.article_parser":
             # Local article_fetcher appears patched
             if "://" in query:
                 parsed_lang, parsed_title = await parse_wikipedia_url(query)
-                article = article_fetcher(parsed_lang and parsed_title or parsed_title, parsed_lang)
+                article = article_fetcher(
+                    parsed_lang and parsed_title or parsed_title, parsed_lang
+                )
             else:
                 article = article_fetcher(query, lang or "en")
         else:

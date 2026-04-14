@@ -128,7 +128,7 @@ def _extract_wiki_title(path: str) -> str:
         path_part = path
 
     if path_part.startswith("/wiki/"):
-        title_part = path_part[len("/wiki/"):]
+        title_part = path_part[len("/wiki/") :]
     else:
         title_part = path_part
 
@@ -136,6 +136,7 @@ def _extract_wiki_title(path: str) -> str:
     title_part = title_part.split("#")[0].split("?")[0]
 
     return unquote(title_part.replace("_", " "))
+
 
 # validate_url and _extract_wiki_title moved from previous location into this
 # router as compatibility wrappers around app.services.wiki_utils
