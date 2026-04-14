@@ -22,6 +22,8 @@ from app.models.extraction.engine import (
     get_model_config,
     validate_model,
 )
+from app.services.wiki_utils import parse_wikipedia_url
+from app.services.structured_translation import translate_article
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
@@ -48,30 +50,13 @@ async def get_structured_article(
         "Calling structured article endpoint (query='%s', lang='%s')", query, lang
     )
 
-    if not query:
-        raise HTTPException(status_code=400, detail="Query parameter is required.")
-
-    if "://" in query:
-        try:
-            lang, title = await parse_wikipedia_url(query)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
-    else:
-        title = query
-        if not lang:
-            lang = "en"
-
-    cache_key = f"{lang}.{title}"
-    if cache_key in structured_cache:
-        logging.info("Returning cached structured article: %s", cache_key)
-        return structured_cache[cache_key]
+    # Resolve and fetch article (URL or title) using shared router util
+    from app.services.router_utils import resolve_and_fetch_article
 
     try:
-        article = article_fetcher(title, lang)
+        article = resolve_and_fetch_article(query, lang or "en")
 
-        total_citations = sum(
-            len(section.citations or []) for section in article.sections
-        )
+        total_citations = sum(len(section.citations or []) for section in article.sections)
         total_references = len(article.references)
 
         response = StructuredArticleResponse(
@@ -85,7 +70,7 @@ async def get_structured_article(
             total_references=total_references,
         )
 
-        structured_cache[cache_key] = response
+        structured_cache[f"{article.lang}.{article.title}"] = response
 
         logging.info(
             "Successfully parsed structured article: %s (%d sections, %d citations)",
@@ -129,20 +114,12 @@ async def get_structured_section(
         section_title,
     )
 
-    if "://" in query:
-        try:
-            lang, title = await parse_wikipedia_url(query)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
-    else:
-        title = query
-        if not lang:
-            lang = "en"
+    # Resolve and fetch article, then find section
+    from app.services.router_utils import resolve_and_fetch_article
 
-    try:
-        article = article_fetcher(title, lang)
+    article = resolve_and_fetch_article(query, lang or "en")
 
-        target_section = None
+    target_section = None
         for section in article.sections:
             if section.title.lower() == section_title.lower():
                 target_section = section
@@ -210,13 +187,12 @@ async def get_citation_analysis(
         if not lang:
             lang = "en"
 
-    try:
-        article = article_fetcher(title, lang)
+    article = resolve_and_fetch_article(query, lang or "en")
 
-        all_citations = []
-        for section in article.sections:
-            if section.citations:
-                all_citations.extend(section.citations)
+    all_citations = []
+    for section in article.sections:
+        if section.citations:
+            all_citations.extend(section.citations)
 
         total_citations = len(all_citations)
         unique_targets = len(set(cit.url for cit in all_citations if cit.url))
@@ -278,15 +254,12 @@ async def get_reference_analysis(
         if not lang:
             lang = "en"
 
-    try:
-        article = article_fetcher(title, lang)
+    article = resolve_and_fetch_article(title or "", lang or "en")
 
-        total_references = len(article.references)
-        references_with_urls = sum(1 for ref in article.references if ref.url)
+    total_references = len(article.references)
+    references_with_urls = sum(1 for ref in article.references if ref.url)
 
-        total_words = sum(
-            len(section.clean_content.split()) for section in article.sections
-        )
+    total_words = sum(len(section.clean_content.split()) for section in article.sections)
         reference_density = (
             (total_references / total_words * 1000) if total_words > 0 else 0
         )
@@ -424,6 +397,7 @@ def translate_article(
         total_citations=total_citations,
         total_references=len(article.references),
     )
+
 
 
 @router.get("/fact-extraction-models", response_model=List[Dict[str, Any]])

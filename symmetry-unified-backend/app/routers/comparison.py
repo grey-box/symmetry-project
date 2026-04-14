@@ -357,22 +357,9 @@ from app.models.comparison.models import (
     SectionCompareRequest,
     SectionCompareResponse,
 )
-from app.services.article_parser import article_fetcher
 from app.services.section_comparison import compare_article_sections
+from app.services.router_utils import resolve_and_fetch_article
 
-
-def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
-    """Extract Wikipedia title and language from a URL or plain title string."""
-    if "://" in query:
-        match = re.search(r"https?://([a-z]{2,3})\.wikipedia\.org/wiki/([^#?]*)", query)
-        if match:
-            from urllib.parse import unquote
-
-            lang = match.group(1)
-            title = unquote(match.group(2).replace("_", " "))
-            return title, lang
-        raise ValueError(f"Invalid Wikipedia URL: {query}")
-    return query, default_lang
 
 
 @router.post(
@@ -389,35 +376,8 @@ def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
 def compare_article_sections_endpoint(payload: SectionCompareRequest):
     """Compare two Wikipedia articles at the section and paragraph level."""
 
-    try:
-        source_title, source_lang = _resolve_title_and_lang(
-            payload.source_query, payload.source_lang
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        target_title, target_lang = _resolve_title_and_lang(
-            payload.target_query, payload.target_lang
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        source_article = article_fetcher(source_title, source_lang)
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Failed to fetch source article '{source_title}' ({source_lang}): {e}",
-        )
-
-    try:
-        target_article = article_fetcher(target_title, target_lang)
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Failed to fetch target article '{target_title}' ({target_lang}): {e}",
-        )
+    source_article = resolve_and_fetch_article(payload.source_query, payload.source_lang or "en")
+    target_article = resolve_and_fetch_article(payload.target_query, payload.target_lang or "en")
 
     return compare_article_sections(
         source_article=source_article,
