@@ -1,5 +1,5 @@
 import pytest
-from app.ai.translations import translate
+from app.models.translation.engine import translate
 
 
 class TestTranslationLimits:

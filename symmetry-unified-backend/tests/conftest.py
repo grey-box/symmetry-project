@@ -96,7 +96,7 @@ def valid_semantic_compare_request():
 @pytest.fixture
 def mock_article_parser():
     """Mock article parser service"""
-    from app.models import Section
+    from app.models.wiki.structure import Section
 
     def article_fetcher(title="Test Article", lang="en"):
         article = Mock()
@@ -121,7 +121,7 @@ def mock_article_parser():
 @pytest.fixture
 def mock_structural_analysis_data():
     """Mock structural analysis data"""
-    from app.models import (
+    from app.models.wiki.analysis import (
         TableResponse,
         HeaderCount,
         InfoBoxResponse,

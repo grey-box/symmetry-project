@@ -83,15 +83,13 @@ def get_translation_similarity_threshold(
     source_lang: str, target_lang: str
 ) -> Optional[float]:
     model = get_translation_model(source_lang, target_lang)
-    if model is None:
-        return None
-    return float(model.get("similarity_threshold", 0.0))
+    return model.get("similarity_threshold") if model else None
 
 
-def get_supported_target_langs(source_lang: str = "en") -> List[str]:
+def get_supported_target_langs(source_lang: str) -> List[str]:
+    normalized = _normalize_lang_code(source_lang)
     return [
-        item["target_lang"]
-        for item in _TRANSLATION_MODELS
-        if _normalize_lang_code(item.get("source_lang", ""))
-        == _normalize_lang_code(source_lang)
+        tgt
+        for src, tgt in _TRANSLATION_MODEL_MAP
+        if src == normalized
     ]

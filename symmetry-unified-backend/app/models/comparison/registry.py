@@ -28,7 +28,6 @@ def _load_from_config() -> dict:
             try:
                 return json.loads(cfg.read_text(encoding="utf-8"))
             except Exception:
-                # If config exists but is invalid, ignore and fall back
                 return {}
     return {}
 

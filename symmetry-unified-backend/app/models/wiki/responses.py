@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from app.models.wiki_structure import Citation, Reference, Section
+
+from app.models.wiki.structure import Citation, Reference, Section
 
 
 class CitedArticle(BaseModel):
@@ -41,3 +42,12 @@ class StructuredReferenceResponse(BaseModel):
     total_references: int = Field(ge=0)
     references_with_urls: int = Field(ge=0)
     reference_density: float = Field(ge=0)
+
+
+class SourceArticleResponse(BaseModel):
+    sourceArticle: str
+    articleLanguages: List[str]
+
+
+class TranslateArticleResponse(BaseModel):
+    translatedArticle: str

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Path
 from starlette import status
-from app.models import (
+from app.models.wiki.analysis import (
     FinalAnalysisResponse,
     MultiLanguageScoreResponse,
     AnalysisResultsResponse,

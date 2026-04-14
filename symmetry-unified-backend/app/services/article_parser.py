@@ -1,7 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 from typing import List
-from app.models import Citation, Reference, Section, Article
+from app.models.wiki.structure import Citation, Reference, Section, Article
 
 
 def article_fetcher(title: str, lang: str) -> Article:

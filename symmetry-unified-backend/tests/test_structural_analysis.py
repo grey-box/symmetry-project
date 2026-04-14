@@ -199,7 +199,7 @@ class TestStructuralAnalysisRouter:
         mock_structural_analysis_data,
     ):
         """Test that authority article is properly identified"""
-        from app.models import (
+        from app.models.wiki.analysis import (
             TableResponse,
             HeaderCount,
             InfoBoxResponse,
@@ -316,7 +316,7 @@ class TestStructuralAnalysisRouter:
     def test_calculate_single_score(self):
         """Test the score calculation formula"""
         from app.routers.structural_analysis import calculate_single_score
-        from app.models import (
+        from app.models.wiki.analysis import (
             TableResponse,
             HeaderCount,
             InfoBoxResponse,
@@ -355,7 +355,7 @@ class TestStructuralAnalysisRouter:
     def test_calculate_single_score_zero_values(self):
         """Test score calculation with zero values"""
         from app.routers.structural_analysis import calculate_single_score
-        from app.models import (
+        from app.models.wiki.analysis import (
             TableResponse,
             HeaderCount,
             InfoBoxResponse,
@@ -391,7 +391,7 @@ class TestStructuralAnalysisRouter:
     def test_analyze_single_article_success(self):
         """Test analyzing a single article successfully"""
         from app.routers.structural_analysis import analyze_single_article
-        from app.models import (
+        from app.models.wiki.analysis import (
             TableResponse,
             HeaderCount,
             InfoBoxResponse,

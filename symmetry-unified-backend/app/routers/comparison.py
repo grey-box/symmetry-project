@@ -3,22 +3,22 @@ import re
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.models import (
+from app.models.comparison.models import (
     CompareRequest,
     CompareResponse,
     ArticleComparisonResponse,
     SemanticCompareRequest,
-    ChunkedTranslateRequest,
-    TranslateArticleResponse,
     MissingInfo,
     ExtraInfo,
     SentenceDiff,
 )
-from app.models.server_model import ServerModel
-from app.ai.model_registry import COMPARISON_MODELS
+from app.models.translation.models import ChunkedTranslateRequest
+from app.models.wiki.responses import TranslateArticleResponse
+from app.models.server import ServerModel
+from app.models.comparison.registry import COMPARISON_MODELS
 
 try:
-    from app.ai.semantic_comparison import perform_semantic_comparison
+    from app.models.comparison.engine import perform_semantic_comparison
 except Exception:
     perform_semantic_comparison = None
 
@@ -319,7 +319,7 @@ def translate_text_endpoint(
 )
 def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
     try:
-        from app.ai.translations import translate as chunked_translate
+        from app.models.translation.engine import translate as chunked_translate
         logging.info(
             "Chunked translation request (source='%s', target='%s', chars=%d)",
             payload.source_language,
@@ -353,7 +353,7 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
 # Section-level structured comparison
 # ---------------------------------------------------------------------------
 
-from app.models.section_comparison import (
+from app.models.comparison.models import (
     SectionCompareRequest,
     SectionCompareResponse,
 )

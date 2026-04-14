@@ -133,13 +133,11 @@ def _chunk_by_sentence_count(sentences: List[str], num_chunks: int) -> List[List
     if not sentences:
         return []
 
-    # Cap num_chunks to number of sentences
     num_chunks = min(num_chunks, len(sentences))
 
     if num_chunks == 0:
         return []
 
-    # Calculate sentences per chunk
     sentences_per_chunk = len(sentences) // num_chunks
 
     # Handle edge case: if sentences_per_chunk is 0 (more chunks than sentences)
@@ -150,7 +148,6 @@ def _chunk_by_sentence_count(sentences: List[str], num_chunks: int) -> List[List
 
     for i in range(num_chunks):
         start_idx = i * sentences_per_chunk
-        # Last chunk gets any remaining sentences
         if i == num_chunks - 1:
             end_idx = len(sentences)
         else:
@@ -179,17 +176,14 @@ def get_model_config(model_id: str) -> Dict[str, Any]:
     if config:
         return config
 
-    # If not in predefined configs, treat as custom HuggingFace model
-    # Validate that the model exists on HF Hub
     if model_exists_on_hf(model_id):
-        # Return a minimal config for custom models
         return {
             "id": model_id,
             "name": model_id,
             "provider": "huggingface",
             "model_name": model_id,
             "description": f"Custom HuggingFace model: {model_id}",
-            "task": "text2text-generation",  # Default, will be auto-detected
+            "task": "text2text-generation",
             "prompt_style": "instruction",
             "use_chat_template": False,
         }
@@ -289,7 +283,7 @@ async def _call_openrouter_api(
         "model": model_name,
         "messages": _build_chat_messages(prompt),
         "max_tokens": max_tokens,
-        "temperature": 0.0,  # Deterministic output for fact extraction
+        "temperature": 0.0,
         "top_p": 1.0,
     }
 
@@ -446,15 +440,12 @@ async def extract_facts(
         if not chunk.strip():
             continue
 
-        # Build prompt based on prompt_style in model config
         prompt_style = config.get("prompt_style", "plain")
 
         if prompt_style == "prefix":
-            # T5-style models expect a task prefix rather than an instruction wrapper
             prefix = config.get("prompt_prefix", "")
             prompt = f"{prefix}{chunk}"
         elif prompt_style == "plain":
-            # Summarization models (e.g. distilbart) were trained on raw text
             prompt = chunk
         else:
             prompt = (
@@ -486,7 +477,6 @@ def _parse_facts(raw_output: str) -> List[str]:
     Parse raw model output into a list of individual facts.
     Handles bullet points, numbered lists, and newline-separated facts.
     """
-    # Split by newlines
     lines = raw_output.strip().split("\n")
 
     facts = []
@@ -495,15 +485,12 @@ def _parse_facts(raw_output: str) -> List[str]:
         if not line:
             continue
 
-        # Remove bullet point markers and numbering
-        # Handles: -, *, •, 1., 1), etc.
         cleaned = re.sub(r"^[\s]*([-*•]|\d+[.)])\s+", "", line)
         cleaned = cleaned.strip()
 
         if cleaned:
             facts.append(cleaned)
 
-    # If no bullet points found, treat the whole output as one fact
     if not facts and raw_output.strip():
         return [raw_output.strip()]
 
