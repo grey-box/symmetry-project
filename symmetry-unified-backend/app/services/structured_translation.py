@@ -1,9 +1,8 @@
 from typing import List
 import logging
 
-from app.models.wiki_structure import Section
-from app.models import StructuredArticleResponse
-from app.ai.translations import translate
+from app.models import Section, StructuredArticleResponse
+from app.models.translation.engine import translate
 
 
 def translate_article(article, source_lang: str, target_lang: str) -> StructuredArticleResponse:

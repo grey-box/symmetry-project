@@ -1,12 +1,7 @@
 import logging
 import re
 from typing import Dict, Optional, List, Any
-from urllib.parse import urlparse
-
 from fastapi import APIRouter, Query, HTTPException
-
-from app.models.translation.engine import translate
-from app.models.wiki.structure import Section
 
 from app.models.wiki.responses import (
     StructuredArticleResponse,
@@ -280,31 +275,6 @@ async def get_reference_analysis(
         )
 
 
-async def parse_wikipedia_url(url: str) -> tuple[str, str]:
-    parsed_url = urlparse(url)
-
-    if not parsed_url.netloc.endswith(".wikipedia.org"):
-        raise ValueError("Invalid domain - must be Wikipedia")
-
-    parts = parsed_url.netloc.split(".")
-    if len(parts) != 3:
-        raise ValueError("Invalid URL format")
-
-    lang = parts[0]
-    if not lang.isalpha() or len(lang) > 2:
-        raise ValueError("Invalid language code")
-
-    if not parsed_url.path.startswith("/wiki/"):
-        raise ValueError("Invalid article path")
-
-    title = parsed_url.path[6:].replace("_", " ")
-
-    if not title:
-        raise ValueError("Empty article title")
-
-    return lang, title
-
-
 @router.get("/structured-translated-article", response_model=StructuredArticleResponse)
 async def structured_translated_article(
     source_lang: str = "en",
@@ -323,7 +293,7 @@ async def structured_translated_article(
     # 1. Resolve title
     if url:
         try:
-            parsed_lang, parsed_title = await parse_wikipedia_url(url)
+            parsed_lang, parsed_title = parse_wikipedia_url(url)
             source_lang = parsed_lang
             title = parsed_title
         except ValueError:
@@ -357,47 +327,6 @@ async def structured_translated_article(
         raise HTTPException(
             status_code=500, detail=f"Failed to translate article: {str(e)}"
         )
-
-
-def translate_article(
-    article,
-    source_lang: str,
-    target_lang: str,
-) -> StructuredArticleResponse:
-    """
-    Translates an Article object and builds a StructuredArticleResponse.
-    """
-
-    translated_sections: List[Section] = []
-
-    for section in article.sections:
-        translated_sections.append(
-            Section(
-                title=translate(section.title, source_lang, target_lang),
-                raw_content=translate(section.raw_content, source_lang, target_lang),
-                clean_content=translate(
-                    section.clean_content, source_lang, target_lang
-                ),
-                citations=section.citations,
-                citation_position=section.citation_position,
-            )
-        )
-
-    total_citations = sum(
-        len(section.citations or []) for section in translated_sections
-    )
-
-    return StructuredArticleResponse(
-        title=translate(article.title, source_lang, target_lang),
-        lang=target_lang,
-        source=f"wikipedia+model({source_lang}->{target_lang})",
-        sections=translated_sections,
-        references=article.references,
-        total_sections=len(translated_sections),
-        total_citations=total_citations,
-        total_references=len(article.references),
-    )
-
 
 
 @router.get("/fact-extraction-models", response_model=List[Dict[str, Any]])
