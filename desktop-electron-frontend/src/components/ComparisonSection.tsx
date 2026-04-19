@@ -10,6 +10,52 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 
+interface ComparisonModelOption {
+  value: string
+  label: string
+  description?: string
+}
+
+interface ArticlePreset {
+  label: string
+  url: string
+}
+
+interface ThresholdPreset {
+  label: string
+  value: number
+  description: string
+  speedRange: string
+}
+
+const DEFAULT_PRESELECTED_ARTICLES: ArticlePreset[] = [
+  { label: 'Python (programming language)', url: 'https://en.wikipedia.org/wiki/Python_(programming_language)' },
+  { label: 'Solar System', url: 'https://en.wikipedia.org/wiki/Solar_System' },
+  { label: 'Artificial intelligence', url: 'https://en.wikipedia.org/wiki/Artificial_intelligence' },
+  { label: 'World War II', url: 'https://en.wikipedia.org/wiki/World_War_II' },
+  { label: 'C++', url: 'https://en.wikipedia.org/wiki/C%2B%2B' },
+  { label: 'Unicode', url: 'https://en.wikipedia.org/wiki/Unicode' },
+]
+
+const DEFAULT_THRESHOLD_PRESETS: ThresholdPreset[] = [
+  { label: 'Sensitive', value: 0.55, description: 'fewer flags; fast review', speedRange: '1s-5s' },
+  { label: 'Balanced', value: 0.65, description: 'balanced output; fast-medium review', speedRange: '1s-3s' },
+  { label: 'Strict', value: 0.75, description: 'more flags; slower review', speedRange: '3s-11s' },
+]
+
+const DEFAULT_COMPARISON_MODELS: ComparisonModelOption[] = [
+  { value: 'sentence-transformers/LaBSE', label: 'LaBSE (multilingual embeddings)' },
+  { value: 'similarity_prototype', label: 'Similarity Prototype (Phase 1/2/3 — English only, auto-translates)' },
+]
+
+const normalizeModelOption = (option: string | ComparisonModelOption): ComparisonModelOption => {
+  if (typeof option === 'string') {
+    return { value: option, label: option }
+  }
+
+  return option
+}
+
 const ComparisonSection = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [comparisonResult, setComparisonResult] = useState<{
@@ -22,13 +68,24 @@ const ComparisonSection = () => {
   const [targetText, setTargetText] = useState('')
   const [elapsedTime, setElapsedTime] = useState(0)
   const [isRunning, setIsRunning] = useState(false)
+
+  // Progress bar
+  const [compareProgress, setCompareProgress] = useState(0)
+  const [compareStage, setCompareStage] = useState('')
+  const rafRef = useRef<number | null>(null)
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const animatingRef = useRef(false)
   const [sourceLanguage, setSourceLanguage] = useState('en')
   const [targetLanguage, setTargetLanguage] = useState('en')
   const [targetUrl, setTargetUrl] = useState('')
+  const [sourceUrl, setSourceUrl] = useState('')
   const [isTargetTextReadOnly, setIsTargetTextReadOnly] = useState(false)
   const [isTargetLanguageReadOnly, setIsTargetLanguageReadOnly] = useState(false)
   const [similarityThreshold, setSimilarityThreshold] = useState(0.65)
-  const sourceUrlRef = useRef<HTMLInputElement | null>(null)
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_COMPARISON_MODELS[0].value)
+  const [comparisonModels, setComparisonModels] = useState<ComparisonModelOption[]>(DEFAULT_COMPARISON_MODELS)
+  const [articlePresets, setArticlePresets] = useState<ArticlePreset[]>(DEFAULT_PRESELECTED_ARTICLES)
+  const [thresholdPresets, setThresholdPresets] = useState<ThresholdPreset[]>(DEFAULT_THRESHOLD_PRESETS)
 
   // Fetch default threshold from backend on mount
   useEffect(() => {
@@ -37,11 +94,41 @@ const ComparisonSection = () => {
     })
   }, [])
 
-  // Fetch default threshold from backend on mount
+  // Load app config (custom overrides from config.json) and apply UI defaults
   useEffect(() => {
-    getThresholds().then((thresholds) => {
-      setSimilarityThreshold(thresholds.similarity_threshold)
-    })
+    const electronAPI = (window as any)?.electronAPI
+    if (!electronAPI?.getAppConfig) {
+      return
+    }
+
+    electronAPI
+      .getAppConfig()
+      .then((config: any) => {
+        if (Array.isArray(config.COMPARISON_MODELS) && config.COMPARISON_MODELS.length > 0) {
+          setComparisonModels(config.COMPARISON_MODELS.map(normalizeModelOption))
+        }
+
+        if (typeof config.DEFAULT_MODEL === 'string') {
+          setSelectedModel(config.DEFAULT_MODEL)
+        } else if (Array.isArray(config.COMPARISON_MODELS) && config.COMPARISON_MODELS.length > 0) {
+          setSelectedModel(normalizeModelOption(config.COMPARISON_MODELS[0]).value)
+        }
+
+        if (Array.isArray(config.PRESELECTED_ARTICLES) && config.PRESELECTED_ARTICLES.length > 0) {
+          setArticlePresets(config.PRESELECTED_ARTICLES)
+        }
+
+        if (Array.isArray(config.THRESHOLD_PRESETS) && config.THRESHOLD_PRESETS.length > 0) {
+          setThresholdPresets(config.THRESHOLD_PRESETS)
+        }
+
+        if (typeof config.SIMILARITY_THRESHOLD === 'number') {
+          setSimilarityThreshold(config.SIMILARITY_THRESHOLD)
+        }
+      })
+      .catch((error: unknown) => {
+        console.warn('Failed to load runtime config:', error)
+      })
   }, [])
 
   const form = useForm({
@@ -61,6 +148,7 @@ const ComparisonSection = () => {
 
       // If source URL is provided, extract language and set target URL
       if (sourceUrl) {
+        setSourceUrl(sourceUrl)
         const langMatch = sourceUrl.match(/https?:\/\/([a-z]{2})\.wikipedia\.org/)
         const sourceLang = langMatch ? langMatch[1] : 'en'
         setSourceLanguage(sourceLang)
@@ -109,6 +197,68 @@ const ComparisonSection = () => {
     }
   }, [isRunning])
 
+  // Progress bar animation
+  useEffect(() => {
+    if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+
+    if (!isLoading) {
+      if (animatingRef.current) {
+        animatingRef.current = false
+        if (rafRef.current) cancelAnimationFrame(rafRef.current)
+        setCompareProgress(100)
+        setCompareStage('Complete')
+        resetTimerRef.current = setTimeout(() => {
+          setCompareProgress(0)
+          setCompareStage('')
+        }, 1000)
+      }
+      return
+    }
+
+    animatingRef.current = true
+    setCompareProgress(0)
+
+    const stages: { to: number; ms: number; label: string }[] = [
+      { to: 12, ms: 1500, label: 'Preparing texts...' },
+      { to: 40, ms: 5000, label: 'Computing embeddings...' },
+      { to: 83, ms: 30000, label: 'Comparing sentences...' },
+      { to: 91, ms: 6000, label: 'Finalizing results...' },
+      // Slow creep to 99% so the bar never freezes while waiting for the response.
+      // This stage has a very long budget — the bar snaps to 100% whenever the
+      // response actually arrives, regardless of how far along this stage is.
+      { to: 99, ms: 120000, label: 'Finalizing results...' },
+    ]
+
+    let stageIdx = 0
+    let from = 0
+    let stageStart = Date.now()
+    setCompareStage(stages[0].label)
+
+    const tick = () => {
+      if (!animatingRef.current) return
+      const stage = stages[stageIdx]
+      const elapsed = Date.now() - stageStart
+      const t = Math.min(elapsed / stage.ms, 1)
+      const eased = 1 - Math.pow(1 - t, 3)
+      setCompareProgress(Math.floor(from + (stage.to - from) * eased))
+
+      if (t >= 1 && stageIdx < stages.length - 1) {
+        from = stage.to
+        stageIdx++
+        stageStart = Date.now()
+        setCompareStage(stages[stageIdx].label)
+      }
+
+      rafRef.current = requestAnimationFrame(tick)
+    }
+
+    rafRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+    }
+  }, [isLoading])
+
   // Create abort controller for stopping comparison
   let abortController: AbortController | null = null
 
@@ -119,7 +269,7 @@ const ComparisonSection = () => {
     setComparisonResult(null)
 
     try {
-      const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage, similarityThreshold)
+      const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage, similarityThreshold, selectedModel)
       // The response data has a 'comparisons' array, we need the first comparison
       const comparison = response.data.comparisons[0]
       setComparisonResult(comparison)
@@ -200,17 +350,35 @@ const ComparisonSection = () => {
             </div>
 
             <div className="flex gap-2">
+              <select
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSourceUrl(e.target.value)
+                  }
+                }}
+                className="w-64 px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isLoading}
+              >
+                <option value="">Article Presets</option>
+                {articlePresets.map((article) => (
+                  <option key={article.url} value={article.url}>
+                    {article.label}
+                  </option>
+                ))}
+              </select>
               <input
                 type="url"
                 placeholder="Enter Wikipedia URL"
+                value={sourceUrl}
+                onChange={(e) => setSourceUrl(e.target.value)}
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                ref={sourceUrlRef}
               />
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  const url = sourceUrlRef.current?.value
+                  const url = sourceUrl.trim()
                   if (url) {
                     fetchFromUrl(url, setSourceText, setSourceLanguage)
                   }
@@ -220,6 +388,9 @@ const ComparisonSection = () => {
                 Fetch
               </Button>
             </div>
+            <p className="text-xs text-gray-500">
+              Pick a preset to auto-fill the URL, then click Fetch to load article text.
+            </p>
 
             <FormField
               control={form.control}
@@ -297,10 +468,43 @@ const ComparisonSection = () => {
             />
           </div>
 
+          {/* Comparison Model */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Comparison Model</label>
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            >
+              {comparisonModels.map((model) => (
+                <option key={model.value} value={model.value}>
+                  {model.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Similarity Threshold */}
           <div className="space-y-2">
             <label className="text-sm font-medium">Similarity Threshold</label>
             <div className="flex items-center gap-4">
+              <select
+                value=""
+                onChange={(e) => {
+                  const value = Number(e.target.value)
+                  if (!Number.isNaN(value) && value > 0) {
+                    setSimilarityThreshold(value)
+                  }
+                }}
+                className="w-56 px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Threshold presets</option>
+                {thresholdPresets.map((preset) => (
+                  <option key={preset.label} value={preset.value}>
+                    {preset.label} ({preset.value}) - {preset.description}
+                  </option>
+                ))}
+              </select>
               <Input
                 type="number"
                 min="0"
@@ -310,9 +514,18 @@ const ComparisonSection = () => {
                 onChange={(e) => setSimilarityThreshold(parseFloat(e.target.value) || 0.65)}
                 className="w-24"
               />
-              <span className="text-sm text-gray-500">
-                Lower values = more sensitive (detects more differences)
-              </span>
+              <span className="text-sm text-gray-500">Lower values are more lenient with fewer flags; higher values catch more differences (more to review).</span>
+            </div>
+            <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+              <div className="font-medium text-gray-700 mb-1">Observed speed guide (current test set)</div>
+              <ul className="space-y-1">
+                {thresholdPresets.map((preset) => (
+                  <li key={preset.label}>
+                    <span className="font-medium">{preset.label} ({preset.value}): </span>
+                    <span>{preset.speedRange}, {preset.description}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
@@ -338,6 +551,23 @@ const ComparisonSection = () => {
               </Button>
             )}
           </div>
+
+          {/* Progress bar */}
+          {(isLoading || compareProgress > 0) && (
+            <div className="space-y-1">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>{compareStage}</span>
+                <span>{compareProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className={`h-2 rounded-full transition-all duration-300 ease-out ${compareProgress === 100 ? 'bg-green-500' : 'bg-blue-500'
+                    }`}
+                  style={{ width: `${compareProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
         </form>
       </Form>
 
@@ -349,33 +579,87 @@ const ComparisonSection = () => {
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Comparison Results</h3>
 
-            {/* Missing Information (from right article - translated) */}
-            {comparisonResult.right_article_extra_info_index.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-medium text-red-700">Missing Information in Translation</h4>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  {comparisonResult.right_article_extra_info_index.map((index, i) => (
-                    <li key={i} className="text-red-600">
-                      Sentence {index + 1}: "{comparisonResult.right_article_array[index]}"
-                    </li>
-                  ))}
-                </ul>
+            {/* Legend */}
+            <div className="bg-gray-50 rounded-lg p-4 border">
+              <h4 className="text-sm font-medium text-gray-700 mb-3">Legend</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <del className="text-red-600 bg-red-100/50 px-1 rounded">Missing</del>
+                  <span className="text-gray-600">= Information missing in target</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ins className="text-green-600 bg-green-100/50 px-1 rounded">Extra</ins>
+                  <span className="text-gray-600">= Extra information in target</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 italic">—</span>
+                  <span className="text-gray-600">= No corresponding sentence</span>
+                </div>
               </div>
-            )}
+            </div>
 
-            {/* Extra Information (in right article - translated) */}
-            {comparisonResult.left_article_missing_info_index.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="font-medium text-green-700">Extra Information in Translation</h4>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  {comparisonResult.left_article_missing_info_index.map((index, i) => (
-                    <li key={i} className="text-green-600">
-                      Sentence {index + 1}: "{comparisonResult.left_article_array[index]}"
-                    </li>
-                  ))}
-                </ul>
+            {/* Side-by-side comparison view */}
+            <div className="space-y-3">
+              {/* Column headers */}
+              <div className="grid grid-cols-2 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide px-3">
+                <span>Source ({sourceLanguage})</span>
+                <span>Target ({targetLanguage})</span>
               </div>
-            )}
+
+              {/* Comparison rows */}
+              {comparisonResult.left_article_array.map((sourceSentence, idx) => {
+                const isSourceMissing = comparisonResult.right_article_extra_info_index.includes(idx);
+                const isTargetExtra = comparisonResult.left_article_missing_info_index.includes(idx);
+                const targetSentence = idx < comparisonResult.right_article_array.length ? comparisonResult.right_article_array[idx] : '';
+
+                return (
+                  <div
+                    key={idx}
+                    className={`grid grid-cols-2 gap-4 p-3 rounded-md border ${isSourceMissing
+                      ? 'border-red-200 bg-red-50/30'
+                      : isTargetExtra
+                        ? 'border-green-200 bg-green-50/30'
+                        : 'border-gray-200 bg-gray-50/30'
+                      }`}
+                  >
+                    {/* Source sentence */}
+                    <div className="text-sm leading-relaxed text-gray-700">
+                      {isSourceMissing ? (
+                        <del className="text-red-600 bg-red-100/50">{sourceSentence}</del>
+                      ) : (
+                        <p>{sourceSentence}</p>
+                      )}
+                    </div>
+
+                    {/* Target sentence */}
+                    <div className="text-sm leading-relaxed text-gray-700">
+                      {isTargetExtra ? (
+                        <ins className="text-green-600 bg-green-100/50">{targetSentence}</ins>
+                      ) : (
+                        <p>{targetSentence || <span className="italic text-gray-400">—</span>}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Handle extra sentences in target not in source */}
+              {comparisonResult.right_article_array.length > comparisonResult.left_article_array.length && (
+                <>
+                  {comparisonResult.right_article_array.slice(comparisonResult.left_article_array.length).map((targetSentence, idx) => (
+                    <div
+                      key={`extra-${idx}`}
+                      className="grid grid-cols-2 gap-4 p-3 rounded-md border border-green-200 bg-green-50/30"
+                    >
+                      <div className="text-sm leading-relaxed text-gray-400 italic">—</div>
+                      <div className="text-sm leading-relaxed text-gray-700">
+                        <ins className="text-green-600 bg-green-100/50">{targetSentence}</ins>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
 
             {comparisonResult.right_article_extra_info_index.length === 0 && comparisonResult.left_article_missing_info_index.length === 0 && (
               <div className="text-center py-4 text-gray-500">

@@ -4,24 +4,10 @@ import {
   StructuredArticleResponse,
   StructuredCitationResponse,
   StructuredReferenceResponse,
-  SectionCompareResponse,
   Section
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
 import { FactExtractionModel, FactExtractionResponse } from '../models/FactExtraction';
-
-const languageCodes = [
-  'en', 'es', 'fr', 'de', 'it', 'pt',
-  'nl', 'pl', 'ru', 'zh', 'ja',
-  'ko', 'ar', 'hi', 'tr',
-];
-
-const displayNames = new Intl.DisplayNames(['en'], { type: 'language' });
-const TRANSLATION_LANGUAGES = languageCodes.map(code => ({
-  code,
-  label: displayNames.of(code) ?? code,
-}));
-
 
 
 interface StructuredArticleViewerProps {
@@ -58,14 +44,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [hoveredChunk, setHoveredChunk] = useState<string | null>(null);
   const [clickedChunk, setClickedChunk] = useState<string | null>(null);
 
-  // Section comparison state
-  const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
-  const [compareLang, setCompareLang] = useState('es');
-  const [comparing, setComparing] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
-
-
-
   // Load article data
   const loadArticle = async (query: string, lang: string) => {
     setLoading(true);
@@ -89,56 +67,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
       setError(err instanceof Error ? err.message : 'Failed to load article');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const translateArticle = async () => {
-    if (!article) return;
-
-    setTranslating(true);
-    setError(null);
-
-    try {
-      const translatedArticle =
-        await structuredWikiService.getTranslatedStructuredArticle({
-          source_lang: article.lang,
-          target_lang: targetLang,
-          title: article.title,
-        });
-
-      setArticle(translatedArticle);
-      setTargetLang(translatedArticle.lang);
-      setCitationAnalysis(null); // These are temporarily set to NULL, as we only want content translated.
-      setReferenceAnalysis(null); // In the future, we may use this to compare citations/references between languages.
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to translate article');
-    } finally {
-      setTranslating(false);
-    }
-  };
-
-
-  /** Run section-by-section comparison against another language */
-  const runSectionComparison = async () => {
-    if (!article) return;
-
-    setComparing(true);
-    setError(null);
-
-    try {
-      const result = await structuredWikiService.compareSections({
-        source_query: article.title,
-        target_query: article.title, // same article, different language
-        source_lang: article.lang,
-        similarity_threshold: 0.5,
-      });
-
-      setComparisonResult(result);
-      setShowComparison(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Section comparison failed');
-    } finally {
-      setComparing(false);
     }
   };
 
@@ -558,7 +486,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Most Cited Articles */}
-        {!showComparison && mostCited.length > 0 && (
+        {mostCited.length > 0 && (
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Most Cited Articles</h3>
             <div className="space-y-2">
@@ -575,7 +503,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Article Content */}
-        {!showComparison && article && (
+        {article && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Section Navigation */}
             <div className="lg:col-span-1">
@@ -736,7 +664,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* References Section */}
-        {!showComparison && referenceAnalysis && referenceAnalysis.references.length > 0 && (
+        {referenceAnalysis && referenceAnalysis.references.length > 0 && (
           <div className="mt-8 pt-8 border-t border-gray-200">
             <h3 className="text-xl font-bold text-gray-800 mb-4">
               References ({referenceAnalysis.total_references})
