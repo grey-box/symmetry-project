@@ -15,14 +15,14 @@ let AppConstants: any;
 // A function to load our configuration file. Must be done from this main process
 // since renderer processes have no file access.
 async function grabConfig() {
-    let AppConstants: any;
-   try {
-        AppConstants = await appConstantsPromise;
-    } catch (error) {
-        console.error("Failed to load configuration file: ", error);
-        throw new Error(`Failed to load configuration file: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    return AppConstants;
+  let AppConstants: any;
+  try {
+    AppConstants = await appConstantsPromise;
+  } catch (error) {
+    console.error("Failed to load configuration file: ", error);
+    throw new Error(`Failed to load configuration file: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return AppConstants;
 }
 
 function getBackendHealthUrl() {
@@ -85,7 +85,7 @@ const createWindow = async () => {
       preload: path.join(__dirname, "preload.js"),
     },
   });
-  
+
   // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -94,18 +94,18 @@ const createWindow = async () => {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
     );
   }
-  
+
   // Load application config and check backend health on startup
   try {
     AppConstants = await grabConfig();
-  } catch(e) {
+  } catch (e) {
     console.error(`Error loading config: ${e}`);
   }
 
   const health = await checkBackendHealth(getBackendHealthUrl());
   if (health.status !== 'healthy') {
-      console.log(`[WARN] Backend health check failed: Backend may not be running`);
-      console.log(`[INFO] Please start backend using: ./start.sh backend`);
+    console.log(`[WARN] Backend health check failed: Backend may not be running`);
+    console.log(`[INFO] Please start backend using: ./start.sh backend`);
   }
 
   // Open the DevTools.

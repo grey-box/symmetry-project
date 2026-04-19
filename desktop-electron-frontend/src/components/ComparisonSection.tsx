@@ -616,10 +616,10 @@ const ComparisonSection = () => {
                   <div
                     key={idx}
                     className={`grid grid-cols-2 gap-4 p-3 rounded-md border ${isSourceMissing
-                        ? 'border-red-200 bg-red-50/30'
-                        : isTargetExtra
-                          ? 'border-green-200 bg-green-50/30'
-                          : 'border-gray-200 bg-gray-50/30'
+                      ? 'border-red-200 bg-red-50/30'
+                      : isTargetExtra
+                        ? 'border-green-200 bg-green-50/30'
+                        : 'border-gray-200 bg-gray-50/30'
                       }`}
                   >
                     {/* Source sentence */}
