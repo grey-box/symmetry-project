@@ -35,11 +35,10 @@ const Home = () => {
         {tabs.map(({ phase, label }) => (
           <button
             key={phase}
-            className={`px-4 py-2 rounded-lg transition-colors ${
-              activeTab === phase
+            className={`px-4 py-2 rounded-lg transition-colors ${activeTab === phase
                 ? 'bg-blue-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
+              }`}
             onClick={() => setActiveTab(phase)}
           >
             {label}

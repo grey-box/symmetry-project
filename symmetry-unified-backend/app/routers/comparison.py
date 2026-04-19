@@ -24,6 +24,7 @@ except Exception:
 
 router = APIRouter(prefix="/symmetry/v1", tags=["comparison"])
 
+
 @router.post("/articles/compare", response_model=CompareResponse)
 def compare_articles(payload: CompareRequest):
     """
@@ -353,6 +354,7 @@ def translate_text_endpoint(
 def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
     try:
         from app.ai.translations import translate as chunked_translate
+
         logging.info(
             "Chunked translation request (source='%s', target='%s', chars=%d)",
             payload.source_language,

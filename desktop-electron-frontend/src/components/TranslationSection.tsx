@@ -55,7 +55,7 @@ const TranslationSection = () => {
   })
 
   const { translationTool, APIKey } = useAppContext()
-  
+
   const handleCompare = useCallback(() => {
     const sourceContent = form.getValues('sourceArticleContent')
     const translatedContent = form.getValues('translatedArticleContent')
@@ -78,7 +78,7 @@ const TranslationSection = () => {
     handleSubmit,
     setValue,
   } = form
-  
+
   const checkBackendStatus = useCallback(async () => {
     try {
       const { getAxiosInstance } = await import('@/services/axios');
@@ -93,7 +93,7 @@ const TranslationSection = () => {
   useEffect(() => {
     checkBackendStatus()
     const interval = setInterval(checkBackendStatus, 30000)
-    
+
     return () => clearInterval(interval)
   }, [checkBackendStatus])
 
@@ -151,13 +151,13 @@ const TranslationSection = () => {
           value: lang,
           label: lang,
         })))
-      
+
     } catch (error) {
       console.error('Error fetching article:', error)
       setIsLoading(false)
-      
+
       let errorMessage = 'Failed to fetch article. Please try again.'
-      
+
       if (error instanceof Error) {
         if (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED')) {
           errorMessage = 'Backend server is not running. Please start the backend server first.'
@@ -171,13 +171,13 @@ const TranslationSection = () => {
           errorMessage = `Error: ${error.message}`
         }
       }
-      
+
       alert(errorMessage)
     } finally {
       setIsLoading(false)
     }
   }, [setValue, translationTool, APIKey])
-  
+
   const onLanguageChange = useCallback(async (language: string) => {
     let translationSucceeded = false
 
@@ -287,24 +287,23 @@ const TranslationSection = () => {
                   Here will be instruction regarding translation.
                 </span>
               </div>
-              
+
               <div className="flex items-center gap-x-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  backendStatus === 'online' ? 'bg-green-500' :
-                  backendStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
-                }`} />
+                <div className={`w-2 h-2 rounded-full ${backendStatus === 'online' ? 'bg-green-500' :
+                    backendStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
+                  }`} />
                 <span className="text-xs text-gray-500">
                   {backendStatus === 'online' ? 'Backend Online' :
-                   backendStatus === 'offline' ? 'Backend Offline' : 'Checking...'}
+                    backendStatus === 'offline' ? 'Backend Offline' : 'Checking...'}
                 </span>
               </div>
             </div>
             <div className="flex gap-x-2">
-              <Button 
-                disabled={isLoading} 
-                type="button" 
-                variant="outline" 
-                onClick={() => { 
+              <Button
+                disabled={isLoading}
+                type="button"
+                variant="outline"
+                onClick={() => {
                   translationAbortRef.current?.abort()
                   translationAbortRef.current = null
                   setArticleBlocks([])

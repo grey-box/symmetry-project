@@ -242,7 +242,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     const normalizedContent = normalize(content);
     const parts = normalizedContent.split(new RegExp(`(${escapedChunk})`, 'gi'));
     if (parts.length === 1) return content;
-    
+
     return (
       <>
         {parts.map((part, index) => {

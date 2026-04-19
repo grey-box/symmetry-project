@@ -276,10 +276,17 @@ class TestComparisonRouter:
 
     def test_translate_text_endpoint_returns_translated_article(self, client):
         """Test translate_text endpoint uses translatedArticle as the returned key"""
-        with patch("app.models.server_model.ServerModel.text_translate", return_value="Hola mundo"):
+        with patch(
+            "app.models.server_model.ServerModel.text_translate",
+            return_value="Hola mundo",
+        ):
             response = client.get(
                 "/symmetry/v1/translate_text",
-                params={"source_language": "en", "target_language": "es", "text": "Hello world"},
+                params={
+                    "source_language": "en",
+                    "target_language": "es",
+                    "text": "Hello world",
+                },
             )
 
             assert response.status_code == 200
@@ -289,10 +296,17 @@ class TestComparisonRouter:
 
     def test_translate_text_endpoint_uses_source_language(self, client):
         """Test translate_text endpoint passes source_language through to the server model"""
-        with patch("app.routers.comparison.ServerModel.text_translate", return_value="Bonjour le monde") as mock_translate:
+        with patch(
+            "app.routers.comparison.ServerModel.text_translate",
+            return_value="Bonjour le monde",
+        ) as mock_translate:
             response = client.get(
                 "/symmetry/v1/translate_text",
-                params={"source_language": "fr", "target_language": "en", "text": "Bonjour le monde"},
+                params={
+                    "source_language": "fr",
+                    "target_language": "en",
+                    "text": "Bonjour le monde",
+                },
             )
 
             assert response.status_code == 200
@@ -355,4 +369,3 @@ class TestComparisonRouter:
 
         assert response.status_code == 500
         assert "Missing translation dependency" in response.json()["detail"]
-
