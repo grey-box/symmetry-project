@@ -10,7 +10,25 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 
-const PRESELECTED_ARTICLES = [
+interface ComparisonModelOption {
+  value: string
+  label: string
+  description?: string
+}
+
+interface ArticlePreset {
+  label: string
+  url: string
+}
+
+interface ThresholdPreset {
+  label: string
+  value: number
+  description: string
+  speedRange: string
+}
+
+const DEFAULT_PRESELECTED_ARTICLES: ArticlePreset[] = [
   { label: 'Python (programming language)', url: 'https://en.wikipedia.org/wiki/Python_(programming_language)' },
   { label: 'Solar System', url: 'https://en.wikipedia.org/wiki/Solar_System' },
   { label: 'Artificial intelligence', url: 'https://en.wikipedia.org/wiki/Artificial_intelligence' },
@@ -19,11 +37,24 @@ const PRESELECTED_ARTICLES = [
   { label: 'Unicode', url: 'https://en.wikipedia.org/wiki/Unicode' },
 ]
 
-const THRESHOLD_PRESETS = [
+const DEFAULT_THRESHOLD_PRESETS: ThresholdPreset[] = [
   { label: 'Sensitive', value: 0.55, description: 'fewer flags; fast review', speedRange: '1s-5s' },
   { label: 'Balanced', value: 0.65, description: 'balanced output; fast-medium review', speedRange: '1s-3s' },
   { label: 'Strict', value: 0.75, description: 'more flags; slower review', speedRange: '3s-11s' },
 ]
+
+const DEFAULT_COMPARISON_MODELS: ComparisonModelOption[] = [
+  { value: 'sentence-transformers/LaBSE', label: 'LaBSE (multilingual embeddings)' },
+  { value: 'similarity_prototype', label: 'Similarity Prototype (Phase 1/2/3 — English only, auto-translates)' },
+]
+
+const normalizeModelOption = (option: string | ComparisonModelOption): ComparisonModelOption => {
+  if (typeof option === 'string') {
+    return { value: option, label: option }
+  }
+
+  return option
+}
 
 const ComparisonSection = () => {
   const [isLoading, setIsLoading] = useState(false)
@@ -51,13 +82,53 @@ const ComparisonSection = () => {
   const [isTargetTextReadOnly, setIsTargetTextReadOnly] = useState(false)
   const [isTargetLanguageReadOnly, setIsTargetLanguageReadOnly] = useState(false)
   const [similarityThreshold, setSimilarityThreshold] = useState(0.65)
-  const [selectedModel, setSelectedModel] = useState('sentence-transformers/LaBSE')
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_COMPARISON_MODELS[0].value)
+  const [comparisonModels, setComparisonModels] = useState<ComparisonModelOption[]>(DEFAULT_COMPARISON_MODELS)
+  const [articlePresets, setArticlePresets] = useState<ArticlePreset[]>(DEFAULT_PRESELECTED_ARTICLES)
+  const [thresholdPresets, setThresholdPresets] = useState<ThresholdPreset[]>(DEFAULT_THRESHOLD_PRESETS)
 
   // Fetch default threshold from backend on mount
   useEffect(() => {
     getThresholds().then((thresholds) => {
       setSimilarityThreshold(thresholds.similarity_threshold)
     })
+  }, [])
+
+  // Load app config (custom overrides from config.json) and apply UI defaults
+  useEffect(() => {
+    const electronAPI = (window as any)?.electronAPI
+    if (!electronAPI?.getAppConfig) {
+      return
+    }
+
+    electronAPI
+      .getAppConfig()
+      .then((config: any) => {
+        if (Array.isArray(config.COMPARISON_MODELS) && config.COMPARISON_MODELS.length > 0) {
+          setComparisonModels(config.COMPARISON_MODELS.map(normalizeModelOption))
+        }
+
+        if (typeof config.DEFAULT_MODEL === 'string') {
+          setSelectedModel(config.DEFAULT_MODEL)
+        } else if (Array.isArray(config.COMPARISON_MODELS) && config.COMPARISON_MODELS.length > 0) {
+          setSelectedModel(normalizeModelOption(config.COMPARISON_MODELS[0]).value)
+        }
+
+        if (Array.isArray(config.PRESELECTED_ARTICLES) && config.PRESELECTED_ARTICLES.length > 0) {
+          setArticlePresets(config.PRESELECTED_ARTICLES)
+        }
+
+        if (Array.isArray(config.THRESHOLD_PRESETS) && config.THRESHOLD_PRESETS.length > 0) {
+          setThresholdPresets(config.THRESHOLD_PRESETS)
+        }
+
+        if (typeof config.SIMILARITY_THRESHOLD === 'number') {
+          setSimilarityThreshold(config.SIMILARITY_THRESHOLD)
+        }
+      })
+      .catch((error: unknown) => {
+        console.warn('Failed to load runtime config:', error)
+      })
   }, [])
 
   const form = useForm({
@@ -290,7 +361,7 @@ const ComparisonSection = () => {
                 disabled={isLoading}
               >
                 <option value="">Article Presets</option>
-                {PRESELECTED_ARTICLES.map((article) => (
+                {articlePresets.map((article) => (
                   <option key={article.url} value={article.url}>
                     {article.label}
                   </option>
@@ -405,8 +476,11 @@ const ComparisonSection = () => {
               onChange={(e) => setSelectedModel(e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             >
-              <option value="sentence-transformers/LaBSE">LaBSE (multilingual embeddings)</option>
-              <option value="similarity_prototype">Similarity Prototype (Phase 1/2/3 — English only, auto-translates)</option>
+              {comparisonModels.map((model) => (
+                <option key={model.value} value={model.value}>
+                  {model.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -425,7 +499,7 @@ const ComparisonSection = () => {
                 className="w-56 px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Threshold presets</option>
-                {THRESHOLD_PRESETS.map((preset) => (
+                {thresholdPresets.map((preset) => (
                   <option key={preset.label} value={preset.value}>
                     {preset.label} ({preset.value}) - {preset.description}
                   </option>
@@ -445,7 +519,7 @@ const ComparisonSection = () => {
             <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
               <div className="font-medium text-gray-700 mb-1">Observed speed guide (current test set)</div>
               <ul className="space-y-1">
-                {THRESHOLD_PRESETS.map((preset) => (
+                {thresholdPresets.map((preset) => (
                   <li key={preset.label}>
                     <span className="font-medium">{preset.label} ({preset.value}): </span>
                     <span>{preset.speedRange}, {preset.description}</span>

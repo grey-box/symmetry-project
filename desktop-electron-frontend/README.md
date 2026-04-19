@@ -146,19 +146,30 @@ yarn start
 
 ### Configuration
 
-The application reads configuration from a `config.json` file in the parent directory:
+The application reads default configuration from `config.default.json` in the parent directory and then applies custom overrides from `config.json`.
+
+A default config might look like:
 
 ```json
 {
-  "port": 8000,
-  "backendBaseUrl": "http://127.0.0.1:8000"
+  "BACKEND_BASE_URL": "http://127.0.0.1:8000",
+  "BACKEND_PORT": 8000,
+  "FRONTEND_PORT": 5173,
+  "OLLAMA_BASE_URL": "http://localhost:11434",
+  "DEFAULT_TIMEOUT": 30000,
+  "SIMILARITY_THRESHOLD": 0.65,
+  "COMPARISON_MODELS": [
+    { "value": "sentence-transformers/LaBSE", "label": "LaBSE (multilingual embeddings)" },
+    { "value": "similarity_prototype", "label": "Similarity Prototype (Phase 1/2/3 — English only, auto-translates)" }
+  ]
 }
 ```
 
 Configuration is loaded via:
-1. Main process reads `config.json`
-2. Config is exposed to renderer via IPC
-3. Services use config to set API base URL
+1. Main process reads `config.default.json`
+2. Main process applies overrides from `config.json`
+3. Config is exposed to renderer via IPC
+4. Services use config to set API base URL and UI defaults
 
 ## Available Scripts
 

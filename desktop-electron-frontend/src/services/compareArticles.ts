@@ -11,7 +11,7 @@ export async function compareArticles(
   sourceLanguage: string,
   targetLanguage: string,
   similarityThreshold: number = 0.65,
-  modelName: string = 'sentence-transformers/LaBSE'
+  modelName: string
 ): Promise<AxiosResponse<{
   comparisons: Array<{
     left_article_array: string[]
