@@ -1,3 +1,4 @@
+import asyncio
 import difflib
 import logging
 from typing import Any, Dict, List, Optional
@@ -8,7 +9,12 @@ from bs4 import BeautifulSoup
 from fastapi import APIRouter, Query, HTTPException
 
 from app.ai.translations import translate
-from app.ai.fact_extraction import extract_facts, get_available_models, get_model_config, validate_model
+from app.ai.fact_extraction import (
+    extract_facts,
+    get_available_models,
+    get_model_config,
+    validate_model,
+)
 from app.ai.similarity_scoring import score_article_pair
 from app.models.wiki_structure import Section
 
@@ -75,7 +81,7 @@ async def get_structured_article(
         return structured_cache[cache_key]
 
     try:
-        article = article_fetcher(title, lang)
+        article = await asyncio.to_thread(article_fetcher, title, lang)
 
         total_citations = sum(
             len(section.citations or []) for section in article.sections
@@ -148,7 +154,7 @@ async def get_structured_section(
             lang = "en"
 
     try:
-        article = article_fetcher(title, lang)
+        article = await asyncio.to_thread(article_fetcher, title, lang)
 
         target_section = None
         for section in article.sections:
@@ -219,7 +225,7 @@ async def get_citation_analysis(
             lang = "en"
 
     try:
-        article = article_fetcher(title, lang)
+        article = await asyncio.to_thread(article_fetcher, title, lang)
 
         all_citations = []
         for section in article.sections:
@@ -369,7 +375,7 @@ async def structured_translated_article(
 
     try:
         # 2. Fetch original article
-        article = article_fetcher(title, source_lang)
+        article = await asyncio.to_thread(article_fetcher, title, source_lang)
 
         # 3. Translate + build response (delegated)
         response = translate_article(article, source_lang, target_lang)
@@ -453,6 +459,7 @@ async def get_fact_extraction_models():
 # Revision history
 # ---------------------------------------------------------------------------
 
+
 @router.get(
     "/revision-history",
     response_model=List[Revision],
@@ -494,7 +501,9 @@ async def get_revision_history(
         revisions = _fetch_revisions(title, lang, limit)
     except Exception as e:
         logging.error("Error fetching revisions for '%s': %s", title, str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to fetch revisions: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch revisions: {str(e)}"
+        )
 
     return revisions
 
@@ -502,6 +511,7 @@ async def get_revision_history(
 # ---------------------------------------------------------------------------
 # Language lag detection
 # ---------------------------------------------------------------------------
+
 
 @router.get(
     "/lag",
@@ -516,17 +526,25 @@ async def get_revision_history(
 async def get_language_lag(
     title: str = Query(..., description="Wikipedia article title (e.g. 'Python')"),
     source_lang: str = Query("en", description="Source language code (default 'en')"),
-    target_langs: List[str] = Query(..., description="Target language codes to compare (e.g. 'fr', 'es')"),
+    target_langs: List[str] = Query(
+        ..., description="Target language codes to compare (e.g. 'fr', 'es')"
+    ),
 ):
     logging.info(
         "Calling lag endpoint (title='%s', source='%s', targets=%s)",
-        title, source_lang, target_langs,
+        title,
+        source_lang,
+        target_langs,
     )
     try:
-        reports = detect_language_lag(title, source_lang, target_langs)
+        reports = await asyncio.to_thread(
+            detect_language_lag, title, source_lang, target_langs
+        )
     except Exception as e:
         logging.error("Error detecting language lag for '%s': %s", title, str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to detect language lag: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to detect language lag: {str(e)}"
+        )
     return reports
 
 
@@ -614,6 +632,7 @@ async def extract_facts_endpoint(request: FactExtractionRequest):
 # Revision-to-revision diff
 # ---------------------------------------------------------------------------
 
+
 @router.get(
     "/diff",
     response_model=RevisionDiffResponse,
@@ -632,18 +651,22 @@ async def get_diff(
 ):
     logging.info(
         "Calling diff endpoint (title='%s', revid_a=%d, revid_b=%d)",
-        title, revid_a, revid_b,
+        title,
+        revid_a,
+        revid_b,
     )
 
     if not lang:
         lang = "en"
 
     try:
-        article_a = revision_fetcher(revid_a, lang)
-        article_b = revision_fetcher(revid_b, lang)
+        article_a = await asyncio.to_thread(revision_fetcher, revid_a, lang)
+        article_b = await asyncio.to_thread(revision_fetcher, revid_b, lang)
     except Exception as e:
         logging.error("Error fetching revisions: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Failed to fetch revisions: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch revisions: {str(e)}"
+        )
 
     sections_a = {s.title: s.clean_content for s in article_a.sections}
     sections_b = {s.title: s.clean_content for s in article_b.sections}
@@ -652,11 +675,21 @@ async def get_diff(
     titles_b = set(sections_b)
 
     sections_added = [
-        SectionChange(section_title=t, old_content=None, new_content=sections_b[t], similarity_score=0.0)
+        SectionChange(
+            section_title=t,
+            old_content=None,
+            new_content=sections_b[t],
+            similarity_score=0.0,
+        )
         for t in titles_b - titles_a
     ]
     sections_removed = [
-        SectionChange(section_title=t, old_content=sections_a[t], new_content=None, similarity_score=0.0)
+        SectionChange(
+            section_title=t,
+            old_content=sections_a[t],
+            new_content=None,
+            similarity_score=0.0,
+        )
         for t in titles_a - titles_b
     ]
     sections_modified = [
@@ -689,6 +722,7 @@ async def get_diff(
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
 
 def _fetch_revisions(title: str, lang: str, limit: int = 20) -> List[Revision]:
     """Call the MediaWiki API to retrieve recent revisions for *title*."""
@@ -769,9 +803,7 @@ def _parse_revision_sections(revid: int, lang: str) -> Dict[str, str]:
     return sections
 
 
-def _diff_sections(
-    old: Dict[str, str], new: Dict[str, str]
-) -> List[SectionDiff]:
+def _diff_sections(old: Dict[str, str], new: Dict[str, str]) -> List[SectionDiff]:
     """
     Produce a SectionDiff for every section that appears in either revision.
     """
@@ -785,26 +817,30 @@ def _diff_sections(
         if old_text is None:
             # Section added in the new revision
             assert new_text is not None
-            diffs.append(SectionDiff(
-                section_title=title,
-                status="added",
-                old_content=None,
-                new_content=new_text,
-                similarity_score=None,
-                char_delta=len(new_text),
-                unified_diff=None,
-            ))
+            diffs.append(
+                SectionDiff(
+                    section_title=title,
+                    status="added",
+                    old_content=None,
+                    new_content=new_text,
+                    similarity_score=None,
+                    char_delta=len(new_text),
+                    unified_diff=None,
+                )
+            )
         elif new_text is None:
             # Section removed in the new revision
-            diffs.append(SectionDiff(
-                section_title=title,
-                status="removed",
-                old_content=old_text,
-                new_content=None,
-                similarity_score=None,
-                char_delta=-len(old_text),
-                unified_diff=None,
-            ))
+            diffs.append(
+                SectionDiff(
+                    section_title=title,
+                    status="removed",
+                    old_content=old_text,
+                    new_content=None,
+                    similarity_score=None,
+                    char_delta=-len(old_text),
+                    unified_diff=None,
+                )
+            )
         else:
             # Section present in both — compute similarity and diff
             matcher = difflib.SequenceMatcher(None, old_text, new_text)
@@ -816,22 +852,26 @@ def _diff_sections(
                 udiff = None
             else:
                 status = "modified"
-                udiff = list(difflib.unified_diff(
-                    old_text.splitlines(),
-                    new_text.splitlines(),
-                    fromfile=f"rev_old/{title}",
-                    tofile=f"rev_new/{title}",
-                    lineterm="",
-                ))
+                udiff = list(
+                    difflib.unified_diff(
+                        old_text.splitlines(),
+                        new_text.splitlines(),
+                        fromfile=f"rev_old/{title}",
+                        tofile=f"rev_new/{title}",
+                        lineterm="",
+                    )
+                )
 
-            diffs.append(SectionDiff(
-                section_title=title,
-                status=status,
-                old_content=old_text,
-                new_content=new_text,
-                similarity_score=round(similarity, 4),
-                char_delta=char_delta,
-                unified_diff=udiff,
-            ))
+            diffs.append(
+                SectionDiff(
+                    section_title=title,
+                    status=status,
+                    old_content=old_text,
+                    new_content=new_text,
+                    similarity_score=round(similarity, 4),
+                    char_delta=char_delta,
+                    unified_diff=udiff,
+                )
+            )
 
     return diffs
