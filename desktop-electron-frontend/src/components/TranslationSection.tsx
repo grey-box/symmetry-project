@@ -8,6 +8,7 @@ import { SelectData } from '@/models/SelectData'
 import { fetchArticle } from '@/services/fetchArticle'
 import { translateArticle } from '@/services/translateArticle'
 import { useAppContext } from '@/context/AppContext'
+import { Phase } from '@/models/Phase'
 import { TranslationFormType } from '@/models/TranslationFormType'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -28,6 +29,11 @@ interface ArticleDisplayBlock {
   label: string;
   content: string;
   displayType: 'source' | 'translated' | '';
+}
+
+const parseWikipediaUrlToLang = (url: string): string | null => {
+  const match = url.match(/https?:\/\/([a-z-]{2,})\.wikipedia\.org\/wiki\//)
+  return match?.[1] ?? null
 }
 
 const TranslationSection = () => {
@@ -55,18 +61,17 @@ const TranslationSection = () => {
     const translatedContent = form.getValues('translatedArticleContent')
     const sourceUrl = form.getValues('sourceArticleUrl')
     const targetLanguage = form.getValues('targetArticleLanguage')
-    
-    const comparisonButton = document.querySelector('button[onClick*="Phase.AI_COMPARISON"]') as HTMLElement
-    if (comparisonButton) {
-      comparisonButton.click()
-    }
-    
+
     sessionStorage.setItem('comparisonData', JSON.stringify({
       sourceContent,
       translatedContent,
       sourceUrl,
       targetLanguage
     }))
+
+    window.dispatchEvent(
+      new CustomEvent('set-active-tab', { detail: Phase.AI_COMPARISON })
+    )
   }, [form])
 
   const {
@@ -187,6 +192,7 @@ const TranslationSection = () => {
 
       const sourceText = form.getValues('sourceArticleContent')
       const sourceUrl = form.getValues('sourceArticleUrl')
+      const sourceLang = parseWikipediaUrlToLang(sourceUrl) || 'en'
 
       if (!sourceText || !sourceText.trim()) {
         throw new Error('Source article content is empty.')
@@ -205,7 +211,7 @@ const TranslationSection = () => {
         },
       ])
 
-      const response = await translateArticle(sourceText, sourceLanguage, language, translationAbortRef.current?.signal)
+      const response = await translateArticle(sourceText, sourceLang, language, translationAbortRef.current?.signal)
       const translatedArticle = typeof response.data?.translatedArticle === 'string'
         ? response.data.translatedArticle
         : ''
@@ -313,6 +319,7 @@ const TranslationSection = () => {
               </Button>
               <Button disabled={isLoading} variant="default" type="submit">Submit</Button>
               <Button
+                type="button"
                 disabled={isLoading || !form.getValues('sourceArticleContent') || !form.getValues('translatedArticleContent')}
                 className="flex gap-x-2"
                 onClick={handleCompare}

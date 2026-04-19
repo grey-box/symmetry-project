@@ -47,6 +47,7 @@ from app.models.section_comparison import (
     SectionDiff as SectionComparisonDiff,
     ParagraphDiff,
 )
+SectionDiff = SectionComparisonDiff
 from app.models.revision import (
     Revision,
     SectionDiff as RevisionSectionDiff,
@@ -92,6 +93,7 @@ __all__ = [
     "SectionCompareRequest",
     "SectionCompareResponse",
     "SectionComparisonDiff",
+    "SectionDiff",
     "ParagraphDiff",
     "FactExtractionRequest",
     "FactExtractionResponse",

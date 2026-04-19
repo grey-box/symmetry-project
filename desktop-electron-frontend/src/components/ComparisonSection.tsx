@@ -270,8 +270,14 @@ const ComparisonSection = () => {
 
     try {
       const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage, similarityThreshold, selectedModel)
-      // The response data has a 'comparisons' array, we need the first comparison
-      const comparison = response.data.comparisons[0]
+      const comparisons = response.data?.comparisons
+
+      if (!Array.isArray(comparisons) || comparisons.length === 0) {
+        const apiMessage = response.data?.error_message || 'Comparison endpoint returned an invalid response.'
+        throw new Error(apiMessage)
+      }
+
+      const comparison = comparisons[0]
       setComparisonResult(comparison)
       setSourceText(data.sourceText)
       setTargetText(data.targetText)
@@ -292,10 +298,12 @@ const ComparisonSection = () => {
         errorMessage = `Validation Error: ${axiosError.response.data?.detail || 'The request contains invalid data.'}`
       } else if (axiosError?.response?.status >= 500) {
         errorMessage = `Server error (${axiosError.response.status}): ${axiosError.response.data?.detail || 'The backend encountered an error. Check backend logs for details.'}`
-      } else if (!axiosError?.response) {
+      } else if (axiosError?.isAxiosError || axiosError?.config) {
         errorMessage = `Unable to connect to the backend server. Please ensure the backend is running at the configured URL. (${axiosError.message})`
+      } else if (axiosError?.message) {
+        errorMessage = `Unexpected comparison response: ${axiosError.message}`
       } else {
-        errorMessage = `Comparison failed: ${axiosError.message}`
+        errorMessage = `Comparison failed: ${String(axiosError)}`
       }
 
       alert(errorMessage)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Phase } from '@/models/Phase'
 import { Separator } from '@/components/ui/separator'
 import StructuredArticleViewer from '@/components/StructuredArticleViewer'
@@ -7,6 +7,20 @@ import ComparisonSection from '@/components/ComparisonSection'
 
 const Home = () => {
   const [activeTab, setActiveTab] = useState(Phase.STRUCTURED_ARTICLE)
+
+  useEffect(() => {
+    const handleSetActiveTab = (event: Event) => {
+      const customEvent = event as CustomEvent<Phase>
+      if (customEvent.detail) {
+        setActiveTab(customEvent.detail)
+      }
+    }
+
+    window.addEventListener('set-active-tab', handleSetActiveTab as EventListener)
+    return () => {
+      window.removeEventListener('set-active-tab', handleSetActiveTab as EventListener)
+    }
+  }, [])
 
   const tabs = [
     { phase: Phase.STRUCTURED_ARTICLE, label: 'Structured Article' },

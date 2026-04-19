@@ -333,7 +333,15 @@ def translate_text_endpoint(
     text: str = Query(..., description="Text to translate"),
 ):
     server = ServerModel()
-    return {"response": server.text_translate(text, target_language)}
+
+    try:
+        translated_text = server.text_translate(text, source_language, target_language)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {exc}")
+
+    return {"translatedArticle": translated_text}
 
 
 @router.post(

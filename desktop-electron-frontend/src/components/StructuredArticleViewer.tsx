@@ -8,6 +8,19 @@ import {
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
 import { FactExtractionModel, FactExtractionResponse } from '../models/FactExtraction';
+import { translateArticleChunked } from '@/services/translateArticle';
+
+const TRANSLATION_LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'fr', label: 'French' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'de', label: 'German' },
+  { code: 'it', label: 'Italian' },
+  { code: 'pt', label: 'Portuguese' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'zh', label: 'Chinese' },
+  { code: 'ja', label: 'Japanese' },
+];
 
 
 interface StructuredArticleViewerProps {
@@ -29,6 +42,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState(initialLang);
   const [translating, setTranslating] = useState(false);
+  const [translatedArticle, setTranslatedArticle] = useState<string>('');
 
   // Fact extraction states
   const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
@@ -193,6 +207,33 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
+  // Translate the structured article into a different language
+  const handleTranslate = async () => {
+    if (!article || translating || targetLang === article.lang) {
+      return;
+    }
+
+    setTranslating(true);
+    setError(null);
+
+    try {
+      const sourceText = article.sections.map((section) => section.clean_content).join('\n\n');
+      const response = await translateArticleChunked(sourceText, article.lang, targetLang);
+      const translated = response.data?.translatedArticle || '';
+
+      if (!translated.trim()) {
+        throw new Error('Translated content is empty.');
+      }
+
+      setTranslatedArticle(translated);
+    } catch (err) {
+      console.error('Error translating structured article:', err);
+      setError(err instanceof Error ? err.message : 'Translation failed');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
   // Helper to highlight hovered/clicked chunk in content
   const highlightChunk = (content: string, chunk: string | null, isClickHighlight = false): React.ReactNode => {
@@ -307,7 +348,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
               </select>
 
               <button
-                onClick={translateArticle}
+                onClick={handleTranslate}
                 disabled={translating || targetLang === article.lang}
                 className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -318,6 +359,24 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                 {article.lang} → {targetLang}
               </span>
             </div>
+
+            {translatedArticle && (
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-blue-800">Translated Article Preview</span>
+                  <button
+                    type="button"
+                    onClick={() => setTranslatedArticle('')}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="max-h-64 overflow-y-auto text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
+                  {translatedArticle}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
