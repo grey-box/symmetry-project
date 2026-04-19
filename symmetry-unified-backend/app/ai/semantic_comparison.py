@@ -475,8 +475,8 @@ def perform_semantic_comparison(request_data):
                 "missing_info": missing_info,
                 "extra_info": extra_info,
                 "success": final_success,
-                "score": round((sum([b["score"] for b in best_ab]) / len(best_ab) if best_ab else 0.0 +
-                                sum([b["score"] for b in best_ba]) / len(best_ba) if best_ba else 0.0) / 2, 4),
+                "score": round(((sum([b["score"] for b in best_ab]) / len(best_ab) if best_ab else 0.0) +
+                                (sum([b["score"] for b in best_ba]) / len(best_ba) if best_ba else 0.0)) / 2, 4),
                 "details": {
                     "top_matches": top_matches,
                     "best_matches_ab": best_ab,
