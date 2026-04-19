@@ -27,6 +27,8 @@ class ComparisonResult(BaseModel):
     right_article_array: List[str]
     left_article_missing_info_index: List[int]
     right_article_extra_info_index: List[int]
+    # Optional free-form details (e.g. per-sentence scores, top match list)
+    details: Optional[dict] = None
 
 
 class CompareResponse(BaseModel):

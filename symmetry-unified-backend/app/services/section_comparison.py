@@ -11,8 +11,11 @@ which are missing, and which are added.
 """
 
 import logging
+import os
 import re
-from typing import List, Optional, Tuple
+import sys
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
@@ -31,6 +34,36 @@ logger = logging.getLogger(__name__)
 
 # Reusable model cache (shared with semantic_comparison.py pattern)
 _model_cache: dict = {}
+
+# When the prototype is selected, section *structure* matching still uses a
+# multilingual transformer (LaBSE) because the prototype's NLP tools are
+# English-only.  Paragraph *content* scoring then uses the prototype after
+# translating both sides to English.
+_PROTOTYPE_SECTION_MODEL = "sentence-transformers/LaBSE"
+
+try:
+    _sp_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "similarity_prototype")
+    )
+    if os.path.isdir(_sp_path) and _sp_path not in sys.path:
+        sys.path.insert(0, _sp_path)
+    from app.services.similarity_prototype.article_comparator import (
+        ArticleComparator as _ArticleComparator,
+    )
+except Exception:
+    _ArticleComparator = None  # type: ignore[assignment,misc]
+
+_comparator_instance: Optional[Any] = None
+
+
+def _get_comparator() -> Optional[Any]:
+    """Get or create a cached ArticleComparator instance."""
+    global _comparator_instance
+    if _ArticleComparator is None:
+        return None
+    if _comparator_instance is None:
+        _comparator_instance = _ArticleComparator()
+    return _comparator_instance
 
 
 def _get_model(model_name: str) -> SentenceTransformer:
@@ -268,6 +301,153 @@ def _compare_paragraphs(
     return diffs
 
 
+def _compare_paragraphs_prototype(
+    source_paragraphs: List[str],
+    target_paragraphs: List[str],
+    source_lang: str,
+    target_lang: str,
+    comparator: Any,
+    threshold: float = None,
+) -> List[ParagraphDiff]:
+    """
+    Compare paragraphs using the similarity prototype (Phase 1+2+3 pipeline).
+
+    Both sides are translated to English automatically when their language is
+    not English, because the prototype's NLP tools (TF-IDF vocabulary, WordNet,
+    spaCy en_core_web_sm) are English-only.  Original text is preserved in the
+    returned ParagraphDiff objects so the UI displays the source language content.
+
+    Matching follows the same greedy best-match strategy as _compare_paragraphs(),
+    using the prototype's MIN_MATCH_THRESHOLD instead of the LaBSE threshold.
+    """
+    from app.ai.translations import translate
+
+    if not source_paragraphs and not target_paragraphs:
+        return []
+
+    if not source_paragraphs:
+        return [
+            ParagraphDiff(target_text=p, similarity_score=0.0, status="added_in_target")
+            for p in target_paragraphs
+        ]
+    if not target_paragraphs:
+        return [
+            ParagraphDiff(
+                source_text=p, similarity_score=0.0, status="missing_in_target"
+            )
+            for p in source_paragraphs
+        ]
+
+    # Translate to English for prototype's English-only NLP tools.
+    # Run both sides concurrently to avoid serialising two slow MarianMT passes.
+    def _translate_batch(paragraphs: List[str], src: str) -> List[str]:
+        if src == "en":
+            return list(paragraphs)
+        with ThreadPoolExecutor() as executor:
+            return list(executor.map(lambda p: translate(p, src, "en"), paragraphs))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        src_future = pool.submit(_translate_batch, source_paragraphs, source_lang)
+        tgt_future = pool.submit(_translate_batch, target_paragraphs, target_lang)
+        source_en = src_future.result()
+        target_en = tgt_future.result()
+
+    # Clean but keep index mapping to originals for display
+    left_clean = [comparator.clean_sentence(p) for p in source_en]
+    right_clean = [comparator.clean_sentence(p) for p in target_en]
+
+    valid_left = [
+        (i, p) for i, p in enumerate(left_clean) if comparator.is_valid_sentence(p)
+    ]
+    valid_right = [
+        (j, p) for j, p in enumerate(right_clean) if comparator.is_valid_sentence(p)
+    ]
+
+    # If nothing passes validation fall back to all-missing / all-added
+    if not valid_left or not valid_right:
+        diffs: List[ParagraphDiff] = [
+            ParagraphDiff(
+                source_text=source_paragraphs[i],
+                similarity_score=0.0,
+                status="missing_in_target",
+            )
+            for i in range(len(source_paragraphs))
+        ]
+        diffs += [
+            ParagraphDiff(
+                target_text=target_paragraphs[j],
+                similarity_score=0.0,
+                status="added_in_target",
+            )
+            for j in range(len(target_paragraphs))
+        ]
+        return diffs
+
+    left_orig_indices, left_texts = zip(*valid_left)
+    right_orig_indices, right_texts = zip(*valid_right)
+    left_orig_indices = list(left_orig_indices)
+    right_orig_indices = list(right_orig_indices)
+
+    matrix = comparator.build_score_matrix(list(left_texts), list(right_texts))
+    # Use the caller-supplied threshold so the UI control takes effect.
+    # Fall back to the prototype's own minimum if none was provided.
+    threshold = threshold if threshold is not None else comparator.MIN_MATCH_THRESHOLD
+
+    diffs = []
+    used_right: set = set()
+
+    for li, src_orig_idx in enumerate(left_orig_indices):
+        row = matrix[li]
+        candidates = [rj for rj in range(len(right_orig_indices)) if rj not in used_right]
+
+        if not candidates:
+            diffs.append(
+                ParagraphDiff(
+                    source_text=source_paragraphs[src_orig_idx],
+                    similarity_score=0.0,
+                    status="missing_in_target",
+                )
+            )
+            continue
+
+        best_rj = max(candidates, key=lambda rj: row[rj])
+        best_score = float(row[best_rj])
+        tgt_orig_idx = right_orig_indices[best_rj]
+
+        if best_score >= threshold:
+            used_right.add(best_rj)
+            diffs.append(
+                ParagraphDiff(
+                    source_text=source_paragraphs[src_orig_idx],
+                    target_text=target_paragraphs[tgt_orig_idx],
+                    similarity_score=round(best_score, 4),
+                    status="matched",
+                )
+            )
+        else:
+            diffs.append(
+                ParagraphDiff(
+                    source_text=source_paragraphs[src_orig_idx],
+                    similarity_score=round(best_score, 4),
+                    status="missing_in_target",
+                )
+            )
+
+    # Unmatched target paragraphs
+    for rj in range(len(right_orig_indices)):
+        if rj not in used_right:
+            tgt_orig_idx = right_orig_indices[rj]
+            diffs.append(
+                ParagraphDiff(
+                    target_text=target_paragraphs[tgt_orig_idx],
+                    similarity_score=0.0,
+                    status="added_in_target",
+                )
+            )
+
+    return diffs
+
+
 def compare_article_sections(
     source_article: Article,
     target_article: Article,
@@ -281,15 +461,25 @@ def compare_article_sections(
         source_article: Parsed source language article.
         target_article: Parsed target language article.
         similarity_threshold: Cosine similarity threshold for matching.
-        model_name: Sentence-transformer model name.
+        model_name: Sentence-transformer model name.  Pass "similarity_prototype"
+            to use the Phase 1/2/3 prototype for paragraph scoring; section
+            structure matching will still use LaBSE (multilingual).
 
     Returns:
         SectionCompareResponse with full structured diff.
     """
+    use_prototype = model_name == "similarity_prototype"
+    comparator = _get_comparator() if use_prototype else None
+
+    # Section structure matching always uses a multilingual transformer.
+    # The prototype's NLP tools are English-only, so we fall back to LaBSE
+    # for the title/content embedding step regardless of the chosen model.
+    section_model_name = _PROTOTYPE_SECTION_MODEL if use_prototype else model_name
+
     try:
-        model = _get_model(model_name)
+        model = _get_model(section_model_name)
     except Exception as e:
-        logger.error("Failed to load model %s: %s", model_name, e)
+        logger.error("Failed to load model %s: %s", section_model_name, e)
         return SectionCompareResponse(
             source_title=source_article.title,
             target_title=target_article.title,
@@ -325,12 +515,22 @@ def compare_article_sections(
         source_paragraphs = _split_into_paragraphs(source_section)
         target_paragraphs = _split_into_paragraphs(target_section)
 
-        paragraph_diffs = _compare_paragraphs(
-            source_paragraphs,
-            target_paragraphs,
-            model,
-            similarity_threshold,
-        )
+        if use_prototype and comparator is not None:
+            paragraph_diffs = _compare_paragraphs_prototype(
+                source_paragraphs,
+                target_paragraphs,
+                source_article.lang,
+                target_article.lang,
+                comparator,
+                threshold=similarity_threshold,
+            )
+        else:
+            paragraph_diffs = _compare_paragraphs(
+                source_paragraphs,
+                target_paragraphs,
+                model,
+                similarity_threshold,
+            )
 
         section_diffs.append(
             SectionDiff(

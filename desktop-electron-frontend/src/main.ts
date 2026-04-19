@@ -11,39 +11,28 @@ declare const MAIN_WINDOW_VITE_NAME: string;
 
 import { appConstantsPromise } from './constants/AppConstants'
 let AppConstants: any;
-const BACKEND_HEALTH_URL = 'http://127.0.0.1:8000/health';
 
 // A function to load our configuration file. Must be done from this main process
 // since renderer processes have no file access.
 async function grabConfig() {
-    let AppConstants: any;
-   try {
-        AppConstants = await appConstantsPromise;
-    } catch (error) {
-        console.error("Failed to load configuration file: ", error);
-        throw new Error(`Failed to load configuration file: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    return AppConstants;
+  let AppConstants: any;
+  try {
+    AppConstants = await appConstantsPromise;
+  } catch (error) {
+    console.error("Failed to load configuration file: ", error);
+    throw new Error(`Failed to load configuration file: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  return AppConstants;
+}
+
+function getBackendHealthUrl() {
+  const backendBaseUrl = AppConstants?.BACKEND_BASE_URL || 'http://127.0.0.1:8000';
+  return `${backendBaseUrl.replace(/\/$/, '')}/health`;
 }
 
 // IPC handler to check backend health (does not start backend, just checks if it's running)
 ipcMain.handle('check-backend-health', async () => {
-  const backendUrl = 'http://127.0.0.1:8000/health';
-  
-  return new Promise((resolve) => {
-    exec(`curl -s -o /dev/null -w "%{http_code}" ${backendUrl}`, (error: any, stdout: any) => {
-      if (error) {
-        console.log(`[WARN] Backend health check failed: ${error.message}`);
-        resolve({ status: 'unhealthy', error: error.message });
-      } else if (stdout === '200') {
-        console.log(`[INFO] Backend is healthy (HTTP 200)`);
-        resolve({ status: 'healthy', url: backendUrl });
-      } else {
-        console.log(`[WARN] Backend responded with HTTP ${stdout}`);
-        resolve({ status: 'unhealthy', httpCode: stdout });
-      }
-    });
-  });
+  return checkBackendHealth(getBackendHealthUrl());
 });
 
 // Defining an IPC handle so renderer processes can access config.
@@ -68,7 +57,7 @@ const createWindow = async () => {
       preload: path.join(__dirname, "preload.js"),
     },
   });
-  
+
   // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -77,23 +66,19 @@ const createWindow = async () => {
       path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
     );
   }
-  
-  // Check backend health on startup
+
+  // Load application config and check backend health on startup
   try {
     AppConstants = await grabConfig();
-  } catch(e) {
+  } catch (e) {
     console.error(`Error loading config: ${e}`);
   }
-  
-  // Perform a health check on backend
-  exec('curl -s http://127.0.0.1:8000/health', (error: any, stdout: any, stderr: any) => {
-    if (error) {
-      console.log(`[WARN] Backend health check failed: Backend may not be running`);
-      console.log(`[INFO] Please start backend using: ./start.sh backend`);
-    } else {
-      console.log(`[INFO] Backend is healthy: ${stdout.trim()}`);
-    }
-  });
+
+  const health = await checkBackendHealth(getBackendHealthUrl());
+  if (health.status !== 'healthy') {
+    console.log(`[WARN] Backend health check failed: Backend may not be running`);
+    console.log(`[INFO] Please start backend using: ./start.sh backend`);
+  }
 
   // Open the DevTools.
   if (isDev) {

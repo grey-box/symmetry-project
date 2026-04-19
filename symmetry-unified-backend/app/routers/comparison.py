@@ -59,7 +59,7 @@ def compare_articles(payload: CompareRequest):
 
     result = perform_semantic_comparison(request_data)
 
-    if not result or "comparisons" not in result:
+    if not result or "comparisons" not in result or not result["comparisons"]:
         return CompareResponse(
             missing_info=[],
             extra_info=[],
@@ -68,10 +68,36 @@ def compare_articles(payload: CompareRequest):
             similarity_threshold=payload.similarity_threshold,
         )
 
-    # Return the raw comparisons payload when available so legacy clients/tests
-    # that expect a "comparisons" key receive it. The response_model includes
-    # the comparisons field to allow this passthrough.
-    return {"comparisons": result["comparisons"]}
+    # Map the index lists returned by the comparison engine to actual
+    # sentence strings for the top-level response so clients can consume
+    # a friendly list of missing/extra sentences directly.
+    comp = result["comparisons"][0]
+    left_array = comp.get("left_article_array", [])
+    right_array = comp.get("right_article_array", [])
+
+    left_missing_idx = comp.get("left_article_missing_info_index", [])
+    right_extra_idx = comp.get("right_article_extra_info_index", [])
+
+    missing_info = [
+        SentenceDiff(sentence=left_array[i], index=i)
+        for i in left_missing_idx
+        if 0 <= i < len(left_array)
+    ]
+
+    extra_info = [
+        SentenceDiff(sentence=right_array[i], index=i)
+        for i in right_extra_idx
+        if 0 <= i < len(right_array)
+    ]
+
+    return CompareResponse(
+        missing_info=missing_info,
+        extra_info=extra_info,
+        error_message=None,
+        model_name=payload.model_name,
+        similarity_threshold=payload.similarity_threshold,
+        comparisons=result.get("comparisons"),
+    )
 
 
 @router.get(
