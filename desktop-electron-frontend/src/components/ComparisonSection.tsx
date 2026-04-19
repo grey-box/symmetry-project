@@ -148,10 +148,10 @@ const ComparisonSection = () => {
     setCompareProgress(0)
 
     const stages: { to: number; ms: number; label: string }[] = [
-      { to: 12, ms: 1500,   label: 'Preparing texts...' },
-      { to: 40, ms: 5000,   label: 'Computing embeddings...' },
-      { to: 83, ms: 30000,  label: 'Comparing sentences...' },
-      { to: 91, ms: 6000,   label: 'Finalizing results...' },
+      { to: 12, ms: 1500, label: 'Preparing texts...' },
+      { to: 40, ms: 5000, label: 'Computing embeddings...' },
+      { to: 83, ms: 30000, label: 'Comparing sentences...' },
+      { to: 91, ms: 6000, label: 'Finalizing results...' },
       // Slow creep to 99% so the bar never freezes while waiting for the response.
       // This stage has a very long budget — the bar snaps to 100% whenever the
       // response actually arrives, regardless of how far along this stage is.
@@ -184,6 +184,7 @@ const ComparisonSection = () => {
     rafRef.current = requestAnimationFrame(tick)
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
     }
   }, [isLoading])
 
@@ -486,9 +487,8 @@ const ComparisonSection = () => {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                 <div
-                  className={`h-2 rounded-full transition-all duration-300 ease-out ${
-                    compareProgress === 100 ? 'bg-green-500' : 'bg-blue-500'
-                  }`}
+                  className={`h-2 rounded-full transition-all duration-300 ease-out ${compareProgress === 100 ? 'bg-green-500' : 'bg-blue-500'
+                    }`}
                   style={{ width: `${compareProgress}%` }}
                 />
               </div>
@@ -541,13 +541,12 @@ const ComparisonSection = () => {
                 return (
                   <div
                     key={idx}
-                    className={`grid grid-cols-2 gap-4 p-3 rounded-md border ${
-                      isSourceMissing
+                    className={`grid grid-cols-2 gap-4 p-3 rounded-md border ${isSourceMissing
                         ? 'border-red-200 bg-red-50/30'
                         : isTargetExtra
-                        ? 'border-green-200 bg-green-50/30'
-                        : 'border-gray-200 bg-gray-50/30'
-                    }`}
+                          ? 'border-green-200 bg-green-50/30'
+                          : 'border-gray-200 bg-gray-50/30'
+                      }`}
                   >
                     {/* Source sentence */}
                     <div className="text-sm leading-relaxed text-gray-700">

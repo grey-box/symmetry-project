@@ -4,6 +4,7 @@ import re
 import math
 import multiprocessing
 import numpy as np
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from typing import List, Dict, Optional
@@ -13,10 +14,23 @@ from wikipedia_parser import parse_url_to_paragraph_sentences
 
 
 # Pronouns to skip when comparing subject roles (mirrors role_comparator.py)
-_GENERIC_PRONOUNS = frozenset({
-    "it", "they", "he", "she", "we", "i", "you",
-    "this", "that", "these", "those", "one", "there",
-})
+_GENERIC_PRONOUNS = frozenset(
+    {
+        "it",
+        "they",
+        "he",
+        "she",
+        "we",
+        "i",
+        "you",
+        "this",
+        "that",
+        "these",
+        "those",
+        "one",
+        "there",
+    }
+)
 
 # ─── Module-level helpers used by multiprocessing workers ────────────────────
 # These must be at module level (not inside a class or function) so that
@@ -33,30 +47,33 @@ _persistent_pool: Optional[multiprocessing.Pool] = None
 
 
 def _init_worker_persistent(
-    weights:              dict,
-    role_weights:         dict,
+    weights: dict,
+    role_weights: dict,
     antonym_verb_penalty: float,
-    known_antonym_pairs:  set,
+    known_antonym_pairs: set,
 ) -> None:
     """Runs once per worker when the pool is first created.
     Loads the SynonymMatcher (WordNet + NLTK) and stores constant scoring
     parameters.  Per-section data (vectors, roles, tokens) is passed as
     task arguments instead so it does not need to be re-sent on every call."""
     from Phase_2.synonym_matcher import SynonymMatcher
-    _worker_state.update({
-        "weights":               weights,
-        "role_weights":          role_weights,
-        "antonym_verb_penalty":  antonym_verb_penalty,
-        "known_antonym_pairs":   known_antonym_pairs,
-        "matcher":               SynonymMatcher(),
-    })
+
+    _worker_state.update(
+        {
+            "weights": weights,
+            "role_weights": role_weights,
+            "antonym_verb_penalty": antonym_verb_penalty,
+            "known_antonym_pairs": known_antonym_pairs,
+            "matcher": SynonymMatcher(),
+        }
+    )
 
 
 def _get_persistent_pool(
-    weights:              dict,
-    role_weights:         dict,
+    weights: dict,
+    role_weights: dict,
     antonym_verb_penalty: float,
-    known_antonym_pairs:  set,
+    known_antonym_pairs: set,
 ) -> multiprocessing.Pool:
     """Return the module-level worker pool, creating it on the first call."""
     global _persistent_pool
@@ -73,14 +90,15 @@ def _get_persistent_pool(
 
 def _cosine(vec_a: list, vec_b: list) -> float:
     """Cosine similarity between two vectors (inline to avoid object overhead)."""
-    dot   = sum(a * b for a, b in zip(vec_a, vec_b))
+    dot = sum(a * b for a, b in zip(vec_a, vec_b))
     mag_a = math.sqrt(sum(a * a for a in vec_a))
     mag_b = math.sqrt(sum(b * b for b in vec_b))
     return dot / (mag_a * mag_b) if mag_a and mag_b else 0.0
 
 
-def _compare_roles_worker(matcher, roles_a, roles_b, role_weights,
-                          antonym_verb_penalty, known_antonym_pairs) -> float:
+def _compare_roles_worker(
+    matcher, roles_a, roles_b, role_weights, antonym_verb_penalty, known_antonym_pairs
+) -> float:
     """Standalone role comparison for use inside workers.
     Mirrors RoleComparator.compare_roles without needing the full object."""
     weighted_sum = 0.0
@@ -120,7 +138,7 @@ def _compare_roles_worker(matcher, roles_a, roles_b, role_weights,
                 if not matcher.share_synset(val_a, val_b) and score < 0.75:
                     score = 0.0
 
-        w             = role_weights[role]
+        w = role_weights[role]
         weighted_sum += score * w
         total_weight += w
 
@@ -131,9 +149,17 @@ def _compare_roles_worker(matcher, roles_a, roles_b, role_weights,
             mod_score = 0.3
         else:
             mod_score = round(
-                sum(max((matcher.wu_palmer_similarity(m_a, m_b) for m_b in mods_b), default=0.0)
-                    for m_a in mods_a) / len(mods_a), 4)
-        w             = role_weights["modifiers"]
+                sum(
+                    max(
+                        (matcher.wu_palmer_similarity(m_a, m_b) for m_b in mods_b),
+                        default=0.0,
+                    )
+                    for m_a in mods_a
+                )
+                / len(mods_a),
+                4,
+            )
+        w = role_weights["modifiers"]
         weighted_sum += mod_score * w
         total_weight += w
 
@@ -141,16 +167,16 @@ def _compare_roles_worker(matcher, roles_a, roles_b, role_weights,
 
 
 def _score_row(
-    sent_a:           str,
-    sentences_b:      list,
+    sent_a: str,
+    sentences_b: list,
     candidate_indices,
-    all_vectors:      dict,
-    all_roles:        dict,
-    all_tokens:       dict,
+    p1_row: list,
+    all_roles: dict,
+    all_tokens: dict,
 ) -> list:
     """Compute one row of the score matrix.  Runs in a worker process.
 
-    Per-section data (all_vectors, all_roles, all_tokens) is passed as
+    Per-section data (p1_row, all_roles, all_tokens) is passed as
     arguments rather than read from _worker_state so the persistent pool
     does not need to be restarted between sections.
 
@@ -159,18 +185,17 @@ def _score_row(
     expensive WordNet / role-comparison work is skipped for clearly unrelated
     pairs.  Pass None to score every column with the full pipeline.
     """
-    st      = _worker_state
+    st = _worker_state
     matcher = st["matcher"]
-    w       = st["weights"]
+    w = st["weights"]
 
-    vec_a    = all_vectors[sent_a]
-    roles_a  = all_roles[sent_a]
+    roles_a = all_roles[sent_a]
     tokens_a = all_tokens[sent_a]
 
     row = []
     for j, sent_b in enumerate(sentences_b):
-        # Phase 1 — cosine on pre-computed TF-IDF vectors (always computed)
-        p1 = _cosine(vec_a, all_vectors[sent_b])
+        # Phase 1 — cosine score is already precomputed for this row.
+        p1 = float(p1_row[j])
 
         if candidate_indices is not None and j not in candidate_indices:
             # Non-candidate: contribute Phase 1 weight only; skip costly lookups
@@ -179,13 +204,23 @@ def _score_row(
 
         # Phase 2 — WordNet synonym matching (candidates only)
         toks_b = all_tokens[sent_b]
-        p2 = round((matcher.best_token_match(tokens_a, toks_b) +
-                    matcher.best_token_match(toks_b, tokens_a)) / 2, 4)
+        p2 = round(
+            (
+                matcher.best_token_match(tokens_a, toks_b)
+                + matcher.best_token_match(toks_b, tokens_a)
+            )
+            / 2,
+            4,
+        )
 
         # Phase 3 — role comparison (candidates only)
         p3 = _compare_roles_worker(
-            matcher, roles_a, all_roles[sent_b],
-            st["role_weights"], st["antonym_verb_penalty"], st["known_antonym_pairs"],
+            matcher,
+            roles_a,
+            all_roles[sent_b],
+            st["role_weights"],
+            st["antonym_verb_penalty"],
+            st["known_antonym_pairs"],
         )
 
         row.append(round(w["phase_1"] * p1 + w["phase_2"] * p2 + w["phase_3"] * p3, 4))
@@ -205,24 +240,100 @@ class ArticleComparator:
         # No longer used as a gate in score_pair()
         self.STOPWORDS = {
             # Articles, pronouns, prepositions, conjunctions
-            "the", "a", "an", "is", "are", "was", "were", "in", "on",
-            "at", "to", "of", "and", "or", "it", "that", "this", "with",
-            "for", "as", "be", "by", "its", "has", "have", "had", "been",
-            "from", "which", "also", "into", "their", "they", "he", "she",
-            "his", "her", "not", "but", "can", "more", "than", "about",
-            "after", "during", "other", "such", "between", "when", "where",
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "in",
+            "on",
+            "at",
+            "to",
+            "of",
+            "and",
+            "or",
+            "it",
+            "that",
+            "this",
+            "with",
+            "for",
+            "as",
+            "be",
+            "by",
+            "its",
+            "has",
+            "have",
+            "had",
+            "been",
+            "from",
+            "which",
+            "also",
+            "into",
+            "their",
+            "they",
+            "he",
+            "she",
+            "his",
+            "her",
+            "not",
+            "but",
+            "can",
+            "more",
+            "than",
+            "about",
+            "after",
+            "during",
+            "other",
+            "such",
+            "between",
+            "when",
+            "where",
             # Vague frequency/quantity words that appear everywhere
-            "known", "used", "first", "one", "two", "three",
-            "many", "most", "some", "all", "any", "each",
+            "known",
+            "used",
+            "first",
+            "one",
+            "two",
+            "three",
+            "many",
+            "most",
+            "some",
+            "all",
+            "any",
+            "each",
             # Modal verbs - not topic specific
-            "may", "might", "could", "would", "should", "will",
+            "may",
+            "might",
+            "could",
+            "would",
+            "should",
+            "will",
             # Connectives and discourse markers
-            "however", "although", "while", "since", "because",
+            "however",
+            "although",
+            "while",
+            "since",
+            "because",
             # Generic frequency adverbs
-            "often", "usually", "generally", "typically", "commonly",
+            "often",
+            "usually",
+            "generally",
+            "typically",
+            "commonly",
             # Generic nouns/adverbs that appear in all articles
-            "well", "just", "time", "way", "part", "form",
-            "number", "type", "example", "world", "life"
+            "well",
+            "just",
+            "time",
+            "way",
+            "part",
+            "form",
+            "number",
+            "type",
+            "example",
+            "world",
+            "life",
         }
 
     # ─────────────────────────────────────────────
@@ -232,13 +343,13 @@ class ArticleComparator:
     # Remove noise from a sentence before processing
     def clean_sentence(self, sentence: str) -> str:
         # Remove URLs
-        sentence = re.sub(r'http\S+', '', sentence)
+        sentence = re.sub(r"http\S+", "", sentence)
         # Remove multiple spaces
-        sentence = re.sub(r'\s+', ' ', sentence)
+        sentence = re.sub(r"\s+", " ", sentence)
         # Remove geographic coordinates e.g. (12°N 45°E)
-        sentence = re.sub(r'\(\d+°[NS].*?\)', '', sentence)
+        sentence = re.sub(r"\(\d+°[NS].*?\)", "", sentence)
         # Remove citation brackets e.g. [1], [2]
-        sentence = re.sub(r'\[\d+\]', '', sentence)
+        sentence = re.sub(r"\[\d+\]", "", sentence)
         return sentence.strip()
 
     # Check if a sentence is worth including
@@ -252,9 +363,14 @@ class ArticleComparator:
 
         # Common Wikipedia boilerplate to skip
         boilerplate = [
-            "click here", "read more", "see also",
-            "external links", "references", "further reading",
-            "jump to", "retrieved from"
+            "click here",
+            "read more",
+            "see also",
+            "external links",
+            "references",
+            "further reading",
+            "jump to",
+            "retrieved from",
         ]
         lower = sentence.lower()
         if any(bp in lower for bp in boilerplate):
@@ -349,7 +465,7 @@ class ArticleComparator:
 
         # ── Phase 1 pre-computation ──────────────────────────────────────────
         print("  Pre-computing TF-IDF vectors...", end="\r")
-        vectorizer  = Vectorizer()
+        vectorizer = Vectorizer()
         all_vectors = vectorizer.get_vectors(unique_sentences)
         print("  Pre-computing TF-IDF vectors... done")
 
@@ -359,24 +475,26 @@ class ArticleComparator:
         effective_k = min(top_k, len(sentences_b))
         candidate_sets: List = []
 
+        print("  Selecting candidates via Phase-1 pre-filter...", end="\r")
+        vecs_a = np.array([all_vectors[s] for s in sentences_a], dtype=np.float32)
+        vecs_b = np.array([all_vectors[s] for s in sentences_b], dtype=np.float32)
+
+        norms_a = np.linalg.norm(vecs_a, axis=1, keepdims=True)
+        norms_b = np.linalg.norm(vecs_b, axis=1, keepdims=True)
+        norms_a[norms_a == 0] = 1.0
+        norms_b[norms_b == 0] = 1.0
+
+        p1_matrix = (vecs_a / norms_a) @ (vecs_b / norms_b).T  # (N, M)
+
         if effective_k < len(sentences_b):
-            print("  Selecting candidates via Phase-1 pre-filter...", end="\r")
-            vecs_a = np.array([all_vectors[s] for s in sentences_a], dtype=np.float32)
-            vecs_b = np.array([all_vectors[s] for s in sentences_b], dtype=np.float32)
-
-            norms_a = np.linalg.norm(vecs_a, axis=1, keepdims=True)
-            norms_b = np.linalg.norm(vecs_b, axis=1, keepdims=True)
-            norms_a[norms_a == 0] = 1.0
-            norms_b[norms_b == 0] = 1.0
-
-            p1_matrix = (vecs_a / norms_a) @ (vecs_b / norms_b).T  # (N, M)
-
             for i in range(len(sentences_a)):
                 top_indices = np.argpartition(p1_matrix[i], -effective_k)[-effective_k:]
                 candidate_sets.append(frozenset(top_indices.tolist()))
 
             full_pairs = len(sentences_a) * effective_k
-            print(f"  Candidates selected — Phase 2+3 pairs: {full_pairs} (was {total})")
+            print(
+                f"  Candidates selected — Phase 2+3 pairs: {full_pairs} (was {total})"
+            )
         else:
             # Small enough to score everything with the full pipeline
             candidate_sets = [None] * len(sentences_a)
@@ -394,15 +512,15 @@ class ArticleComparator:
 
         # ── Phase 3 pre-computation ──────────────────────────────────────────
         print("  Pre-computing spaCy roles...   ", end="\r")
-        parser    = self.scorer.role_comparator.parser
+        parser = self.scorer.role_comparator.parser
         all_roles = parser.batch_extract_roles(unique_sentences)
         print("  Pre-computing spaCy roles...    done")
 
         # Constants needed by the standalone role-comparison helper in workers
-        rc                   = self.scorer.role_comparator
-        role_weights         = rc.ROLE_WEIGHTS
+        rc = self.scorer.role_comparator
+        role_weights = rc.ROLE_WEIGHTS
         antonym_verb_penalty = rc.ANTONYM_VERB_PENALTY
-        known_antonym_pairs  = rc.KNOWN_ANTONYM_PAIRS
+        known_antonym_pairs = rc.KNOWN_ANTONYM_PAIRS
 
         # ── Parallel vs sequential decision ──────────────────────────────────
         # For very small inputs the IPC overhead of distributing tasks to the
@@ -415,27 +533,47 @@ class ArticleComparator:
         _SEQUENTIAL_THRESHOLD = 60  # pairs below which sequential is faster
 
         if total_scored_pairs <= _SEQUENTIAL_THRESHOLD:
-            print(f"  Building score matrix sequentially ({total_scored_pairs} pairs)...")
+            print(
+                f"  Building score matrix sequentially ({total_scored_pairs} pairs)..."
+            )
             _init_worker_persistent(
-                self.scorer.WEIGHTS, role_weights,
-                antonym_verb_penalty, known_antonym_pairs,
+                self.scorer.WEIGHTS,
+                role_weights,
+                antonym_verb_penalty,
+                known_antonym_pairs,
             )
             matrix = [
-                _score_row(sent_a, sentences_b, candidate_sets[i],
-                           all_vectors, all_roles, all_tokens)
+                _score_row(
+                    sent_a,
+                    sentences_b,
+                    candidate_sets[i],
+                    p1_matrix[i],
+                    all_roles,
+                    all_tokens,
+                )
                 for i, sent_a in enumerate(sentences_a)
             ]
         else:
             pool = _get_persistent_pool(
-                self.scorer.WEIGHTS, role_weights,
-                antonym_verb_penalty, known_antonym_pairs,
+                self.scorer.WEIGHTS,
+                role_weights,
+                antonym_verb_penalty,
+                known_antonym_pairs,
             )
-            print(f"  Building score matrix with {multiprocessing.cpu_count()} workers...")
+            print(
+                f"  Building score matrix with {multiprocessing.cpu_count()} workers..."
+            )
             matrix = pool.starmap(
                 _score_row,
                 [
-                    (sent_a, sentences_b, candidate_sets[i],
-                     all_vectors, all_roles, all_tokens)
+                    (
+                        sent_a,
+                        sentences_b,
+                        candidate_sets[i],
+                        p1_matrix[i],
+                        all_roles,
+                        all_tokens,
+                    )
                     for i, sent_a in enumerate(sentences_a)
                 ],
             )
@@ -451,7 +589,9 @@ class ArticleComparator:
     # direction="AB": for each sentence in A, find best match in B
     # direction="BA": for each sentence in B, find best match in A
     # Scores below MIN_MATCH_THRESHOLD are treated as no match (0.0)
-    def best_match_scores(self, matrix: List[List[float]], direction: str) -> List[float]:
+    def best_match_scores(
+        self, matrix: List[List[float]], direction: str
+    ) -> List[float]:
         scores = []
 
         if direction == "AB":
@@ -486,11 +626,11 @@ class ArticleComparator:
         # Show sample sentences from each article
         print("\nSample sentences from Article A:")
         for i, s in enumerate(sentences_a[:5]):
-            print(f"  A{i+1}: {s[:100]}")
+            print(f"  A{i + 1}: {s[:100]}")
 
         print("\nSample sentences from Article B:")
         for i, s in enumerate(sentences_b[:5]):
-            print(f"  B{i+1}: {s[:100]}")
+            print(f"  B{i + 1}: {s[:100]}")
 
         # Find and rank best matching pairs
         print(f"\nTop {top_n} best matching pairs:")
@@ -498,7 +638,7 @@ class ArticleComparator:
         for sent_a in sentences_a:
             for sent_b in sentences_b:
                 overlap = self.quick_word_overlap(sent_a, sent_b)
-                score   = self.score_pair(sent_a, sent_b)
+                score = self.score_pair(sent_a, sent_b)
                 if score > 0:
                     best_pairs.append((score, overlap, sent_a[:80], sent_b[:80]))
 
@@ -510,21 +650,36 @@ class ArticleComparator:
 
         # Show word overlap distribution for context
         print("\nWord overlap distribution:")
-        zero   = sum(1 for s_a in sentences_a for s_b in sentences_b
-                     if self.quick_word_overlap(s_a, s_b) == 0.0)
-        low    = sum(1 for s_a in sentences_a for s_b in sentences_b
-                     if 0.0 < self.quick_word_overlap(s_a, s_b) < 0.2)
-        medium = sum(1 for s_a in sentences_a for s_b in sentences_b
-                     if 0.2 <= self.quick_word_overlap(s_a, s_b) < 0.5)
-        high   = sum(1 for s_a in sentences_a for s_b in sentences_b
-                     if self.quick_word_overlap(s_a, s_b) >= 0.5)
-        total  = len(sentences_a) * len(sentences_b)
+        zero = sum(
+            1
+            for s_a in sentences_a
+            for s_b in sentences_b
+            if self.quick_word_overlap(s_a, s_b) == 0.0
+        )
+        low = sum(
+            1
+            for s_a in sentences_a
+            for s_b in sentences_b
+            if 0.0 < self.quick_word_overlap(s_a, s_b) < 0.2
+        )
+        medium = sum(
+            1
+            for s_a in sentences_a
+            for s_b in sentences_b
+            if 0.2 <= self.quick_word_overlap(s_a, s_b) < 0.5
+        )
+        high = sum(
+            1
+            for s_a in sentences_a
+            for s_b in sentences_b
+            if self.quick_word_overlap(s_a, s_b) >= 0.5
+        )
+        total = len(sentences_a) * len(sentences_b)
 
-        print(f"  Zero overlap:   {zero}/{total}  ({zero/total*100:.1f}%)")
-        print(f"  Low  (0-0.2):   {low}/{total}   ({low/total*100:.1f}%)")
-        print(f"  Med  (0.2-0.5): {medium}/{total} ({medium/total*100:.1f}%)")
-        print(f"  High (0.5+):    {high}/{total}   ({high/total*100:.1f}%)")
-
+        print(f"  Zero overlap:   {zero}/{total}  ({zero / total * 100:.1f}%)")
+        print(f"  Low  (0-0.2):   {low}/{total}   ({low / total * 100:.1f}%)")
+        print(f"  Med  (0.2-0.5): {medium}/{total} ({medium / total * 100:.1f}%)")
+        print(f"  High (0.5+):    {high}/{total}   ({high / total * 100:.1f}%)")
 
     def diagnose_scores(self, sentences_a: List[str], sentences_b: List[str]):
         print("\n=== SCORE DISTRIBUTION ===")
@@ -536,10 +691,11 @@ class ArticleComparator:
 
         ranges = [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
         total = len(all_scores)
-        for i in range(len(ranges)-1):
-            count = sum(1 for s in all_scores if ranges[i] <= s < ranges[i+1])
+        for i in range(len(ranges) - 1):
+            count = sum(1 for s in all_scores if ranges[i] <= s < ranges[i + 1])
             bar = "█" * int(count / total * 40)
-            print(f"  {ranges[i]:.1f}-{ranges[i+1]:.1f}: {count:4d}/{total} {bar}")
+            print(f"  {ranges[i]:.1f}-{ranges[i + 1]:.1f}: {count:4d}/{total} {bar}")
+
     # ─────────────────────────────────────────────
     # MAIN ARTICLE COMPARISON
     # ─────────────────────────────────────────────
@@ -550,7 +706,9 @@ class ArticleComparator:
     #   2. For each sentence in B, find best match in A → B→A score
     #   3. Average A→B and B→A → final score
     # Symmetric approach handles articles of different lengths fairly
-    def compare(self, sentences_a: List[str], sentences_b: List[str], verbose: bool = True) -> float:
+    def compare(
+        self, sentences_a: List[str], sentences_b: List[str], verbose: bool = True
+    ) -> float:
         if not sentences_a or not sentences_b:
             return 0.0
 
@@ -565,11 +723,11 @@ class ArticleComparator:
 
         # A → B direction: how well does A's content match B?
         ab_scores = self.best_match_scores(matrix, direction="AB")
-        ab_avg    = sum(ab_scores) / len(ab_scores) if ab_scores else 0.0
+        ab_avg = sum(ab_scores) / len(ab_scores) if ab_scores else 0.0
 
         # B → A direction: how well does B's content match A?
         ba_scores = self.best_match_scores(matrix, direction="BA")
-        ba_avg    = sum(ba_scores) / len(ba_scores) if ba_scores else 0.0
+        ba_avg = sum(ba_scores) / len(ba_scores) if ba_scores else 0.0
 
         # Symmetric final score
         final = round((ab_avg + ba_avg) / 2, 4)
@@ -609,16 +767,18 @@ if __name__ == "__main__":
     print("TEST 2: Related articles - Cat vs Dog (expect ~0.30-0.45)")
     print("=" * 70)
     parsed_a = parse_url_to_paragraph_sentences(
-        "https://en.wikipedia.org/wiki/Cat", max_paragraphs=5)
+        "https://en.wikipedia.org/wiki/Cat", max_paragraphs=5
+    )
     parsed_b = parse_url_to_paragraph_sentences(
-        "https://en.wikipedia.org/wiki/Dog", max_paragraphs=5)
+        "https://en.wikipedia.org/wiki/Dog", max_paragraphs=5
+    )
     sentences_a = comparator.get_flat_sentences(parsed_a)
     sentences_b = comparator.get_flat_sentences(parsed_b)
-    
+
     print("\nCat vs Dog score distribution:")
 
     score = comparator.compare(sentences_a, sentences_b)
-    
+
     print(f"\n► Score: {score}")
 
     # Test 3: Unrelated articles — expect ~0.0-0.10
@@ -626,10 +786,11 @@ if __name__ == "__main__":
     print("TEST 3: Unrelated articles - Cat vs Quantum Physics (expect ~0.0-0.10)")
     print("=" * 70)
     parsed_c = parse_url_to_paragraph_sentences(
-        "https://en.wikipedia.org/wiki/Quantum_mechanics", max_paragraphs=5)
+        "https://en.wikipedia.org/wiki/Quantum_mechanics", max_paragraphs=5
+    )
     sentences_c = comparator.get_flat_sentences(parsed_c)
 
     print("\nCat vs Quantum Physics score distribution:")
-    
+
     score = comparator.compare(sentences_a, sentences_c)
     print(f"\n► Score: {score}")
