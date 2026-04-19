@@ -8,23 +8,10 @@ class SimilarityCalculator:
     
     #Step 6: Calculate cosine similarity between two TF-IDF vectors
     def cosine_similarity(self, vec1, vec2):
-        
-        #Dot product
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
-
-        #Magnitude of vec1
-        magnitude_vec1 = math.sqrt(sum(a ** 2 for a in vec1))
-
-        #magnitude of vec2
-        magnitude_vec2 = math.sqrt(sum(b ** 2 for b in vec2))
-
-        #avoid division by zero
-        if magnitude_vec1 == 0 or magnitude_vec2 == 0:
-            return 0.0
-        
-        #Cosine similarity formula
-        cosine_sim = dot_product / (magnitude_vec1 * magnitude_vec2)
-        return cosine_sim
+        import numpy as np
+        v1, v2 = np.array(vec1), np.array(vec2)
+        n1, n2 = np.linalg.norm(v1), np.linalg.norm(v2)
+        return float(np.dot(v1, v2) / (n1 * n2)) if n1 and n2 else 0.0
     
     def compare(self, sentence1, sentence2):
         sentences = [sentence1, sentence2]
