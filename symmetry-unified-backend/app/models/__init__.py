@@ -33,24 +33,13 @@ from app.models.structural_analysis import (
 from app.models.comparison_request import (
     SemanticCompareRequest,
     BaseCompareRequest,
+    ChunkedTranslateRequest,
 )
 from app.models.api_models import (
     ModelSelectionResponse,
     ListResponse,
     FactExtractionRequest,
     FactExtractionResponse,
-)
-from app.models.section_comparison import (
-    SectionCompareRequest,
-    SectionCompareResponse,
-    SectionDiff,
-    ParagraphDiff,
-)
-from app.models.section_comparison import (
-    SectionCompareRequest,
-    SectionCompareResponse,
-    SectionDiff,
-    ParagraphDiff,
 )
 
 __all__ = [
@@ -83,6 +72,7 @@ __all__ = [
     "InfoBoxAttribute",
     "SemanticCompareRequest",
     "BaseCompareRequest",
+    "ChunkedTranslateRequest",
     "ModelSelectionResponse",
     "ListResponse",
     "SectionCompareRequest",

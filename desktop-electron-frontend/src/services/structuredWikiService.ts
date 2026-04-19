@@ -20,7 +20,7 @@ const API_BASE_URL = 'http://127.0.0.1:8000';
  * Service for interacting with structured Wikipedia API endpoints
  */
 class StructuredWikiService {
-  
+
   /**
    * Generic fetch wrapper with error handling
    */
@@ -146,14 +146,14 @@ class StructuredWikiService {
     try {
       const urlPattern = /https?:\/\/([a-z]{2})\.wikipedia\.org\/wiki\/(.+)/;
       const match = url.match(urlPattern);
-      
+
       if (match) {
         return {
           lang: match[1],
           title: decodeURIComponent(match[2].replace(/_/g, ' '))
         };
       }
-      
+
       return null;
     } catch (error) {
       console.error('Error parsing Wikipedia URL:', error);
@@ -191,7 +191,7 @@ class StructuredWikiService {
    */
   getArticleStats(article: StructuredArticleResponse) {
     const totalWords = article.sections.reduce((sum, s) => sum + s.clean_content.split(' ').length, 0);
-    
+
     return {
       title: article.title,
       language: article.lang,
@@ -199,9 +199,9 @@ class StructuredWikiService {
       totalCitations: article.total_citations,
       totalReferences: article.total_references,
       totalWords,
-      averageCitationsPerSection: article.total_sections > 0 ? 
+      averageCitationsPerSection: article.total_sections > 0 ?
         (article.total_citations / article.total_sections).toFixed(1) : '0',
-      referenceDensity: totalWords > 0 ? 
+      referenceDensity: totalWords > 0 ?
         (article.total_references / totalWords * 1000).toFixed(2) : '0'
     };
   }
@@ -215,7 +215,7 @@ class StructuredWikiService {
     }
 
     const term = searchTerm.toLowerCase();
-    return article.sections.filter(section => 
+    return article.sections.filter(section =>
       section.title.toLowerCase().includes(term) ||
       section.clean_content.toLowerCase().includes(term)
     );
@@ -267,13 +267,21 @@ class StructuredWikiService {
       },
       body: JSON.stringify(request),
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
     }
-    
+
     return await response.json();
+  }
+
+  /**
+   * Validate a custom fact extraction model
+   */
+  async validateFactExtractionModel(modelId: string): Promise<{ valid: boolean; model?: FactExtractionModel; error?: string }> {
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/fact-extraction-validate?model_id=${encodeURIComponent(modelId)}`;
+    return this.fetchWithErrorHandling<{ valid: boolean; model?: FactExtractionModel; error?: string }>(url);
   }
 }
 

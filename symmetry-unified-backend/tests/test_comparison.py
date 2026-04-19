@@ -92,7 +92,12 @@ class TestComparisonRouter:
         valid_request = valid_compare_request.copy()
         valid_request["original_language"] = "verylonglanguagecode"
 
-        response = client.post("/symmetry/v1/articles/compare", json=valid_request)
+        mock_response = {"comparisons": []}
+        with patch(
+            "app.routers.comparison.perform_semantic_comparison",
+            return_value=mock_response,
+        ):
+            response = client.post("/symmetry/v1/articles/compare", json=valid_request)
 
         assert response.status_code == 200
 
@@ -126,7 +131,11 @@ class TestComparisonRouter:
         """Test semantic comparison GET with invalid threshold"""
         response = client.get(
             "/symmetry/v1/comparison/semantic",
-            params={"original_article_content": "Test", "translated_article_content": "Test", "similarity_threshold": 2.0},
+            params={
+                "original_article_content": "Test",
+                "translated_article_content": "Test",
+                "similarity_threshold": 2.0,
+            },
         )
 
         assert response.status_code == 422  # FastAPI validates ge/le at framework level
@@ -246,7 +255,9 @@ class TestComparisonRouter:
         """Test wiki translation without required parameters"""
         response = client.get("/symmetry/v1/wiki_translate/source_article")
 
-        assert response.status_code == 422  # FastAPI returns 422 for missing required query params
+        assert (
+            response.status_code == 422
+        )  # FastAPI returns 422 for missing required query params
 
     def test_wiki_translate_article_not_found(self, client):
         """Test wiki translation for non-existent article"""
@@ -262,3 +273,60 @@ class TestComparisonRouter:
             )
 
             assert response.status_code == 404
+
+    def test_chunked_text_translate_success(self, client):
+        """Test chunked translation endpoint returns translatedArticle on success"""
+        with patch(
+            "app.ai.translations.translate",
+            return_value="Hola mundo",
+        ):
+            response = client.post(
+                "/symmetry/v1/wiki_translate/chunked_text",
+                json={
+                    "source_language": "en",
+                    "target_language": "es",
+                    "text": "Hello world",
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "translatedArticle" in data
+            assert data["translatedArticle"] == "Hola mundo"
+
+    def test_chunked_text_translate_value_error_returns_400(self, client):
+        """Test chunked translation endpoint maps ValueError to 400"""
+        with patch(
+            "app.ai.translations.translate",
+            side_effect=ValueError("Unsupported language pair"),
+        ):
+            response = client.post(
+                "/symmetry/v1/wiki_translate/chunked_text",
+                json={
+                    "source_language": "xx",
+                    "target_language": "yy",
+                    "text": "Hello world",
+                },
+            )
+
+            assert response.status_code == 400
+            assert "Unsupported language pair" in response.json()["detail"]
+
+    def test_chunked_text_translate_import_error_returns_500(self, client):
+        """Test chunked translation endpoint maps ImportError to 500 with helpful message"""
+        import sys
+
+        # Setting a module key to None in sys.modules causes ImportError on next import
+        with patch.dict(sys.modules, {"app.ai.translations": None}):
+            response = client.post(
+                "/symmetry/v1/wiki_translate/chunked_text",
+                json={
+                    "source_language": "en",
+                    "target_language": "es",
+                    "text": "Hello world",
+                },
+            )
+
+        assert response.status_code == 500
+        assert "Missing translation dependency" in response.json()["detail"]
+

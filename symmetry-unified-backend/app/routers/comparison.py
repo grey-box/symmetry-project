@@ -8,6 +8,8 @@ from app.models import (
     CompareResponse,
     ArticleComparisonResponse,
     SemanticCompareRequest,
+    ChunkedTranslateRequest,
+    TranslateArticleResponse,
     MissingInfo,
     ExtraInfo,
     SentenceDiff,
@@ -333,6 +335,44 @@ def translate_text_endpoint(
 ):
     server = ServerModel()
     return {"response": server.text_translate(text, target_language)}
+
+
+@router.post(
+    "/wiki_translate/chunked_text",
+    response_model=TranslateArticleResponse,
+    summary="Translate Text (Chunked)",
+    description="Translates long text using the chunked translation pipeline.",
+)
+def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
+    try:
+        from app.ai.translations import translate as chunked_translate
+        logging.info(
+            "Chunked translation request (source='%s', target='%s', chars=%d)",
+            payload.source_language,
+            payload.target_language,
+            len(payload.text or ""),
+        )
+        translated = chunked_translate(
+            payload.text,
+            payload.source_language,
+            payload.target_language,
+        )
+        return {"translatedArticle": translated}
+    except ImportError as e:
+        logging.exception("Chunked translation dependency error: %s", str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Missing translation dependency. Install sentencepiece in the backend venv "
+                "and restart the backend."
+            ),
+        )
+    except ValueError as e:
+        logging.exception("Chunked translation validation error: %s", str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logging.exception("Chunked translation failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 
 
 # ---------------------------------------------------------------------------

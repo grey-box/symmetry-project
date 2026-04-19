@@ -6,6 +6,7 @@ applies threshold bands, and detects loanword borrowing to reduce false positive
 Supports cross-language comparison with language family awareness and script normalization.
 """
 
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import List, Tuple, Optional, Dict
 from enum import Enum
@@ -335,8 +336,10 @@ def normalized_levenshtein_distance(s1: str, s2: str) -> float:
     Returns:
         Normalized similarity score [0, 1]
     """
+    if s1 == s2:
+        return 1.0
     if not s1 or not s2:
-        return 0.0 if s1 != s2 else 1.0
+        return 0.0
 
     # Compute edit distance using dynamic programming
     len1, len2 = len(s1), len(s2)
@@ -551,28 +554,48 @@ def score_article_pair(
         words_original = [w for w in words_original if w in SWADESH_100]
         words_translated = [w for w in words_translated if w in SWADESH_100]
 
-    # Build multiset of word pairs to compare
-    # For simplicity, we'll compare each word in original_text to the best match in translated_text
+    # Deduplicate: compute each unique word's best match once, then scale by
+    # token frequency.  This cuts comparisons from O(N×M) to O(U_orig×U_trans).
+    freq_original: Dict[str, int] = Counter(words_original)
+
+    # Group unique translated words by length.  The upper bound on
+    # normalized Levenshtein similarity between words of lengths l1 and l2 is
+    # min(l1, l2) / max(l1, l2).  Iterating length groups in order of
+    # |l2 - l1| (ascending) means this bound decreases monotonically, so we
+    # can break as soon as it falls below the running best similarity.
+    translated_by_length: Dict[int, List[str]] = defaultdict(list)
+    for w in set(words_translated):
+        translated_by_length[len(w)].append(w)
+    sorted_lengths = sorted(translated_by_length.keys())
+
     match_count = 0.0
     loanword_match_count = 0.0
 
-    for word_orig in words_original:
+    for word_orig, freq in freq_original.items():
+        l1 = len(word_orig)
         best_sim = 0.0
         best_is_loanword = False
 
-        for word_trans in words_translated:
-            sim = normalized_levenshtein_distance(word_orig, word_trans)
-            if sim > best_sim:
-                best_sim = sim
-                best_is_loanword = is_loanword_pair(word_orig, word_trans)
+        for l2 in sorted(sorted_lengths, key=lambda x: abs(x - l1)):
+            # Upper bound on similarity for this length group; monotonically
+            # decreasing as |l2 - l1| grows — safe to break, not just continue.
+            sim_upper = min(l1, l2) / max(l1, l2) if max(l1, l2) > 0 else 1.0
+            if sim_upper <= best_sim:
+                break
 
-        # Count as match if above threshold
+            for word_trans in translated_by_length[l2]:
+                sim = normalized_levenshtein_distance(word_orig, word_trans)
+                if sim > best_sim:
+                    best_sim = sim
+                    best_is_loanword = is_loanword_pair(word_orig, word_trans)
+
+        # Count as match if above threshold; scale contribution by frequency.
         if best_sim >= word_match_threshold:
             weight = 1.0
             if downweight_loanwords and best_is_loanword:
                 weight = 0.5
-                loanword_match_count += 1
-            match_count += weight
+                loanword_match_count += freq
+            match_count += weight * freq
 
     total_words = len(words_original)
     lexical_similarity_percent = (

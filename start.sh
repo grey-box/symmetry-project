@@ -49,21 +49,12 @@ check_backend_requirements() {
     cd "$BACKEND_DIR"
     
     if [ ! -d "venv" ]; then
-        # Prefer python3.13, fall back to python3.12, then python3, then py (Windows)
-        PYTHON_BIN=""
-        for candidate in python3.13 python3.12 python3 py; do
-            if command -v "$candidate" &> /dev/null; then
-                PYTHON_BIN="$candidate"
-                break
-            fi
-        done
-        if [ -z "$PYTHON_BIN" ]; then
-            echo "Error: No Python 3 installation found. Please install Python 3.12 or later."
+        echo "Creating virtual environment with Python 3.11..."
+        if ! command -v python3.11 &> /dev/null; then
+            echo "Error: Python 3.11 is not installed. Please install Python 3.11 first."
             exit 1
         fi
-        PYTHON_VER=$("$PYTHON_BIN" --version 2>&1)
-        echo "Creating virtual environment with $PYTHON_VER..."
-        "$PYTHON_BIN" -m venv venv
+        python3.11 -m venv venv
     fi
     
     source venv/bin/activate

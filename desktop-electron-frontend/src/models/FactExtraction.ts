@@ -8,6 +8,12 @@ export interface FactExtractionModel {
   description: string;
 }
 
+export interface FactExtractionValidationResponse {
+  valid: boolean;
+  model?: FactExtractionModel;
+  error?: string;
+}
+
 export interface FactExtractionRequest {
   section_content: string;
   model_id: string;
@@ -19,4 +25,5 @@ export interface FactExtractionResponse {
   facts: string[];
   model_used: string;
   section_title: string;
+  chunks: string[];
 }
