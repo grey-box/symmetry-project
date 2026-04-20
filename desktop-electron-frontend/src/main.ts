@@ -30,6 +30,23 @@ function getBackendHealthUrl() {
   return `${backendBaseUrl.replace(/\/$/, '')}/health`;
 }
 
+async function checkBackendHealth(url: string) {
+  return new Promise<{ status: string; url?: string; httpCode?: string; error?: string }>((resolve) => {
+    exec(`curl -s -o /dev/null -w "%{http_code}" ${url}`, (error: any, stdout: any) => {
+      if (error) {
+        console.log(`[WARN] Backend health check failed: ${error.message}`);
+        resolve({ status: 'unhealthy', error: error.message });
+      } else if (stdout.trim() === '200') {
+        console.log(`[INFO] Backend is healthy (HTTP 200)`);
+        resolve({ status: 'healthy', url });
+      } else {
+        console.log(`[WARN] Backend responded with HTTP ${stdout.trim()}`);
+        resolve({ status: 'unhealthy', httpCode: stdout.trim() });
+      }
+    });
+  });
+}
+
 // IPC handler to check backend health (does not start backend, just checks if it's running)
 ipcMain.handle('check-backend-health', async () => {
   return checkBackendHealth(getBackendHealthUrl());

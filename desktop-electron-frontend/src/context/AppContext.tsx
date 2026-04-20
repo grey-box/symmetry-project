@@ -26,8 +26,8 @@ type AppContextProviderProps = {
 
 export const AppContextProvider = (props: AppContextProviderProps) => {
   const { children } = props
-  const [translationTool, setTranslationTool] = useState()
-  const [APIKey, setAPIKey] = useState()
+  const [translationTool, setTranslationTool] = useState<TranslationTool>(TranslationTool.GOOGLE)
+  const [APIKey, setAPIKey] = useState<string>('')
 
   return (
     <AppContext.Provider

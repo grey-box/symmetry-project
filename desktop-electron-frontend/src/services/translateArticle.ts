@@ -10,19 +10,39 @@ export async function translateArticle(
 ): Promise<AxiosResponse<TranslateArticleResponse>> {
   try {
     const axiosInstance = await getAxiosInstance();
-    
-    console.log('[DEBUG] translateArticle called with article_name:', article_name, 'target_language:', target_language);
-    
-    return axiosInstance.get<TranslateArticleResponse>('/symmetry/v1/wiki_translate/source_article', {
+
+    return axiosInstance.get<TranslateArticleResponse>('/symmetry/v1/translate_text', {
       params: {
-        title: article_name,
-        language: target_language
+        source_language: sourceLanguage,
+        target_language: targetLanguage,
+        text: sourceText,
       },
-      {
-        timeout: 600000,
-        signal,
-      }
-    );
+      timeout: 600000,
+      signal,
+    });
+  } catch (error) {
+    console.error('Failed to get axios instance:', error);
+    throw error;
+  }
+}
+
+export async function translateArticleChunked(
+  sourceText: string,
+  sourceLanguage: string,
+  targetLanguage: string,
+  signal?: AbortSignal
+): Promise<AxiosResponse<TranslateArticleResponse>> {
+  try {
+    const axiosInstance = await getAxiosInstance();
+
+    return axiosInstance.post<TranslateArticleResponse>('/symmetry/v1/wiki_translate/chunked_text', {
+      source_language: sourceLanguage,
+      target_language: targetLanguage,
+      text: sourceText,
+    }, {
+      timeout: 600000,
+      signal,
+    });
   } catch (error) {
     console.error('Failed to get axios instance:', error);
     throw error;
