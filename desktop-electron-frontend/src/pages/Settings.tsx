@@ -56,7 +56,7 @@ const Settings = () => {
                   (
                     <Fragment>
                       <Button type="button" onClick={handleSubmit(onSubmit)}>Save</Button>
-                      <Button variant="outline" onClick={onCancel}>Cancel</Button>
+                      <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
                     </Fragment>
                   ) : (
                     <Button onClick={onEditMode} type="button">Edit</Button>

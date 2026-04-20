@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 
@@ -334,7 +335,15 @@ def translate_text_endpoint(
     text: str = Query(..., description="Text to translate"),
 ):
     server = ServerModel()
-    return {"response": server.text_translate(text, target_language)}
+
+    try:
+        translated_text = server.text_translate(text, source_language, target_language)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {exc}")
+
+    return {"translatedArticle": translated_text}
 
 
 @router.post(
@@ -346,6 +355,46 @@ def translate_text_endpoint(
 def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
     try:
         from app.ai.translations import translate as chunked_translate
+
+        logging.info(
+            "Chunked translation request (source='%s', target='%s', chars=%d)",
+            payload.source_language,
+            payload.target_language,
+            len(payload.text or ""),
+        )
+        translated = chunked_translate(
+            payload.text,
+            payload.source_language,
+            payload.target_language,
+        )
+        return {"translatedArticle": translated}
+    except ImportError as e:
+        logging.exception("Chunked translation dependency error: %s", str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Missing translation dependency. Install sentencepiece in the backend venv "
+                "and restart the backend."
+            ),
+        )
+    except ValueError as e:
+        logging.exception("Chunked translation validation error: %s", str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logging.exception("Chunked translation failed: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+
+
+@router.post(
+    "/wiki_translate/chunked_text",
+    response_model=TranslateArticleResponse,
+    summary="Translate Text (Chunked)",
+    description="Translates long text using the chunked translation pipeline.",
+)
+def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
+    from app.ai.translations import translate as chunked_translate
+
+    try:
         logging.info(
             "Chunked translation request (source='%s', target='%s', chars=%d)",
             payload.source_language,
@@ -377,6 +426,7 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
 
 # ---------------------------------------------------------------------------
 # Section-level structured comparison
+# ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 
 from app.models.section_comparison import (
@@ -412,7 +462,7 @@ def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
         "when semantic similarity scores are close."
     ),
 )
-def compare_article_sections_endpoint(payload: SectionCompareRequest):
+async def compare_article_sections_endpoint(payload: SectionCompareRequest):
     """Compare two Wikipedia articles at the section and paragraph level."""
 
     try:
@@ -430,7 +480,9 @@ def compare_article_sections_endpoint(payload: SectionCompareRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
-        source_article = article_fetcher(source_title, source_lang)
+        source_article = await asyncio.to_thread(
+            article_fetcher, source_title, source_lang
+        )
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -438,7 +490,9 @@ def compare_article_sections_endpoint(payload: SectionCompareRequest):
         )
 
     try:
-        target_article = article_fetcher(target_title, target_lang)
+        target_article = await asyncio.to_thread(
+            article_fetcher, target_title, target_lang
+        )
     except Exception as e:
         raise HTTPException(
             status_code=404,

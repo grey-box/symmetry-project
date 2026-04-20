@@ -4,7 +4,7 @@ This file which runs when you use command 'npm run start'
 
 import { app, BrowserWindow, ipcMain } from 'electron'
 import * as path from 'path'
-import { get } from 'node:http'
+import { exec } from 'child_process'
 
 declare const MAIN_WINDOW_VITE_DEV_SERVER_URL: string;
 declare const MAIN_WINDOW_VITE_NAME: string;
@@ -30,30 +30,19 @@ function getBackendHealthUrl() {
   return `${backendBaseUrl.replace(/\/$/, '')}/health`;
 }
 
-function checkBackendHealth(backendUrl: string) {
-  return new Promise<{ status: string; url?: string; httpCode?: number; error?: string }>((resolve) => {
-    const req = get(backendUrl, { timeout: 5000 }, (res) => {
-      res.resume();
-
-      if (res.statusCode === 200) {
+async function checkBackendHealth(url: string) {
+  return new Promise<{ status: string; url?: string; httpCode?: string; error?: string }>((resolve) => {
+    exec(`curl -s -o /dev/null -w "%{http_code}" ${url}`, (error: any, stdout: any) => {
+      if (error) {
+        console.log(`[WARN] Backend health check failed: ${error.message}`);
+        resolve({ status: 'unhealthy', error: error.message });
+      } else if (stdout.trim() === '200') {
         console.log(`[INFO] Backend is healthy (HTTP 200)`);
-        resolve({ status: 'healthy', url: backendUrl });
-        return;
+        resolve({ status: 'healthy', url });
+      } else {
+        console.log(`[WARN] Backend responded with HTTP ${stdout.trim()}`);
+        resolve({ status: 'unhealthy', httpCode: stdout.trim() });
       }
-
-      console.log(`[WARN] Backend responded with HTTP ${res.statusCode}`);
-      resolve({ status: 'unhealthy', httpCode: res.statusCode });
-    });
-
-    req.on('error', (error) => {
-      console.log(`[WARN] Backend health check failed: ${error.message}`);
-      resolve({ status: 'unhealthy', error: error.message });
-    });
-
-    req.on('timeout', () => {
-      req.destroy();
-      console.log('[WARN] Backend health check timed out.');
-      resolve({ status: 'unhealthy', error: 'timeout' });
     });
   });
 }

@@ -8,6 +8,7 @@ import { SelectData } from '@/models/SelectData'
 import { fetchArticle } from '@/services/fetchArticle'
 import { translateArticle } from '@/services/translateArticle'
 import { useAppContext } from '@/context/AppContext'
+import { Phase } from '@/models/Phase'
 import { TranslationFormType } from '@/models/TranslationFormType'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form'
@@ -30,6 +31,11 @@ interface ArticleDisplayBlock {
   displayType: 'source' | 'translated' | '';
 }
 
+const parseWikipediaUrlToLang = (url: string): string | null => {
+  const match = url.match(/https?:\/\/([a-z-]{2,})\.wikipedia\.org\/wiki\//)
+  return match?.[1] ?? null
+}
+
 const TranslationSection = () => {
   const [availableTranslationLanguages, setAvailableTranslationLanguages] = useState<SelectData<string>[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -49,31 +55,30 @@ const TranslationSection = () => {
   })
 
   const { translationTool, APIKey } = useAppContext()
-  
+
   const handleCompare = useCallback(() => {
     const sourceContent = form.getValues('sourceArticleContent')
     const translatedContent = form.getValues('translatedArticleContent')
     const sourceUrl = form.getValues('sourceArticleUrl')
     const targetLanguage = form.getValues('targetArticleLanguage')
-    
-    const comparisonButton = document.querySelector('button[onClick*="Phase.AI_COMPARISON"]') as HTMLElement
-    if (comparisonButton) {
-      comparisonButton.click()
-    }
-    
+
     sessionStorage.setItem('comparisonData', JSON.stringify({
       sourceContent,
       translatedContent,
       sourceUrl,
       targetLanguage
     }))
+
+    window.dispatchEvent(
+      new CustomEvent('set-active-tab', { detail: Phase.AI_COMPARISON })
+    )
   }, [form])
 
   const {
     handleSubmit,
     setValue,
   } = form
-  
+
   const checkBackendStatus = useCallback(async () => {
     try {
       const { getAxiosInstance } = await import('@/services/axios');
@@ -88,7 +93,7 @@ const TranslationSection = () => {
   useEffect(() => {
     checkBackendStatus()
     const interval = setInterval(checkBackendStatus, 30000)
-    
+
     return () => clearInterval(interval)
   }, [checkBackendStatus])
 
@@ -146,13 +151,13 @@ const TranslationSection = () => {
           value: lang,
           label: lang,
         })))
-      
+
     } catch (error) {
       console.error('Error fetching article:', error)
       setIsLoading(false)
-      
+
       let errorMessage = 'Failed to fetch article. Please try again.'
-      
+
       if (error instanceof Error) {
         if (error.message.includes('Network Error') || error.message.includes('ECONNREFUSED')) {
           errorMessage = 'Backend server is not running. Please start the backend server first.'
@@ -166,13 +171,13 @@ const TranslationSection = () => {
           errorMessage = `Error: ${error.message}`
         }
       }
-      
+
       alert(errorMessage)
     } finally {
       setIsLoading(false)
     }
   }, [setValue, translationTool, APIKey])
-  
+
   const onLanguageChange = useCallback(async (language: string) => {
     let translationSucceeded = false
 
@@ -187,6 +192,7 @@ const TranslationSection = () => {
 
       const sourceText = form.getValues('sourceArticleContent')
       const sourceUrl = form.getValues('sourceArticleUrl')
+      const sourceLang = parseWikipediaUrlToLang(sourceUrl) || 'en'
 
       if (!sourceText || !sourceText.trim()) {
         throw new Error('Source article content is empty.')
@@ -205,7 +211,7 @@ const TranslationSection = () => {
         },
       ])
 
-      const response = await translateArticle(sourceText, sourceLanguage, language, translationAbortRef.current?.signal)
+      const response = await translateArticle(sourceText, sourceLang, language, translationAbortRef.current?.signal)
       const translatedArticle = typeof response.data?.translatedArticle === 'string'
         ? response.data.translatedArticle
         : ''
@@ -281,24 +287,23 @@ const TranslationSection = () => {
                   Here will be instruction regarding translation.
                 </span>
               </div>
-              
+
               <div className="flex items-center gap-x-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  backendStatus === 'online' ? 'bg-green-500' :
-                  backendStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
-                }`} />
+                <div className={`w-2 h-2 rounded-full ${backendStatus === 'online' ? 'bg-green-500' :
+                    backendStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500'
+                  }`} />
                 <span className="text-xs text-gray-500">
                   {backendStatus === 'online' ? 'Backend Online' :
-                   backendStatus === 'offline' ? 'Backend Offline' : 'Checking...'}
+                    backendStatus === 'offline' ? 'Backend Offline' : 'Checking...'}
                 </span>
               </div>
             </div>
             <div className="flex gap-x-2">
-              <Button 
-                disabled={isLoading} 
-                type="button" 
-                variant="outline" 
-                onClick={() => { 
+              <Button
+                disabled={isLoading}
+                type="button"
+                variant="outline"
+                onClick={() => {
                   translationAbortRef.current?.abort()
                   translationAbortRef.current = null
                   setArticleBlocks([])
@@ -313,6 +318,7 @@ const TranslationSection = () => {
               </Button>
               <Button disabled={isLoading} variant="default" type="submit">Submit</Button>
               <Button
+                type="button"
                 disabled={isLoading || !form.getValues('sourceArticleContent') || !form.getValues('translatedArticleContent')}
                 className="flex gap-x-2"
                 onClick={handleCompare}

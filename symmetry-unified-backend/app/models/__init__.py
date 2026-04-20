@@ -41,6 +41,23 @@ from app.models.api_models import (
     FactExtractionRequest,
     FactExtractionResponse,
 )
+from app.models.section_comparison import (
+    SectionCompareRequest,
+    SectionCompareResponse,
+    SectionDiff as SectionComparisonDiff,
+    ParagraphDiff,
+)
+
+SectionDiff = SectionComparisonDiff
+from app.models.revision import (
+    Revision,
+    SectionDiff as RevisionSectionDiff,
+    Flag,
+    DiffResponse,
+    LagReport,
+    SectionChange,
+    RevisionDiffResponse,
+)
 
 __all__ = [
     "Citation",
@@ -72,13 +89,20 @@ __all__ = [
     "InfoBoxAttribute",
     "SemanticCompareRequest",
     "BaseCompareRequest",
-    "ChunkedTranslateRequest",
     "ModelSelectionResponse",
     "ListResponse",
     "SectionCompareRequest",
     "SectionCompareResponse",
+    "SectionComparisonDiff",
     "SectionDiff",
     "ParagraphDiff",
     "FactExtractionRequest",
     "FactExtractionResponse",
+    "Revision",
+    "RevisionSectionDiff",
+    "Flag",
+    "DiffResponse",
+    "LagReport",
+    "SectionChange",
+    "RevisionDiffResponse",
 ]

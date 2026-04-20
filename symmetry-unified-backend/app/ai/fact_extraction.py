@@ -1,8 +1,6 @@
-import json
 import logging
 import re
 from collections import OrderedDict
-from pathlib import Path
 from typing import List, Dict, Any, Tuple
 import asyncio
 import os
@@ -25,14 +23,26 @@ from transformers import (
 )
 from huggingface_hub import model_info
 
+from app.core.config import load_config
+
 # ---------------------------------------------------------------------
-# Load model config
+# Load model config from backend config.toml
 # ---------------------------------------------------------------------
 
-CONFIG_PATH = Path(__file__).parent / "fact_extraction_models.json"
 
-with open(CONFIG_PATH, "r") as f:
-    MODEL_CONFIG = {entry["id"]: entry for entry in json.load(f)}
+def _load_fact_extraction_config() -> Dict[str, Any]:
+    config = load_config()
+    models = config.get("fact_extraction_models")
+    if not isinstance(models, list):
+        return {}
+    return {
+        entry["id"]: entry
+        for entry in models
+        if isinstance(entry, dict) and "id" in entry
+    }
+
+
+MODEL_CONFIG = _load_fact_extraction_config()
 
 # Cache: model_name -> (model, tokenizer)
 MODEL_CACHE_MAX_SIZE = int(os.getenv("FACT_EXTRACTION_MODEL_CACHE_SIZE", "3"))
@@ -169,8 +179,7 @@ def get_model_config(model_id: str) -> Dict[str, Any]:
     the model_id as a HuggingFace model name if it's not in the config.
 
     Args:
-        model_id: Either a predefined model ID from fact_extraction_models.json
-                  or a HuggingFace model name (e.g., "google/flan-t5-large")
+        model_id: Either a predefined model ID from the backend config or a HuggingFace model name (e.g., "google/flan-t5-large")
 
     Returns:
         Model configuration dictionary

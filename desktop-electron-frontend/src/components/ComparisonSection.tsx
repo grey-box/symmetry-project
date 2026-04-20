@@ -82,7 +82,7 @@ const ComparisonSection = () => {
   const [isTargetTextReadOnly, setIsTargetTextReadOnly] = useState(false)
   const [isTargetLanguageReadOnly, setIsTargetLanguageReadOnly] = useState(false)
   const [similarityThreshold, setSimilarityThreshold] = useState(0.65)
-  const [selectedModel, setSelectedModel] = useState(DEFAULT_COMPARISON_MODELS[0].value)
+  const [selectedModel, setSelectedModel] = useState(DEFAULT_COMPARISON_MODELS[0]?.value ?? '')
   const [comparisonModels, setComparisonModels] = useState<ComparisonModelOption[]>(DEFAULT_COMPARISON_MODELS)
   const [articlePresets, setArticlePresets] = useState<ArticlePreset[]>(DEFAULT_PRESELECTED_ARTICLES)
   const [thresholdPresets, setThresholdPresets] = useState<ThresholdPreset[]>(DEFAULT_THRESHOLD_PRESETS)
@@ -232,11 +232,12 @@ const ComparisonSection = () => {
     let stageIdx = 0
     let from = 0
     let stageStart = Date.now()
-    setCompareStage(stages[0].label)
+    setCompareStage(stages[0]?.label ?? '')
 
     const tick = () => {
       if (!animatingRef.current) return
       const stage = stages[stageIdx]
+      if (!stage) return
       const elapsed = Date.now() - stageStart
       const t = Math.min(elapsed / stage.ms, 1)
       const eased = 1 - Math.pow(1 - t, 3)
@@ -246,7 +247,7 @@ const ComparisonSection = () => {
         from = stage.to
         stageIdx++
         stageStart = Date.now()
-        setCompareStage(stages[stageIdx].label)
+        setCompareStage(stages[stageIdx]?.label ?? '')
       }
 
       rafRef.current = requestAnimationFrame(tick)
@@ -270,8 +271,14 @@ const ComparisonSection = () => {
 
     try {
       const response = await compareArticles(data.sourceText, data.targetText, sourceLanguage, targetLanguage, similarityThreshold, selectedModel)
-      // The response data has a 'comparisons' array, we need the first comparison
-      const comparison = response.data.comparisons[0]
+      const comparisons = response.data?.comparisons ?? []
+
+      if (comparisons.length === 0) {
+        const apiMessage = response.data?.error_message || 'Comparison endpoint returned an invalid response.'
+        throw new Error(apiMessage)
+      }
+
+      const comparison = comparisons[0]!
       setComparisonResult(comparison)
       setSourceText(data.sourceText)
       setTargetText(data.targetText)
@@ -292,10 +299,12 @@ const ComparisonSection = () => {
         errorMessage = `Validation Error: ${axiosError.response.data?.detail || 'The request contains invalid data.'}`
       } else if (axiosError?.response?.status >= 500) {
         errorMessage = `Server error (${axiosError.response.status}): ${axiosError.response.data?.detail || 'The backend encountered an error. Check backend logs for details.'}`
-      } else if (!axiosError?.response) {
+      } else if (axiosError?.isAxiosError || axiosError?.config) {
         errorMessage = `Unable to connect to the backend server. Please ensure the backend is running at the configured URL. (${axiosError.message})`
+      } else if (axiosError?.message) {
+        errorMessage = `Unexpected comparison response: ${axiosError.message}`
       } else {
-        errorMessage = `Comparison failed: ${axiosError.message}`
+        errorMessage = `Comparison failed: ${String(axiosError)}`
       }
 
       alert(errorMessage)
@@ -320,7 +329,7 @@ const ComparisonSection = () => {
 
       // Extract language from Wikipedia URL
       const langMatch = url.match(/https?:\/\/([a-z]{2})\.wikipedia\.org/)
-      const language = langMatch ? langMatch[1] : 'en'
+      const language = langMatch?.[1] ?? 'en'
       setLang(language)
 
       setText(text)

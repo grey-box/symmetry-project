@@ -11,18 +11,38 @@ export async function translateArticle(
   try {
     const axiosInstance = await getAxiosInstance();
 
-    return axiosInstance.post<TranslateArticleResponse>(
-      '/symmetry/v1/wiki_translate/chunked_text',
-      {
+    return axiosInstance.get<TranslateArticleResponse>('/symmetry/v1/translate_text', {
+      params: {
         source_language: sourceLanguage,
         target_language: targetLanguage,
         text: sourceText,
       },
-      {
-        timeout: 600000,
-        signal,
-      }
-    );
+      timeout: 600000,
+      signal,
+    });
+  } catch (error) {
+    console.error('Failed to get axios instance:', error);
+    throw error;
+  }
+}
+
+export async function translateArticleChunked(
+  sourceText: string,
+  sourceLanguage: string,
+  targetLanguage: string,
+  signal?: AbortSignal
+): Promise<AxiosResponse<TranslateArticleResponse>> {
+  try {
+    const axiosInstance = await getAxiosInstance();
+
+    return axiosInstance.post<TranslateArticleResponse>('/symmetry/v1/wiki_translate/chunked_text', {
+      source_language: sourceLanguage,
+      target_language: targetLanguage,
+      text: sourceText,
+    }, {
+      timeout: 600000,
+      signal,
+    });
   } catch (error) {
     console.error('Failed to get axios instance:', error);
     throw error;

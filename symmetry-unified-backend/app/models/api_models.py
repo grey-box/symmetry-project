@@ -26,5 +26,3 @@ class FactExtractionResponse(BaseModel):
     model_used: str
     section_title: str = ""
     chunks: List[str] = []
-
-
