@@ -7,24 +7,23 @@ import httpx
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, Query, HTTPException
 
-from app.ai.translations import translate
-from app.ai.fact_extraction import (
+from app.models.extraction.engine import (
     extract_facts,
     get_available_models,
     get_model_config,
     validate_model,
 )
 from app.ai.similarity_scoring import score_article_pair
-from app.models.wiki_structure import Section
 
-from app.models import (
+from app.models.wiki.responses import (
     StructuredArticleResponse,
     StructuredSectionResponse,
     StructuredCitationResponse,
     StructuredReferenceResponse,
     CitedArticle,
-    FactExtractionRequest,
-    FactExtractionResponse,
+)
+from app.models.extraction.models import FactExtractionRequest, FactExtractionResponse
+from app.models import (
     Revision,
     LagReport,
     SectionChange,
@@ -33,6 +32,7 @@ from app.models import (
 )
 from app.services.article_parser import article_fetcher, revision_fetcher
 from app.services.wiki_utils import detect_language_lag
+from app.services.structured_translation import translate_article
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
@@ -397,44 +397,7 @@ async def structured_translated_article(
         )
 
 
-def translate_article(
-    article,
-    source_lang: str,
-    target_lang: str,
-) -> StructuredArticleResponse:
-    """
-    Translates an Article object and builds a StructuredArticleResponse.
-    """
-
-    translated_sections: List[Section] = []
-
-    for section in article.sections:
-        translated_sections.append(
-            Section(
-                title=translate(section.title, source_lang, target_lang),
-                raw_content=translate(section.raw_content, source_lang, target_lang),
-                clean_content=translate(
-                    section.clean_content, source_lang, target_lang
-                ),
-                citations=section.citations,
-                citation_position=section.citation_position,
-            )
-        )
-
-    total_citations = sum(
-        len(section.citations or []) for section in translated_sections
-    )
-
-    return StructuredArticleResponse(
-        title=translate(article.title, source_lang, target_lang),
-        lang=target_lang,
-        source=f"wikipedia+model({source_lang}->{target_lang})",
-        sections=translated_sections,
-        references=article.references,
-        total_sections=len(translated_sections),
-        total_citations=total_citations,
-        total_references=len(article.references),
-    )
+# translate_article was moved to app.services.structured_translation
 
 
 @router.get("/fact-extraction-models", response_model=List[Dict[str, Any]])

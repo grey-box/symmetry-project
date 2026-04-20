@@ -22,8 +22,8 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from app.core.settings import LEVENSHTEIN_DISAMBIGUATION_MARGIN, SIMILARITY_THRESHOLD
-from app.models.wiki_structure import Article, Section
-from app.models.section_comparison import (
+from app.models.wiki.structure import Article, Section
+from app.models.comparison.models import (
     ParagraphDiff,
     SectionDiff,
     SectionCompareResponse,

@@ -4,22 +4,22 @@ import re
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.models import (
+from app.models.comparison.models import (
     CompareRequest,
     CompareResponse,
     ArticleComparisonResponse,
     SemanticCompareRequest,
-    ChunkedTranslateRequest,
-    TranslateArticleResponse,
     MissingInfo,
     ExtraInfo,
     SentenceDiff,
 )
-from app.models.server_model import ServerModel
-from app.ai.model_registry import COMPARISON_MODELS
+from app.models.translation.models import ChunkedTranslateRequest
+from app.models.wiki.responses import TranslateArticleResponse
+from app.models.server import ServerModel
+from app.models.comparison.registry import COMPARISON_MODELS
 
 try:
-    from app.ai.semantic_comparison import perform_semantic_comparison
+    from app.models.comparison.engine import perform_semantic_comparison
 except Exception:
     perform_semantic_comparison = None
 
@@ -354,47 +354,8 @@ def translate_text_endpoint(
 )
 def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
     try:
-        from app.ai.translations import translate as chunked_translate
+        from app.models.translation.engine import translate as chunked_translate
 
-        logging.info(
-            "Chunked translation request (source='%s', target='%s', chars=%d)",
-            payload.source_language,
-            payload.target_language,
-            len(payload.text or ""),
-        )
-        translated = chunked_translate(
-            payload.text,
-            payload.source_language,
-            payload.target_language,
-        )
-        return {"translatedArticle": translated}
-    except ImportError as e:
-        logging.exception("Chunked translation dependency error: %s", str(e))
-        raise HTTPException(
-            status_code=500,
-            detail=(
-                "Missing translation dependency. Install sentencepiece in the backend venv "
-                "and restart the backend."
-            ),
-        )
-    except ValueError as e:
-        logging.exception("Chunked translation validation error: %s", str(e))
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        logging.exception("Chunked translation failed: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
-
-
-@router.post(
-    "/wiki_translate/chunked_text",
-    response_model=TranslateArticleResponse,
-    summary="Translate Text (Chunked)",
-    description="Translates long text using the chunked translation pipeline.",
-)
-def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
-    from app.ai.translations import translate as chunked_translate
-
-    try:
         logging.info(
             "Chunked translation request (source='%s', target='%s', chars=%d)",
             payload.source_language,
@@ -427,14 +388,14 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
 # ---------------------------------------------------------------------------
 # Section-level structured comparison
 # ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
 
-from app.models.section_comparison import (
+
+from app.models.comparison.models import (
     SectionCompareRequest,
     SectionCompareResponse,
 )
-from app.services.article_parser import article_fetcher
 from app.services.section_comparison import compare_article_sections
+from app.services.router_utils import resolve_and_fetch_article
 
 
 def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
@@ -465,39 +426,8 @@ def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
 async def compare_article_sections_endpoint(payload: SectionCompareRequest):
     """Compare two Wikipedia articles at the section and paragraph level."""
 
-    try:
-        source_title, source_lang = _resolve_title_and_lang(
-            payload.source_query, payload.source_lang
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        target_title, target_lang = _resolve_title_and_lang(
-            payload.target_query, payload.target_lang
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    try:
-        source_article = await asyncio.to_thread(
-            article_fetcher, source_title, source_lang
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Failed to fetch source article '{source_title}' ({source_lang}): {e}",
-        )
-
-    try:
-        target_article = await asyncio.to_thread(
-            article_fetcher, target_title, target_lang
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Failed to fetch target article '{target_title}' ({target_lang}): {e}",
-        )
+    source_article = await resolve_and_fetch_article(payload.source_query, payload.source_lang or "en")
+    target_article = await resolve_and_fetch_article(payload.target_query, payload.target_lang or "en")
 
     return compare_article_sections(
         source_article=source_article,
