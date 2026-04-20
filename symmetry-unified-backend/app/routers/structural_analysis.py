@@ -102,7 +102,7 @@ async def get_results(
         if lang_code == source_language:
             current_title = normalized_title
         else:
-            current_title = wiki_utils.get_translation(
+            current_title = await wiki_utils.get_translation(
                 normalized_title, source_language, lang_code
             )
 
