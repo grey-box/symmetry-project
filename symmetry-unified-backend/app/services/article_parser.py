@@ -1,7 +1,16 @@
-import requests
+import httpx
 from bs4 import BeautifulSoup
 from typing import List
 from app.models import Citation, Reference, Section, Article
+
+
+async def _fetch_wikipedia_json(url: str, params: dict) -> dict:
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(
+            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
+        )
+        response.raise_for_status()
+        return response.json()
 
 
 def _parse_article_html(html: str, title: str, lang: str, source: str) -> Article:
@@ -124,7 +133,7 @@ def _parse_article_html(html: str, title: str, lang: str, source: str) -> Articl
     )
 
 
-def article_fetcher(title: str, lang: str) -> Article:
+async def article_fetcher(title: str, lang: str) -> Article:
     url = f"https://{lang}.wikipedia.org/w/api.php"
     params = {
         "action": "parse",
@@ -134,14 +143,12 @@ def article_fetcher(title: str, lang: str) -> Article:
         "disableeditsection": True,
         "disabletoc": True,
     }
-    r = requests.get(url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"})
-    r.raise_for_status()
-    data = r.json()
+    data = await _fetch_wikipedia_json(url, params)
     html = data.get("parse", {}).get("text", {}).get("*", "")
     return _parse_article_html(html, title, lang, source="action_api")
 
 
-def revision_fetcher(revid: int, lang: str) -> Article:
+async def revision_fetcher(revid: int, lang: str) -> Article:
     """Fetch a specific Wikipedia revision by ID and return a parsed Article."""
     url = f"https://{lang}.wikipedia.org/w/api.php"
     params = {
@@ -152,9 +159,7 @@ def revision_fetcher(revid: int, lang: str) -> Article:
         "disableeditsection": True,
         "disabletoc": True,
     }
-    r = requests.get(url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"})
-    r.raise_for_status()
-    data = r.json()
+    data = await _fetch_wikipedia_json(url, params)
     html = data.get("parse", {}).get("text", {}).get("*", "")
     title = data.get("parse", {}).get("title", f"revid:{revid}")
     return _parse_article_html(html, title, lang, source=f"revision:{revid}")

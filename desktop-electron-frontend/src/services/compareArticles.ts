@@ -19,6 +19,7 @@ export async function compareArticles(
     left_article_missing_info_index: number[]
     right_article_extra_info_index: number[]
   }>
+  error_message?: string
 }>> {
   try {
     const axiosInstance = await getAxiosInstance()

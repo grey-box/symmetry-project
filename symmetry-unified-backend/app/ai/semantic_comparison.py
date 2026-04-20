@@ -15,11 +15,16 @@ except ModuleNotFoundError:
 
 from app.ai.model_registry import COMPARISON_MODELS, DEFAULT_MODEL
 from app.core.settings import SIMILARITY_THRESHOLD as _DEFAULT_SIMILARITY_THRESHOLD
+
 try:
     # Optional: use the similarity_prototype pipeline when requested
     # Make sure the similarity_prototype package directory is on sys.path so
     # its internal top-level imports like `Phase_1` resolve correctly.
-    sp_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "services", "similarity_prototype"))
+    sp_path = os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__), "..", "services", "similarity_prototype"
+        )
+    )
     if os.path.isdir(sp_path) and sp_path not in sys.path:
         sys.path.insert(0, sp_path)
     from app.services.similarity_prototype.article_comparator import ArticleComparator
@@ -282,7 +287,9 @@ def perform_semantic_comparison(request_data):
     target_article = request_data["translated_article_content"]
     source_language = request_data["original_language"]
     target_language = request_data["translated_language"]
-    sim_threshold = request_data.get("comparison_threshold", _DEFAULT_SIMILARITY_THRESHOLD)
+    sim_threshold = request_data.get(
+        "comparison_threshold", _DEFAULT_SIMILARITY_THRESHOLD
+    )
     model_name = request_data.get("model_name", DEFAULT_MODEL)
 
     # perform semantic comparison
@@ -337,11 +344,13 @@ def perform_semantic_comparison(request_data):
             pairs = []
             for i in range(len(left)):
                 for j in range(len(right)):
-                    pairs.append({
-                        "score": matrix[i][j],
-                        "sentence_a": left[i],
-                        "sentence_b": right[j],
-                    })
+                    pairs.append(
+                        {
+                            "score": matrix[i][j],
+                            "sentence_a": left[i],
+                            "sentence_b": right[j],
+                        }
+                    )
             pairs.sort(key=lambda x: x["score"], reverse=True)
             top_matches = pairs[:20]
 
@@ -349,28 +358,36 @@ def perform_semantic_comparison(request_data):
             best_ab = []
             for i, s in enumerate(left):
                 best_j = max(range(len(right)), key=lambda j: matrix[i][j])
-                best_ab.append({
-                    "sentence": s,
-                    "best_match": right[best_j],
-                    "score": matrix[i][best_j],
-                })
+                best_ab.append(
+                    {
+                        "sentence": s,
+                        "best_match": right[best_j],
+                        "score": matrix[i][best_j],
+                    }
+                )
 
             best_ba = []
             for j, s in enumerate(right):
                 best_i = max(range(len(left)), key=lambda i: matrix[i][j])
-                best_ba.append({
-                    "sentence": s,
-                    "best_match": left[best_i],
-                    "score": matrix[best_i][j],
-                })
+                best_ba.append(
+                    {
+                        "sentence": s,
+                        "best_match": left[best_i],
+                        "score": matrix[best_i][j],
+                    }
+                )
 
             return {
                 "comparisons": [
                     {
                         "left_article_array": left,
                         "right_article_array": right,
-                        "left_article_missing_info_index": [i for i, sc in enumerate(ab_scores) if sc < sim_threshold],
-                        "right_article_extra_info_index": [i for i, sc in enumerate(ba_scores) if sc < sim_threshold],
+                        "left_article_missing_info_index": [
+                            i for i, sc in enumerate(ab_scores) if sc < sim_threshold
+                        ],
+                        "right_article_extra_info_index": [
+                            i for i, sc in enumerate(ba_scores) if sc < sim_threshold
+                        ],
                         "success": True,
                         "score": final_score,
                         "details": {
@@ -390,7 +407,10 @@ def perform_semantic_comparison(request_data):
     # similarity scores (matrix / best-match) in the returned payload.
     try:
         # Load or reuse a cached model from semantic_compare if available
-        if hasattr(semantic_compare, "_cache") and model_name in semantic_compare._cache:
+        if (
+            hasattr(semantic_compare, "_cache")
+            and model_name in semantic_compare._cache
+        ):
             model = semantic_compare._cache[model_name]
         else:
             model = SentenceTransformer(model_name)
@@ -417,40 +437,50 @@ def perform_semantic_comparison(request_data):
         sim_matrix = cosine_similarity(left_emb, right_emb)
 
         # Compute missing/extra using existing helper
-        missing_info, missing_idx = sentences_diff(left, left_emb, right_emb, sim_threshold)
-        extra_info, extra_idx = sentences_diff(right, right_emb, left_emb, sim_threshold)
+        missing_info, missing_idx = sentences_diff(
+            left, left_emb, right_emb, sim_threshold
+        )
+        extra_info, extra_idx = sentences_diff(
+            right, right_emb, left_emb, sim_threshold
+        )
 
         # Build pair list and top matches
         pairs = []
         for i in range(len(left)):
             for j in range(len(right)):
-                pairs.append({
-                    "score": float(round(float(sim_matrix[i][j]), 4)),
-                    "sentence_a": left[i],
-                    "sentence_b": right[j],
-                })
+                pairs.append(
+                    {
+                        "score": float(round(float(sim_matrix[i][j]), 4)),
+                        "sentence_a": left[i],
+                        "sentence_b": right[j],
+                    }
+                )
         pairs.sort(key=lambda x: x["score"], reverse=True)
-        top_matches = pairs[:min(len(pairs), 50)]
+        top_matches = pairs[: min(len(pairs), 50)]
 
         # best match per sentence A->B
         best_ab = []
         for i, s in enumerate(left):
             best_j = int(sim_matrix[i].argmax())
-            best_ab.append({
-                "sentence": s,
-                "best_match": right[best_j],
-                "score": float(round(float(sim_matrix[i][best_j]), 4)),
-            })
+            best_ab.append(
+                {
+                    "sentence": s,
+                    "best_match": right[best_j],
+                    "score": float(round(float(sim_matrix[i][best_j]), 4)),
+                }
+            )
 
         # best match per sentence B->A
         best_ba = []
         for j, s in enumerate(right):
             best_i = int(sim_matrix[:, j].argmax())
-            best_ba.append({
-                "sentence": s,
-                "best_match": left[best_i],
-                "score": float(round(float(sim_matrix[best_i][j]), 4)),
-            })
+            best_ba.append(
+                {
+                    "sentence": s,
+                    "best_match": left[best_i],
+                    "score": float(round(float(sim_matrix[best_i][j]), 4)),
+                }
+            )
 
         final_success = True
     except Exception as e:
@@ -475,8 +505,22 @@ def perform_semantic_comparison(request_data):
                 "missing_info": missing_info,
                 "extra_info": extra_info,
                 "success": final_success,
-                "score": round(((sum([b["score"] for b in best_ab]) / len(best_ab) if best_ab else 0.0) +
-                                (sum([b["score"] for b in best_ba]) / len(best_ba) if best_ba else 0.0)) / 2, 4),
+                "score": round(
+                    (
+                        (
+                            sum([b["score"] for b in best_ab]) / len(best_ab)
+                            if best_ab
+                            else 0.0
+                        )
+                        + (
+                            sum([b["score"] for b in best_ba]) / len(best_ba)
+                            if best_ba
+                            else 0.0
+                        )
+                    )
+                    / 2,
+                    4,
+                ),
                 "details": {
                     "top_matches": top_matches,
                     "best_matches_ab": best_ab,

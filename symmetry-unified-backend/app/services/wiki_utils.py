@@ -1,20 +1,22 @@
 from datetime import datetime
 from typing import List, Optional
 
-import requests
+import httpx
 
 
-def page_exists(title: str, source_language: str = "en") -> bool:
+async def page_exists(title: str, source_language: str = "en") -> bool:
     api_url = f"https://{source_language}.wikipedia.org/w/api.php"
     params = {"action": "query", "page": title, "format": "json"}
     headers = {"User-Agent": "SymmetryUnified/1.0"}
-    response = requests.get(api_url, params=params, headers=headers)
-    data = response.json()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(api_url, params=params, headers=headers)
+        response.raise_for_status()
+        data = response.json()
     pages = data.get("query", {}).get("pages", {})
     return "-1" not in pages
 
 
-def get_translation(
+async def get_translation(
     source_title: str, source_language: str, target_language: str
 ) -> Optional[str]:
     url = f"https://{source_language}.wikipedia.org/w/api.php"
@@ -27,8 +29,10 @@ def get_translation(
     }
     headers = {"User-Agent": "SymmetryUnified/1.0"}
 
-    response = requests.get(url, params=params, headers=headers)
-    data = response.json()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(url, params=params, headers=headers)
+        response.raise_for_status()
+        data = response.json()
     pages = data.get("query", {}).get("pages", {})
 
     for page in pages.values():
@@ -39,7 +43,7 @@ def get_translation(
     return None
 
 
-def get_latest_revision_timestamp(title: str, lang: str) -> Optional[datetime]:
+async def get_latest_revision_timestamp(title: str, lang: str) -> Optional[datetime]:
     url = f"https://{lang}.wikipedia.org/w/api.php"
     params = {
         "action": "query",
@@ -49,9 +53,12 @@ def get_latest_revision_timestamp(title: str, lang: str) -> Optional[datetime]:
         "rvprop": "timestamp",
         "format": "json",
     }
-    response = requests.get(url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"})
-    response.raise_for_status()
-    data = response.json()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        response = await client.get(
+            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
+        )
+        response.raise_for_status()
+        data = response.json()
     pages = data.get("query", {}).get("pages", {})
     if not pages or "-1" in pages:
         return None
@@ -63,49 +70,55 @@ def get_latest_revision_timestamp(title: str, lang: str) -> Optional[datetime]:
     return datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 
-def detect_language_lag(
+async def detect_language_lag(
     title: str, source_lang: str, target_langs: List[str]
 ) -> "List[LagReport]":
     from app.models.revision import LagReport
 
-    source_ts = get_latest_revision_timestamp(title, source_lang)
+    source_ts = await get_latest_revision_timestamp(title, source_lang)
     reports: List[LagReport] = []
 
     for lang in target_langs:
-        translated_title = get_translation(title, source_lang, lang)
+        translated_title = await get_translation(title, source_lang, lang)
 
         if translated_title is None:
-            reports.append(LagReport(
-                lang=lang,
-                title=None,
-                source_last_updated=source_ts,
-                target_last_updated=None,
-                days_behind=None,
-                is_lagging=True,
-            ))
+            reports.append(
+                LagReport(
+                    lang=lang,
+                    title=None,
+                    source_last_updated=source_ts,
+                    target_last_updated=None,
+                    days_behind=None,
+                    is_lagging=True,
+                )
+            )
             continue
 
-        target_ts = get_latest_revision_timestamp(translated_title, lang)
+        target_ts = await get_latest_revision_timestamp(translated_title, lang)
 
         if source_ts is None or target_ts is None:
-            reports.append(LagReport(
+            reports.append(
+                LagReport(
+                    lang=lang,
+                    title=translated_title,
+                    source_last_updated=source_ts,
+                    target_last_updated=target_ts,
+                    days_behind=None,
+                    is_lagging=True,
+                )
+            )
+            continue
+
+        days_behind = (source_ts - target_ts).total_seconds() / 86400
+        reports.append(
+            LagReport(
                 lang=lang,
                 title=translated_title,
                 source_last_updated=source_ts,
                 target_last_updated=target_ts,
-                days_behind=None,
-                is_lagging=True,
-            ))
-            continue
-
-        days_behind = (source_ts - target_ts).total_seconds() / 86400
-        reports.append(LagReport(
-            lang=lang,
-            title=translated_title,
-            source_last_updated=source_ts,
-            target_last_updated=target_ts,
-            days_behind=round(days_behind, 2),
-            is_lagging=days_behind > 0,
-        ))
+                days_behind=round(days_behind, 2),
+                is_lagging=days_behind > 0,
+            )
+        )
 
     return reports

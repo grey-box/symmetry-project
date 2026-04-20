@@ -149,8 +149,8 @@ class StructuredWikiService {
 
       if (match) {
         return {
-          lang: match[1],
-          title: decodeURIComponent(match[2].replace(/_/g, ' '))
+          lang: match[1] ?? 'en',
+          title: decodeURIComponent((match[2] ?? '').replace(/_/g, ' '))
         };
       }
 

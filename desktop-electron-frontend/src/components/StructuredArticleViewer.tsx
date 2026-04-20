@@ -74,8 +74,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
       setCitationAnalysis(citationsData);
       setReferenceAnalysis(referencesData);
 
-      if (articleData.sections.length > 0) {
-        setSelectedSection(articleData.sections[0].title);
+      if (articleData.sections?.length > 0) {
+        setSelectedSection(articleData.sections[0]?.title ?? null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load article');
@@ -131,7 +131,10 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         const models = await structuredWikiService.getFactExtractionModels();
         setFactModels(models);
         if (models.length > 0 && !selectedFactModel) {
-          setSelectedFactModel(models[0].id);
+          const firstModel = models[0];
+          if (firstModel) {
+            setSelectedFactModel(firstModel.id);
+          }
         }
       } catch (err) {
         console.error('Failed to load fact extraction models:', err);
@@ -625,12 +628,12 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                                 Extracted Facts
                               </h5>
                               <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                                {sectionFacts[section.title].model_used}
+                                {sectionFacts[section.title]?.model_used}
                               </span>
                             </div>
-                            {sectionFacts[section.title].facts.length > 0 ? (
+                            {(sectionFacts[section.title]?.facts?.length ?? 0) > 0 ? (
                               <ul className="space-y-2">
-                                {sectionFacts[section.title].facts.map((fact, index) => {
+                                {sectionFacts[section.title]?.facts?.map((fact, index) => {
                                   const chunk = sectionFacts[section.title]?.chunks?.[index] || '';
                                   const isHovered = hoveredChunk === chunk;
                                   const isClicked = clickedChunk === chunk;

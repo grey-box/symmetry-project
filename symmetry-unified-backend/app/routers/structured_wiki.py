@@ -1,10 +1,9 @@
-import asyncio
 import difflib
 import logging
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlparse
 
-import requests
+import httpx
 from bs4 import BeautifulSoup
 from fastapi import APIRouter, Query, HTTPException
 
@@ -23,23 +22,21 @@ from app.models import (
     StructuredSectionResponse,
     StructuredCitationResponse,
     StructuredReferenceResponse,
+    CitedArticle,
     FactExtractionRequest,
     FactExtractionResponse,
     Revision,
     LagReport,
     SectionChange,
     RevisionDiffResponse,
-    SectionDiff,
-    Flag,
-    DiffResponse,
+    RevisionSectionDiff,
 )
 from app.services.article_parser import article_fetcher, revision_fetcher
 from app.services.wiki_utils import detect_language_lag
-from app.services.revision_flagging import flag_revision
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
-structured_cache: Dict[str, Dict] = {}
+structured_cache: Dict[str, StructuredArticleResponse] = {}
 
 
 @router.get(
@@ -81,7 +78,7 @@ async def get_structured_article(
         return structured_cache[cache_key]
 
     try:
-        article = await asyncio.to_thread(article_fetcher, title, lang)
+        article = await article_fetcher(title, lang)
 
         total_citations = sum(
             len(section.citations or []) for section in article.sections
@@ -154,7 +151,7 @@ async def get_structured_section(
             lang = "en"
 
     try:
-        article = await asyncio.to_thread(article_fetcher, title, lang)
+        article = await article_fetcher(title, lang)
 
         target_section = None
         for section in article.sections:
@@ -225,7 +222,7 @@ async def get_citation_analysis(
             lang = "en"
 
     try:
-        article = await asyncio.to_thread(article_fetcher, title, lang)
+        article = await article_fetcher(title, lang)
 
         all_citations = []
         for section in article.sections:
@@ -241,8 +238,8 @@ async def get_citation_analysis(
                 citation_counts[citation.url] = citation_counts.get(citation.url, 0) + 1
 
         url_to_title = {cit.url: cit.label for cit in all_citations if cit.url}
-        most_cited = [
-            {"title": url_to_title.get(url, "Unknown"), "count": count}
+        most_cited: List[CitedArticle] = [
+            CitedArticle(title=url_to_title.get(url, "Unknown"), count=count)
             for url, count in sorted(
                 citation_counts.items(), key=lambda x: x[1], reverse=True
             )[:10]
@@ -293,7 +290,7 @@ async def get_reference_analysis(
             lang = "en"
 
     try:
-        article = article_fetcher(title, lang)
+        article = await article_fetcher(title, lang)
 
         total_references = len(article.references)
         references_with_urls = sum(1 for ref in article.references if ref.url)
@@ -375,7 +372,7 @@ async def structured_translated_article(
 
     try:
         # 2. Fetch original article
-        article = await asyncio.to_thread(article_fetcher, title, source_lang)
+        article = await article_fetcher(title, source_lang)
 
         # 3. Translate + build response (delegated)
         response = translate_article(article, source_lang, target_lang)
@@ -498,7 +495,7 @@ async def get_revision_history(
             lang = "en"
 
     try:
-        revisions = _fetch_revisions(title, lang, limit)
+        revisions = await _fetch_revisions(title, lang, limit)
     except Exception as e:
         logging.error("Error fetching revisions for '%s': %s", title, str(e))
         raise HTTPException(
@@ -537,9 +534,7 @@ async def get_language_lag(
         target_langs,
     )
     try:
-        reports = await asyncio.to_thread(
-            detect_language_lag, title, source_lang, target_langs
-        )
+        reports = await detect_language_lag(title, source_lang, target_langs)
     except Exception as e:
         logging.error("Error detecting language lag for '%s': %s", title, str(e))
         raise HTTPException(
@@ -564,8 +559,6 @@ async def validate_fact_extraction_model(
     Returns:
         Dictionary with validation result and model info if valid
     """
-    logging.info("Validating fact extraction model: %s", model_id)
-
     try:
         config = validate_model(model_id)
         return {"valid": True, "model": config}
@@ -660,8 +653,8 @@ async def get_diff(
         lang = "en"
 
     try:
-        article_a = await asyncio.to_thread(revision_fetcher, revid_a, lang)
-        article_b = await asyncio.to_thread(revision_fetcher, revid_b, lang)
+        article_a = await revision_fetcher(revid_a, lang)
+        article_b = await revision_fetcher(revid_b, lang)
     except Exception as e:
         logging.error("Error fetching revisions: %s", str(e))
         raise HTTPException(
@@ -697,10 +690,10 @@ async def get_diff(
             section_title=t,
             old_content=sections_a[t],
             new_content=sections_b[t],
-            similarity_score=round(score_article_pair(sections_a[t], sections_b[t]), 4),
+            similarity_score=score,
         )
         for t in titles_a & titles_b
-        if score_article_pair(sections_a[t], sections_b[t]) < 0.99
+        if (score := round(score_article_pair(sections_a[t], sections_b[t]), 4)) < 0.99
     ]
 
     full_text_a = " ".join(sections_a.values())
@@ -724,7 +717,7 @@ async def get_diff(
 # ---------------------------------------------------------------------------
 
 
-def _fetch_revisions(title: str, lang: str, limit: int = 20) -> List[Revision]:
+async def _fetch_revisions(title: str, lang: str, limit: int = 20) -> List[Revision]:
     """Call the MediaWiki API to retrieve recent revisions for *title*."""
     url = f"https://{lang}.wikipedia.org/w/api.php"
     params = {
@@ -736,9 +729,12 @@ def _fetch_revisions(title: str, lang: str, limit: int = 20) -> List[Revision]:
         "rvdir": "older",
         "format": "json",
     }
-    r = requests.get(url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"})
-    r.raise_for_status()
-    data = r.json()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(
+            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
+        )
+        r.raise_for_status()
+        data = r.json()
 
     pages = data.get("query", {}).get("pages", {})
     if not pages:
@@ -762,7 +758,7 @@ def _fetch_revisions(title: str, lang: str, limit: int = 20) -> List[Revision]:
     return revisions
 
 
-def _parse_revision_sections(revid: int, lang: str) -> Dict[str, str]:
+async def _parse_revision_sections(revid: int, lang: str) -> Dict[str, str]:
     """
     Fetch rendered HTML for a specific revision and return a
     ``{section_title: clean_text}`` mapping using the same "Lead section"
@@ -777,9 +773,12 @@ def _parse_revision_sections(revid: int, lang: str) -> Dict[str, str]:
         "disableeditsection": True,
         "disabletoc": True,
     }
-    r = requests.get(url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"})
-    r.raise_for_status()
-    data = r.json()
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(
+            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
+        )
+        r.raise_for_status()
+        data = r.json()
 
     html = data.get("parse", {}).get("text", {}).get("*", "")
     soup = BeautifulSoup(html, "html.parser")
@@ -803,12 +802,14 @@ def _parse_revision_sections(revid: int, lang: str) -> Dict[str, str]:
     return sections
 
 
-def _diff_sections(old: Dict[str, str], new: Dict[str, str]) -> List[SectionDiff]:
+def _diff_sections(
+    old: Dict[str, str], new: Dict[str, str]
+) -> List[RevisionSectionDiff]:
     """
     Produce a SectionDiff for every section that appears in either revision.
     """
     all_titles = list(old.keys()) + [t for t in new.keys() if t not in old]
-    diffs: List[SectionDiff] = []
+    diffs: List[RevisionSectionDiff] = []
 
     for title in all_titles:
         old_text = old.get(title)
@@ -818,7 +819,7 @@ def _diff_sections(old: Dict[str, str], new: Dict[str, str]) -> List[SectionDiff
             # Section added in the new revision
             assert new_text is not None
             diffs.append(
-                SectionDiff(
+                RevisionSectionDiff(
                     section_title=title,
                     status="added",
                     old_content=None,
@@ -831,7 +832,7 @@ def _diff_sections(old: Dict[str, str], new: Dict[str, str]) -> List[SectionDiff
         elif new_text is None:
             # Section removed in the new revision
             diffs.append(
-                SectionDiff(
+                RevisionSectionDiff(
                     section_title=title,
                     status="removed",
                     old_content=old_text,
@@ -863,7 +864,7 @@ def _diff_sections(old: Dict[str, str], new: Dict[str, str]) -> List[SectionDiff
                 )
 
             diffs.append(
-                SectionDiff(
+                RevisionSectionDiff(
                     section_title=title,
                     status=status,
                     old_content=old_text,

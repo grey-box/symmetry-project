@@ -87,7 +87,7 @@ async function initializeConstants(): Promise<AppConfig> {
     DEFAULT_MODEL: configData.DEFAULT_MODEL || (Array.isArray(configData.COMPARISON_MODELS) && configData.COMPARISON_MODELS.length > 0 ?
       (typeof configData.COMPARISON_MODELS[0] === 'string'
         ? configData.COMPARISON_MODELS[0]
-        : configData.COMPARISON_MODELS[0].value)
+        : configData.COMPARISON_MODELS[0]?.value ?? 'sentence-transformers/LaBSE')
       : 'sentence-transformers/LaBSE'),
     PRESELECTED_ARTICLES: configData.PRESELECTED_ARTICLES,
     THRESHOLD_PRESETS: configData.THRESHOLD_PRESETS,
