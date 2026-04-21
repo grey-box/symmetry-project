@@ -3,7 +3,7 @@ import logging
 
 from app.models.wiki.structure import Section
 from app.models.wiki.responses import StructuredArticleResponse
-from app.models.translation.engine import translate
+from app.ai.translation import translate
 
 
 def translate_article(article, source_lang: str, target_lang: str) -> StructuredArticleResponse:

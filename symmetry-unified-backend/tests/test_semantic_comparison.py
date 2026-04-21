@@ -1,5 +1,5 @@
 import pytest
-from app.models.comparison.engine import semantic_compare, preprocess_input
+from app.ai.comparison import semantic_compare, preprocess_input
 
 
 class TestSemanticComparison:
@@ -99,7 +99,7 @@ def test_preprocess_input_uses_chunking_for_large_text(monkeypatch):
         assert overlap == 60
         return ["chunk one", "chunk two", "  "]
 
-    monkeypatch.setattr("app.models.comparison.engine.chunk_text", fake_chunk_text)
+    monkeypatch.setattr("app.ai.comparison.chunk_text", fake_chunk_text)
     result = preprocess_input(large_text, "en")
 
     assert observed["called"] is True

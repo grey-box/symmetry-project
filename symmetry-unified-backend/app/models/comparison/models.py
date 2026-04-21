@@ -224,4 +224,3 @@ class SectionCompareResponse(BaseModel):
     )
     model_name: str = Field(default="sentence-transformers/LaBSE")
     error_message: Optional[str] = None
-

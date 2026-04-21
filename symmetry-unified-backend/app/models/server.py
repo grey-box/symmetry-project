@@ -1,10 +1,11 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
+import logging
 import wikipediaapi
 import re
-from app.models.comparison.engine import semantic_compare
-from app.models.translation.engine import translate as _translate_fn
+from app.ai.comparison import semantic_compare
+from app.ai.translation import translate as _translate_fn
 from huggingface_hub import model_info
 from app.core.config import load_config, save_config
 
@@ -14,10 +15,7 @@ def model_exists(model_name: str) -> bool:
         model_info(model_name)
         return True
     except Exception as e:
-        print(e)
-        print(
-            "You may need to put 'sentence-transformers/' as a prefix before the model name."
-        )
+        logging.warning("model_exists check failed for %s: %s", model_name, e)
         return False
 
 
@@ -166,124 +164,42 @@ class ServerModel:
         return True
 
     def select_comparison_model(self, model_name: str) -> bool:
-        if model_name in self.hf_comparison_models:
-            self.selected_comparison_model = model_name
-            update_json_last_selected("comparison", model_name)
-            return True
-
-        start_ptr = 0
-        end_ptr = len(self.custom_comparison_models) - 1
-
-        while start_ptr <= end_ptr:
-            filename = self.custom_comparison_models[start_ptr].split("/")
-            if filename == model_name:
-                self.selected_comparison_model = self.custom_comparison_models[
-                    start_ptr
-                ]
-                update_json_last_selected("comparison", model_name)
-                return True
-            start_ptr += 1
-
-            filename = self.custom_comparison_models[end_ptr].split("/")
-            if filename == model_name:
-                self.selected_comparison_model = self.custom_comparison_models[end_ptr]
-                update_json_last_selected("comparison", model_name)
-                return True
-            end_ptr -= 1
-        return False
+        all_models = self.hf_comparison_models + self.custom_comparison_models
+        if model_name not in all_models:
+            return False
+        self.selected_comparison_model = model_name
+        update_json_last_selected("comparison", model_name)
+        return True
 
     def select_translation_model(self, model_name: str) -> bool:
-        if model_name in self.hf_translation_models:
-            self.selected_translation_model = model_name
-            update_json_last_selected("translation", model_name)
-            return True
-
-        start_ptr = 0
-        end_ptr = len(self.custom_translation_models) - 1
-
-        while start_ptr <= end_ptr:
-            filename = self.custom_translation_models[start_ptr].split("/")
-            if filename == model_name:
-                self.selected_translation_model = self.custom_translation_models[
-                    start_ptr
-                ]
-                update_json_last_selected("translation", model_name)
-                return True
-            start_ptr += 1
-
-            filename = self.custom_translation_models[end_ptr].split("/")
-            if filename == model_name:
-                self.selected_translation_model = self.custom_translation_models[
-                    end_ptr
-                ]
-                update_json_last_selected("translation", model_name)
-                return True
-            end_ptr -= 1
-        return False
+        all_models = self.hf_translation_models + self.custom_translation_models
+        if model_name not in all_models:
+            return False
+        self.selected_translation_model = model_name
+        update_json_last_selected("translation", model_name)
+        return True
 
     def delete_translation_model(self, model: str) -> bool:
         if model in self.hf_translation_models:
-            # remove from json
             remove_from_json("huggingface", "translation", model)
             self.hf_translation_models.remove(model)
             return True
-
-        start_ptr = 0
-        end_ptr = len(self.custom_translation_models) - 1
-        found = None
-
-        while start_ptr <= end_ptr:
-            filename = self.custom_translation_models[start_ptr].split("/")
-            if filename == model:
-                found = self.custom_translation_models[start_ptr]
-                break
-            start_ptr += 1
-
-            filename = self.custom_translation_models[end_ptr].split("/")
-            if filename == model:
-                found = self.custom_translation_models[end_ptr]
-                break
-            end_ptr -= 1
-
-        if not found:
-            return False
-
-        remove_from_json("custom", "translation", found)
-        self.custom_translation_models.remove(found)
-
-        return True
+        if model in self.custom_translation_models:
+            remove_from_json("custom", "translation", model)
+            self.custom_translation_models.remove(model)
+            return True
+        return False
 
     def delete_comparison_model(self, model: str) -> bool:
         if model in self.hf_comparison_models:
-            # remove from json
             remove_from_json("huggingface", "comparison", model)
             self.hf_comparison_models.remove(model)
             return True
-
-        start_ptr = 0
-        end_ptr = len(self.custom_comparison_models) - 1
-        found = None
-
-        while start_ptr <= end_ptr:
-            filename = self.custom_comparison_models[start_ptr].split("/")
-            if filename == model:
-                found = self.custom_comparison_models[start_ptr]
-                break
-            start_ptr += 1
-
-            filename = self.custom_comparison_models[end_ptr].split("/")
-            if filename == model:
-                found = self.custom_comparison_models[end_ptr]
-                break
-            end_ptr -= 1
-
-        if not found:
-            return False
-
-        remove_from_json("custom", "comparison", found)
-        self.custom_comparison_models.remove(found)
-
-        return True
+        if model in self.custom_comparison_models:
+            remove_from_json("custom", "comparison", model)
+            self.custom_comparison_models.remove(model)
+            return True
+        return False
 
     def available_comparison_models_list(self) -> List[str]:
         return list(self.hf_comparison_models + self.custom_comparison_models)

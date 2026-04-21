@@ -61,6 +61,14 @@ yarn start
 
 ---
 
+## Documentation
+
+- Central docs hub: [`/docs/README.md`](docs/README.md)
+- Backend package docs: [`symmetry-unified-backend/README.md`](symmetry-unified-backend/README.md)
+- Frontend package docs: [`desktop-electron-frontend/README.md`](desktop-electron-frontend/README.md)
+
+---
+
 ## Tech Stack
 
 - **Frontend**: Electron 26 + React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui

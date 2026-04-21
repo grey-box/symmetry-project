@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Dict, List, Optional
 from urllib.parse import urlparse, unquote
+from app.models.revision import LagReport
 
 import httpx
 
@@ -150,7 +151,6 @@ async def get_latest_revision_timestamp(title: str, lang: str) -> Optional[datet
 async def detect_language_lag(
     title: str, source_lang: str, target_langs: List[str]
 ) -> "List[LagReport]":
-    from app.models.revision import LagReport
 
     source_ts = await get_latest_revision_timestamp(title, source_lang)
     reports: List[LagReport] = []

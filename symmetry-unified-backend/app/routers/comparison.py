@@ -19,7 +19,7 @@ from app.models.server import ServerModel
 from app.models.comparison.registry import COMPARISON_MODELS
 
 try:
-    from app.models.comparison.engine import perform_semantic_comparison
+    from app.ai.comparison import perform_semantic_comparison
 except Exception:
     perform_semantic_comparison = None
 
@@ -93,109 +93,14 @@ def compare_articles(payload: CompareRequest):
     )
 
 
-@router.get(
-    "/comparison/semantic",
-    response_model=ArticleComparisonResponse,
-    summary="Semantic Comparison (GET)",
-    description="Performs semantic comparison between two texts using sentence embeddings. Returns sentences that are missing or extra based on similarity threshold.",
-)
-def compare_articles_semantic(
-    original_article_content: str = Query(..., description="Original article text"),
-    translated_article_content: str = Query(..., description="Translated article text"),
-    similarity_threshold: float = Query(
-        0.75,
-        ge=0,
-        le=1,
-        description="Similarity threshold between 0 and 1. Sentences below this threshold are considered different",
-    ),
-    model_name: str = Query(
-        "sentence-transformers/LaBSE",
-        description="Name of the sentence transformer model to use",
-    ),
-):
-    global perform_semantic_comparison
-    logging.info("Calling semantic comparison endpoint.")
-
-    if similarity_threshold < 0 or similarity_threshold > 1:
-        logging.info(
-            "Provided similarity threshold is out of the defined valid range [0,1]"
-        )
-        raise HTTPException(
-            status_code=400,
-            detail="Provided similarity threshold is out of the defined valid range [0,1]",
-        )
-
-    if model_name not in COMPARISON_MODELS:
-        logging.info(f"Invalid model selected. {model_name} does not exist.")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Invalid model selected. {model_name} does not exist.",
-        )
-
-    if original_article_content is None or translated_article_content is None:
-        logging.info("Invalid input provided to semantic comparison.")
-        raise HTTPException(
-            status_code=400,
-            detail="Either original_article_content or translated_article_content (or both) was found to be None.",
-        )
-
-    if perform_semantic_comparison is None:
-        return ArticleComparisonResponse(
-            missing_info=[],
-            extra_info=[],
-            model_name=model_name,
-            similarity_threshold=similarity_threshold,
-        )
-
-    result = perform_semantic_comparison(
-        {
-            "original_article_content": original_article_content,
-            "translated_article_content": translated_article_content,
-            "original_language": "en",
-            "translated_language": "en",
-            "comparison_threshold": similarity_threshold,
-            "model_name": model_name,
-        }
-    )
-
-    return ArticleComparisonResponse(
-        missing_info=[
-            MissingInfo(
-                sentence=result["comparisons"][0]["left_article_array"][idx], index=idx
-            )
-            for idx in result["comparisons"][0]["left_article_missing_info_index"]
-        ],
-        extra_info=[
-            ExtraInfo(
-                sentence=result["comparisons"][0]["right_article_array"][idx], index=idx
-            )
-            for idx in result["comparisons"][0]["right_article_extra_info_index"]
-        ],
-        model_name=model_name,
-        similarity_threshold=similarity_threshold,
-    )
-
-
 @router.post(
     "/comparison/semantic",
     response_model=ArticleComparisonResponse,
-    summary="Semantic Comparison (POST)",
-    description="Performs semantic comparison between two texts using sentence embeddings via POST request. Returns sentences that are missing or extra based on similarity threshold.",
+    summary="Semantic Comparison",
+    description="Performs semantic comparison between two texts using sentence embeddings. Returns sentences that are missing or extra based on similarity threshold.",
 )
 def compare_articles_semantic_post(payload: SemanticCompareRequest):
-    logging.info("Calling semantic comparison endpoint (POST).")
-
-    if payload.similarity_threshold < 0 or payload.similarity_threshold > 1:
-        logging.info(
-            "Provided similarity threshold is out of the defined valid range [0,1]"
-        )
-        raise HTTPException(
-            status_code=400,
-            detail="Provided similarity threshold is out of the defined valid range [0,1]",
-        )
-
     if payload.model_name not in COMPARISON_MODELS:
-        logging.info(f"Invalid model selected. {payload.model_name} does not exist.")
         raise HTTPException(
             status_code=404,
             detail=f"Invalid model selected. {payload.model_name} does not exist.",
@@ -209,33 +114,20 @@ def compare_articles_semantic_post(payload: SemanticCompareRequest):
             similarity_threshold=payload.similarity_threshold,
         )
 
-    request_data = {
+    result = perform_semantic_comparison({
         "original_article_content": payload.original_article_content,
         "translated_article_content": payload.translated_article_content,
         "original_language": "en",
         "translated_language": "en",
         "comparison_threshold": payload.similarity_threshold,
         "model_name": payload.model_name,
-    }
-
-    result = perform_semantic_comparison(request_data)
+    })
 
     if result and result.get("comparisons"):
         comp = result["comparisons"][0]
-        missing_items = [
-            comp["left_article_array"][i]
-            for i in comp["left_article_missing_info_index"]
-        ]
-        extra_items = [
-            comp["right_article_array"][i]
-            for i in comp["right_article_extra_info_index"]
-        ]
-
         return ArticleComparisonResponse(
-            missing_info=[
-                MissingInfo(sentence=item, index=-1) for item in missing_items
-            ],
-            extra_info=[ExtraInfo(sentence=item, index=-1) for item in extra_items],
+            missing_info=[MissingInfo(sentence=comp["left_article_array"][i], index=i) for i in comp["left_article_missing_info_index"]],
+            extra_info=[ExtraInfo(sentence=comp["right_article_array"][i], index=i) for i in comp["right_article_extra_info_index"]],
             model_name=payload.model_name,
             similarity_threshold=payload.similarity_threshold,
         )
@@ -354,7 +246,7 @@ def translate_text_endpoint(
 )
 def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
     try:
-        from app.models.translation.engine import translate as chunked_translate
+        from app.ai.translation import translate as chunked_translate
 
         logging.info(
             "Chunked translation request (source='%s', target='%s', chars=%d)",
@@ -426,8 +318,12 @@ def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
 async def compare_article_sections_endpoint(payload: SectionCompareRequest):
     """Compare two Wikipedia articles at the section and paragraph level."""
 
-    source_article = await resolve_and_fetch_article(payload.source_query, payload.source_lang or "en")
-    target_article = await resolve_and_fetch_article(payload.target_query, payload.target_lang or "en")
+    source_article = await resolve_and_fetch_article(
+        payload.source_query, payload.source_lang or "en"
+    )
+    target_article = await resolve_and_fetch_article(
+        payload.target_query, payload.target_lang or "en"
+    )
 
     return compare_article_sections(
         source_article=source_article,

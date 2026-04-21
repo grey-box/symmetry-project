@@ -38,7 +38,6 @@ def _load_from_config() -> dict:
     return {}
 
 
-
 _config = _load_from_config()
 
 COMPARISON_MODELS: List[str] = _config.get("COMPARISON_MODELS", _DEFAULT_MODELS)

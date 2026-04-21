@@ -12,7 +12,6 @@ from app.services import (
     image_analysis,
     wiki_utils,
 )
-from pydantic import BaseModel, Field
 
 router = APIRouter(
     prefix="/operations",

@@ -31,7 +31,7 @@ from app.models import (
     RevisionSectionDiff,
 )
 from app.services.article_parser import article_fetcher, revision_fetcher
-from app.services.wiki_utils import detect_language_lag
+from app.services.wiki_utils import detect_language_lag, parse_wikipedia_url
 from app.services.structured_translation import translate_article
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
@@ -64,7 +64,7 @@ async def get_structured_article(
 
     if "://" in query:
         try:
-            lang, title = await parse_wikipedia_url(query)
+            lang, title = parse_wikipedia_url(query)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
     else:
@@ -142,7 +142,7 @@ async def get_structured_section(
 
     if "://" in query:
         try:
-            lang, title = await parse_wikipedia_url(query)
+            lang, title = parse_wikipedia_url(query)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
     else:
@@ -213,7 +213,7 @@ async def get_citation_analysis(
 
     if "://" in query:
         try:
-            lang, title = await parse_wikipedia_url(query)
+            lang, title = parse_wikipedia_url(query)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
     else:
@@ -281,7 +281,7 @@ async def get_reference_analysis(
 
     if "://" in query:
         try:
-            lang, title = await parse_wikipedia_url(query)
+            lang, title = parse_wikipedia_url(query)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
     else:
@@ -318,29 +318,6 @@ async def get_reference_analysis(
         )
 
 
-async def parse_wikipedia_url(url: str) -> tuple[str, str]:
-    parsed_url = urlparse(url)
-
-    if not parsed_url.netloc.endswith(".wikipedia.org"):
-        raise ValueError("Invalid domain - must be Wikipedia")
-
-    parts = parsed_url.netloc.split(".")
-    if len(parts) != 3:
-        raise ValueError("Invalid URL format")
-
-    lang = parts[0]
-    if not lang.isalpha() or len(lang) > 2:
-        raise ValueError("Invalid language code")
-
-    if not parsed_url.path.startswith("/wiki/"):
-        raise ValueError("Invalid article path")
-
-    title = parsed_url.path[6:].replace("_", " ")
-
-    if not title:
-        raise ValueError("Empty article title")
-
-    return lang, title
 
 
 @router.get("/structured-translated-article", response_model=StructuredArticleResponse)
@@ -361,7 +338,7 @@ async def structured_translated_article(
     # 1. Resolve title
     if url:
         try:
-            parsed_lang, parsed_title = await parse_wikipedia_url(url)
+            parsed_lang, parsed_title = parse_wikipedia_url(url)
             source_lang = parsed_lang
             title = parsed_title
         except ValueError:
@@ -449,7 +426,7 @@ async def get_revision_history(
 
     if "://" in query:
         try:
-            lang, title = await parse_wikipedia_url(query)
+            lang, title = parse_wikipedia_url(query)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
     else:
@@ -719,50 +696,6 @@ async def _fetch_revisions(title: str, lang: str, limit: int = 20) -> List[Revis
             )
         )
     return revisions
-
-
-async def _parse_revision_sections(revid: int, lang: str) -> Dict[str, str]:
-    """
-    Fetch rendered HTML for a specific revision and return a
-    ``{section_title: clean_text}`` mapping using the same "Lead section"
-    convention as article_parser.py.
-    """
-    url = f"https://{lang}.wikipedia.org/w/api.php"
-    params = {
-        "action": "parse",
-        "oldid": revid,
-        "prop": "text",
-        "format": "json",
-        "disableeditsection": True,
-        "disabletoc": True,
-    }
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(
-            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
-        )
-        r.raise_for_status()
-        data = r.json()
-
-    html = data.get("parse", {}).get("text", {}).get("*", "")
-    soup = BeautifulSoup(html, "html.parser")
-
-    sections: Dict[str, str] = {}
-    current_title = "Lead section"
-    current_text = ""
-
-    for tag in soup.find_all(["h2", "h3", "p"]):
-        if tag.name in ["h2", "h3"]:
-            if current_text.strip():
-                sections[current_title] = current_text.strip()
-            current_title = tag.get_text(strip=True)
-            current_text = ""
-        elif tag.name == "p":
-            current_text += " " + tag.get_text(strip=True)
-
-    if current_text.strip():
-        sections[current_title] = current_text.strip()
-
-    return sections
 
 
 def _diff_sections(
