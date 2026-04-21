@@ -288,9 +288,7 @@ class TestStructuredWikiRouter:
         """Test successful Wikipedia URL parsing"""
         from app.services.wiki_utils import parse_wikipedia_url
 
-        lang, title = parse_wikipedia_url(
-            "https://en.wikipedia.org/wiki/Test_Article"
-        )
+        lang, title = parse_wikipedia_url("https://en.wikipedia.org/wiki/Test_Article")
         assert lang == "en"
         assert title == "Test Article"
 
@@ -307,9 +305,7 @@ class TestStructuredWikiRouter:
         from app.services.wiki_utils import parse_wikipedia_url
 
         with pytest.raises(ValueError) as exc_info:
-            parse_wikipedia_url(
-                "https://invalidlangcode.wikipedia.org/wiki/Test"
-            )
+            parse_wikipedia_url("https://invalidlangcode.wikipedia.org/wiki/Test")
         assert "language" in str(exc_info.value).lower()
 
 

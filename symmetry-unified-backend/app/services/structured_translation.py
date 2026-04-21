@@ -6,7 +6,9 @@ from app.models.wiki.responses import StructuredArticleResponse
 from app.ai.translation import translate
 
 
-def translate_article(article, source_lang: str, target_lang: str) -> StructuredArticleResponse:
+def translate_article(
+    article, source_lang: str, target_lang: str
+) -> StructuredArticleResponse:
     """
     Translates an Article object and builds a StructuredArticleResponse.
     """
@@ -26,7 +28,9 @@ def translate_article(article, source_lang: str, target_lang: str) -> Structured
             )
         )
 
-    total_citations = sum(len(section.citations or []) for section in translated_sections)
+    total_citations = sum(
+        len(section.citations or []) for section in translated_sections
+    )
 
     return StructuredArticleResponse(
         title=translate(article.title, source_lang, target_lang),

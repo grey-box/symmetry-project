@@ -65,7 +65,8 @@ def translate(text: str, source_lang: str, target_lang: str) -> str:
         else:
             logger.warning(
                 "Unsupported translation pair %s -> %s. Returning original text.",
-                source_lang, target_lang,
+                source_lang,
+                target_lang,
             )
             return text
 
@@ -73,16 +74,28 @@ def translate(text: str, source_lang: str, target_lang: str) -> str:
         tokenizer, model = load_translation_components(model_name)
 
         if len(text) > TRANSLATION_CHUNK_CHAR_THRESHOLD:
-            chunks = [c for c in chunk_text(text, chunk_size=TRANSLATION_CHUNK_WORD_SIZE, overlap=0) if c.strip()]
+            chunks = [
+                c
+                for c in chunk_text(
+                    text, chunk_size=TRANSLATION_CHUNK_WORD_SIZE, overlap=0
+                )
+                if c.strip()
+            ]
             translated_chunks = []
             for i in range(0, len(chunks), TRANSLATION_BATCH_SIZE):
                 translated_chunks.extend(
-                    _translate_batch_with_model(chunks[i : i + TRANSLATION_BATCH_SIZE], tokenizer, model)
+                    _translate_batch_with_model(
+                        chunks[i : i + TRANSLATION_BATCH_SIZE], tokenizer, model
+                    )
                 )
             return "\n\n".join(translated_chunks).strip()
 
         return _translate_with_model(text, tokenizer, model)
     except Exception as exc:
-        logger.warning("Translation failed %s -> %s: %s. Returning original.", source_lang, target_lang, exc)
+        logger.warning(
+            "Translation failed %s -> %s: %s. Returning original.",
+            source_lang,
+            target_lang,
+            exc,
+        )
         return text
-

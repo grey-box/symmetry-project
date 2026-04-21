@@ -114,20 +114,28 @@ def compare_articles_semantic_post(payload: SemanticCompareRequest):
             similarity_threshold=payload.similarity_threshold,
         )
 
-    result = perform_semantic_comparison({
-        "original_article_content": payload.original_article_content,
-        "translated_article_content": payload.translated_article_content,
-        "original_language": "en",
-        "translated_language": "en",
-        "comparison_threshold": payload.similarity_threshold,
-        "model_name": payload.model_name,
-    })
+    result = perform_semantic_comparison(
+        {
+            "original_article_content": payload.original_article_content,
+            "translated_article_content": payload.translated_article_content,
+            "original_language": "en",
+            "translated_language": "en",
+            "comparison_threshold": payload.similarity_threshold,
+            "model_name": payload.model_name,
+        }
+    )
 
     if result and result.get("comparisons"):
         comp = result["comparisons"][0]
         return ArticleComparisonResponse(
-            missing_info=[MissingInfo(sentence=comp["left_article_array"][i], index=i) for i in comp["left_article_missing_info_index"]],
-            extra_info=[ExtraInfo(sentence=comp["right_article_array"][i], index=i) for i in comp["right_article_extra_info_index"]],
+            missing_info=[
+                MissingInfo(sentence=comp["left_article_array"][i], index=i)
+                for i in comp["left_article_missing_info_index"]
+            ],
+            extra_info=[
+                ExtraInfo(sentence=comp["right_article_array"][i], index=i)
+                for i in comp["right_article_extra_info_index"]
+            ],
             model_name=payload.model_name,
             similarity_threshold=payload.similarity_threshold,
         )

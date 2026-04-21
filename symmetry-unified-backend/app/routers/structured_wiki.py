@@ -318,8 +318,6 @@ async def get_reference_analysis(
         )
 
 
-
-
 @router.get("/structured-translated-article", response_model=StructuredArticleResponse)
 async def structured_translated_article(
     source_lang: str = "en",

@@ -21,11 +21,15 @@ _model_cache: dict = {}
 # Optional similarity_prototype pipeline
 try:
     _sp_path = os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "services", "similarity_prototype")
+        os.path.join(
+            os.path.dirname(__file__), "..", "services", "similarity_prototype"
+        )
     )
     if os.path.isdir(_sp_path) and _sp_path not in sys.path:
         sys.path.insert(0, _sp_path)
-    from app.services.similarity_prototype.article_comparator import ArticleComparator as _ArticleComparator
+    from app.services.similarity_prototype.article_comparator import (
+        ArticleComparator as _ArticleComparator,
+    )
 except Exception:
     _ArticleComparator = None  # type: ignore[assignment,misc]
 
@@ -59,9 +63,7 @@ def preprocess_input(article: str, language: str) -> List[str]:
     if not article:
         return []
 
-    cleaned = (
-        article.replace("\n\n", " ").replace("\n", ". ").strip()
-    )
+    cleaned = article.replace("\n\n", " ").replace("\n", ". ").strip()
 
     if len(cleaned) > 3500:
         out = chunk_text(cleaned, chunk_size=450, overlap=60)
@@ -75,7 +77,9 @@ def preprocess_input(article: str, language: str) -> List[str]:
             if sentences:
                 return sentences
         except Exception as exc:
-            logger.warning("spaCy model unavailable for %s: %s — falling back", language, exc)
+            logger.warning(
+                "spaCy model unavailable for %s: %s — falling back", language, exc
+            )
 
     return [s for s in universal_sentences_split(cleaned) if s]
 
@@ -114,8 +118,10 @@ def semantic_compare(
         return {
             "original_sentences": [original_blob],
             "translated_sentences": [translated_blob],
-            "missing_info": [], "extra_info": [],
-            "missing_info_indices": [], "extra_info_indices": [],
+            "missing_info": [],
+            "extra_info": [],
+            "missing_info_indices": [],
+            "extra_info_indices": [],
             "success": False,
         }
 
@@ -129,9 +135,12 @@ def semantic_compare(
 
     if not original_sentences or not translated_sentences:
         return {
-            "original_sentences": [], "translated_sentences": [],
-            "missing_info": [], "extra_info": [],
-            "missing_info_indices": [], "extra_info_indices": [],
+            "original_sentences": [],
+            "translated_sentences": [],
+            "missing_info": [],
+            "extra_info": [],
+            "missing_info_indices": [],
+            "extra_info_indices": [],
             "success": False,
         }
 
@@ -142,10 +151,16 @@ def semantic_compare(
         original_embeddings = model.encode(original_sentences)
         translated_embeddings = model.encode(translated_sentences)
         missing_info, missing_info_indices = sentences_diff(
-            original_sentences, original_embeddings, translated_embeddings, sim_threshold
+            original_sentences,
+            original_embeddings,
+            translated_embeddings,
+            sim_threshold,
         )
         extra_info, extra_info_indices = sentences_diff(
-            translated_sentences, translated_embeddings, original_embeddings, sim_threshold
+            translated_sentences,
+            translated_embeddings,
+            original_embeddings,
+            sim_threshold,
         )
         success = True
     except Exception as exc:
@@ -170,12 +185,18 @@ def perform_semantic_comparison(request_data: dict) -> dict:
     target_article = request_data["translated_article_content"]
     source_language = request_data["original_language"]
     target_language = request_data["translated_language"]
-    sim_threshold = request_data.get("comparison_threshold", _DEFAULT_SIMILARITY_THRESHOLD)
+    sim_threshold = request_data.get(
+        "comparison_threshold", _DEFAULT_SIMILARITY_THRESHOLD
+    )
     model_name = request_data.get("model_name", DEFAULT_MODEL)
 
     if model_name == "similarity_prototype" and _ArticleComparator is not None:
         return _run_prototype_comparison(
-            source_article, target_article, source_language, target_language, sim_threshold
+            source_article,
+            target_article,
+            source_language,
+            target_language,
+            sim_threshold,
         )
 
     left = preprocess_input(source_article, source_language) or []
@@ -195,7 +216,11 @@ def perform_semantic_comparison(request_data: dict) -> dict:
 
         pairs = sorted(
             [
-                {"score": float(round(float(sim_matrix[i][j]), 4)), "sentence_a": left[i], "sentence_b": right[j]}
+                {
+                    "score": float(round(float(sim_matrix[i][j]), 4)),
+                    "sentence_a": left[i],
+                    "sentence_b": right[j],
+                }
                 for i in range(len(left))
                 for j in range(len(right))
             ],
@@ -203,26 +228,40 @@ def perform_semantic_comparison(request_data: dict) -> dict:
             reverse=True,
         )
         best_ab = [
-            {"sentence": s, "best_match": right[int(sim_matrix[i].argmax())], "score": float(round(float(sim_matrix[i].max()), 4))}
+            {
+                "sentence": s,
+                "best_match": right[int(sim_matrix[i].argmax())],
+                "score": float(round(float(sim_matrix[i].max()), 4)),
+            }
             for i, s in enumerate(left)
         ]
         best_ba = [
-            {"sentence": s, "best_match": left[int(sim_matrix[:, j].argmax())], "score": float(round(float(sim_matrix[:, j].max()), 4))}
+            {
+                "sentence": s,
+                "best_match": left[int(sim_matrix[:, j].argmax())],
+                "score": float(round(float(sim_matrix[:, j].max()), 4)),
+            }
             for j, s in enumerate(right)
         ]
         avg_ab = sum(b["score"] for b in best_ab) / len(best_ab) if best_ab else 0.0
         avg_ba = sum(b["score"] for b in best_ba) / len(best_ba) if best_ba else 0.0
 
         return {
-            "comparisons": [{
-                "left_article_array": left,
-                "right_article_array": right,
-                "left_article_missing_info_index": missing_idx,
-                "right_article_extra_info_index": extra_idx,
-                "success": True,
-                "score": round((avg_ab + avg_ba) / 2, 4),
-                "details": {"top_matches": pairs[:50], "best_matches_ab": best_ab, "best_matches_ba": best_ba},
-            }]
+            "comparisons": [
+                {
+                    "left_article_array": left,
+                    "right_article_array": right,
+                    "left_article_missing_info_index": missing_idx,
+                    "right_article_extra_info_index": extra_idx,
+                    "success": True,
+                    "score": round((avg_ab + avg_ba) / 2, 4),
+                    "details": {
+                        "top_matches": pairs[:50],
+                        "best_matches_ab": best_ab,
+                        "best_matches_ba": best_ba,
+                    },
+                }
+            ]
         }
     except Exception as exc:
         logger.exception("Transformer comparison failed: %s", exc)
@@ -247,8 +286,16 @@ def _run_prototype_comparison(
         comparator = _ArticleComparator()
         left_raw = preprocess_input(source_article, "en") or []
         right_raw = preprocess_input(target_article, "en") or []
-        left = [s for s in (comparator.clean_sentence(s) for s in left_raw) if comparator.is_valid_sentence(s)]
-        right = [s for s in (comparator.clean_sentence(s) for s in right_raw) if comparator.is_valid_sentence(s)]
+        left = [
+            s
+            for s in (comparator.clean_sentence(s) for s in left_raw)
+            if comparator.is_valid_sentence(s)
+        ]
+        right = [
+            s
+            for s in (comparator.clean_sentence(s) for s in right_raw)
+            if comparator.is_valid_sentence(s)
+        ]
 
         if not left or not right:
             return {"comparisons": []}
@@ -260,23 +307,51 @@ def _run_prototype_comparison(
         avg_ba = sum(ba_scores) / len(ba_scores) if ba_scores else 0.0
 
         pairs = sorted(
-            [{"score": matrix[i][j], "sentence_a": left[i], "sentence_b": right[j]} for i in range(len(left)) for j in range(len(right))],
+            [
+                {"score": matrix[i][j], "sentence_a": left[i], "sentence_b": right[j]}
+                for i in range(len(left))
+                for j in range(len(right))
+            ],
             key=lambda x: x["score"],
             reverse=True,
         )
-        best_ab = [{"sentence": s, "best_match": right[max(range(len(right)), key=lambda j: matrix[i][j])], "score": matrix[i][max(range(len(right)), key=lambda j: matrix[i][j])]} for i, s in enumerate(left)]
-        best_ba = [{"sentence": s, "best_match": left[max(range(len(left)), key=lambda i: matrix[i][j])], "score": matrix[max(range(len(left)), key=lambda i: matrix[i][j])][j]} for j, s in enumerate(right)]
+        best_ab = [
+            {
+                "sentence": s,
+                "best_match": right[max(range(len(right)), key=lambda j: matrix[i][j])],
+                "score": matrix[i][max(range(len(right)), key=lambda j: matrix[i][j])],
+            }
+            for i, s in enumerate(left)
+        ]
+        best_ba = [
+            {
+                "sentence": s,
+                "best_match": left[max(range(len(left)), key=lambda i: matrix[i][j])],
+                "score": matrix[max(range(len(left)), key=lambda i: matrix[i][j])][j],
+            }
+            for j, s in enumerate(right)
+        ]
 
         return {
-            "comparisons": [{
-                "left_article_array": left,
-                "right_article_array": right,
-                "left_article_missing_info_index": [i for i, sc in enumerate(ab_scores) if sc < sim_threshold],
-                "right_article_extra_info_index": [i for i, sc in enumerate(ba_scores) if sc < sim_threshold],
-                "success": True,
-                "score": round((avg_ab + avg_ba) / 2, 4),
-                "details": {"top_matches": pairs[:20], "best_matches_ab": best_ab, "best_matches_ba": best_ba},
-            }]
+            "comparisons": [
+                {
+                    "left_article_array": left,
+                    "right_article_array": right,
+                    "left_article_missing_info_index": [
+                        i for i, sc in enumerate(ab_scores) if sc < sim_threshold
+                    ],
+                    "right_article_extra_info_index": [
+                        i for i, sc in enumerate(ba_scores) if sc < sim_threshold
+                    ],
+                    "success": True,
+                    "score": round((avg_ab + avg_ba) / 2, 4),
+                    "details": {
+                        "top_matches": pairs[:20],
+                        "best_matches_ab": best_ab,
+                        "best_matches_ba": best_ba,
+                    },
+                }
+            ]
         }
     except Exception as exc:
         logger.exception("similarity_prototype comparison failed: %s", exc)
