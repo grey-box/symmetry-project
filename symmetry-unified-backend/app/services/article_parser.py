@@ -1,6 +1,5 @@
 import httpx
 from bs4 import BeautifulSoup
-from typing import List
 from app.models.wiki.structure import Citation, Reference, Section, Article
 
 

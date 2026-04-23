@@ -1,8 +1,5 @@
 import logging
-import asyncio
-import urllib.request
 from urllib.parse import urlparse, unquote
-from urllib.error import URLError
 from typing import Dict, Optional, Annotated
 
 import wikipediaapi

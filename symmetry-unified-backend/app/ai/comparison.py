@@ -9,7 +9,7 @@ import spacy
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from app.models.comparison.registry import COMPARISON_MODELS, DEFAULT_MODEL
+from app.models.comparison.registry import DEFAULT_MODEL
 from app.core.settings import SIMILARITY_THRESHOLD as _DEFAULT_SIMILARITY_THRESHOLD
 from app.services.chunking import chunk_text
 

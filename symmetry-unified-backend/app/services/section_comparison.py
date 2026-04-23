@@ -585,7 +585,6 @@ def compare_article_sections(
             )
         )
 
-    total_sections = len(matched_pairs) + len(unmatched_source) + len(unmatched_target)
     overall_similarity = similarity_sum / len(matched_pairs) if matched_pairs else 0.0
 
     return SectionCompareResponse(

@@ -161,7 +161,7 @@ if __name__ == "__main__":
         
         # Show extracted roles
         roles = parser.extract_roles(sentence)
-        print(f"\nExtracted roles:")
+        print("\nExtracted roles:")
         print(f"  Voice:     {roles['voice']}")
         print(f"  Subject:   {roles['subject']}")
         print(f"  Verb:      {roles['verb']}")

@@ -1,5 +1,4 @@
 import pytest
-import anyio
 import torch
 from types import SimpleNamespace
 

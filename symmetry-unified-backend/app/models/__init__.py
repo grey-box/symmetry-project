@@ -43,8 +43,6 @@ from app.models.extraction.models import (
     FactExtractionRequest,
     FactExtractionResponse,
 )
-
-SectionDiff = SectionComparisonDiff
 from app.models.revision import (
     Revision,
     SectionDiff as RevisionSectionDiff,
@@ -54,6 +52,8 @@ from app.models.revision import (
     SectionChange,
     RevisionDiffResponse,
 )
+
+SectionDiff = SectionComparisonDiff
 
 __all__ = [
     "Citation",
@@ -92,6 +92,7 @@ __all__ = [
     "SectionComparisonDiff",
     "SectionDiff",
     "ParagraphDiff",
+    "ChunkedTranslateRequest",
     "FactExtractionRequest",
     "FactExtractionResponse",
     "Revision",

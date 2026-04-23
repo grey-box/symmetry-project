@@ -1,5 +1,6 @@
 import logging
 import re
+import json
 from collections import OrderedDict
 from typing import List, Dict, Any, Tuple
 import asyncio
@@ -10,9 +11,6 @@ import httpx
 from starlette.config import Config
 
 import spacy
-
-# Load environment variables from .env file (same as main.py)
-_env_config = Config(".env")
 from spacy.language import Language
 import torch
 from transformers import (
@@ -24,6 +22,9 @@ from transformers import (
 from huggingface_hub import model_info
 
 from app.core.config import load_config
+
+# Load environment variables from .env file (same as main.py)
+_env_config = Config(".env")
 
 # ---------------------------------------------------------------------
 # Load model config from backend config.toml

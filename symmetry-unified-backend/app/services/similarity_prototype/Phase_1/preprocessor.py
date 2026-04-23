@@ -3,7 +3,6 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 import re # Regular expressions for text cleaning
-import math
 
 # Only download NLTK data if it isn't already present locally.
 # Avoids repeated network/disk checks on every import (and in every

@@ -7,7 +7,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from typing import List, Dict, Optional
+from typing import List, Optional
 from Phase_1.vectorizer import Vectorizer
 from Phase_3.scorer import Scorer
 from wikipedia_parser import parse_url_to_paragraph_sentences
@@ -716,7 +716,7 @@ class ArticleComparator:
             print(f"\n  Article A: {len(sentences_a)} sentences")
             print(f"  Article B: {len(sentences_b)} sentences")
             print(f"  Total comparisons: {len(sentences_a) * len(sentences_b)}")
-            print(f"\n  Building score matrix...")
+            print("\n  Building score matrix...")
 
         # Build full score matrix
         matrix = self.build_score_matrix(sentences_a, sentences_b)
@@ -740,7 +740,7 @@ class ArticleComparator:
             print(f"  A→B average score: {ab_avg:.4f}")
             print(f"\n  B→A: {ba_matched}/{len(sentences_b)} sentences matched")
             print(f"  B→A average score: {ba_avg:.4f}")
-            print(f"\n  ─────────────────────────────────")
+            print("\n  ─────────────────────────────────")
             print(f"  Final Article Score: {final}")
 
         return final

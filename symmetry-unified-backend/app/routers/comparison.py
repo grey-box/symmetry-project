@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import re
 
@@ -9,6 +8,8 @@ from app.models.comparison.models import (
     CompareResponse,
     ArticleComparisonResponse,
     SemanticCompareRequest,
+    SectionCompareRequest,
+    SectionCompareResponse,
     MissingInfo,
     ExtraInfo,
     SentenceDiff,
@@ -17,6 +18,8 @@ from app.models.translation.models import ChunkedTranslateRequest
 from app.models.wiki.responses import TranslateArticleResponse
 from app.models.server import ServerModel
 from app.models.comparison.registry import COMPARISON_MODELS
+from app.services.section_comparison import compare_article_sections
+from app.services.router_utils import resolve_and_fetch_article
 
 try:
     from app.ai.comparison import perform_semantic_comparison
@@ -288,14 +291,6 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
 # ---------------------------------------------------------------------------
 # Section-level structured comparison
 # ---------------------------------------------------------------------------
-
-
-from app.models.comparison.models import (
-    SectionCompareRequest,
-    SectionCompareResponse,
-)
-from app.services.section_comparison import compare_article_sections
-from app.services.router_utils import resolve_and_fetch_article
 
 
 def _resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:

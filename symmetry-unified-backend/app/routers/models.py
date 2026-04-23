@@ -1,4 +1,3 @@
-import logging
 from fastapi import APIRouter, Query
 
 from app.models.api import (

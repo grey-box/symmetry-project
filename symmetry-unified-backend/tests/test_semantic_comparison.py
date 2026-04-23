@@ -1,4 +1,3 @@
-import pytest
 from app.ai.comparison import semantic_compare, preprocess_input
 
 
