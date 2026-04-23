@@ -5,6 +5,21 @@ from app.models.revision import LagReport
 
 import httpx
 
+try:
+    import pycountry
+
+    _VALID_LANGUAGE_CODES = {
+        lang.alpha_2
+        for lang in pycountry.languages
+        if hasattr(lang, "alpha_2") and lang.alpha_2
+    } | {
+        lang.alpha_3
+        for lang in pycountry.languages
+        if hasattr(lang, "alpha_3") and lang.alpha_3
+    }
+except Exception:
+    _VALID_LANGUAGE_CODES = set()
+
 
 # ---------------------------------------------------------------------------
 # Sync URL / language helpers (used by routers and router_utils)
@@ -57,22 +72,7 @@ def validate_language_code(language_code: str) -> bool:
     if language_code in _language_cache:
         return _language_cache[language_code]
 
-    try:
-        import pycountry
-
-        VALID_LANGUAGE_CODES = {
-            lang.alpha_2
-            for lang in pycountry.languages
-            if hasattr(lang, "alpha_2") and lang.alpha_2
-        } | {
-            lang.alpha_3
-            for lang in pycountry.languages
-            if hasattr(lang, "alpha_3") and lang.alpha_3
-        }
-    except Exception:
-        VALID_LANGUAGE_CODES = set()
-
-    is_valid = language_code in VALID_LANGUAGE_CODES
+    is_valid = language_code in _VALID_LANGUAGE_CODES
     _language_cache[language_code] = is_valid
     return is_valid
 
