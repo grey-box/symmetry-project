@@ -398,7 +398,9 @@ def _compare_paragraphs_prototype(
 
     for li, src_orig_idx in enumerate(left_orig_indices):
         row = matrix[li]
-        candidates = [rj for rj in range(len(right_orig_indices)) if rj not in used_right]
+        candidates = [
+            rj for rj in range(len(right_orig_indices)) if rj not in used_right
+        ]
 
         if not candidates:
             diffs.append(
