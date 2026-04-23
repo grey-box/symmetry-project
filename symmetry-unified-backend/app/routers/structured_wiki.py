@@ -1,10 +1,8 @@
 import difflib
 import logging
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
 
 import httpx
-from bs4 import BeautifulSoup
 from fastapi import APIRouter, Query, HTTPException
 
 from app.models.extraction.engine import (
