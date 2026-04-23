@@ -1,0 +1,74 @@
+name: Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run every Monday at 08:00 UTC
+    - cron: '0 8 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  python-audit:
+    name: Python Dependency Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: symmetry-unified-backend
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit Python dependencies
+        run: pip-audit -r requirements.txt --desc on
+
+  python-lint:
+    name: Python Lint (ruff)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: symmetry-unified-backend
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b # v5.3.0
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff
+        run: ruff check .
+
+  node-audit:
+    name: Node.js Dependency Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop-electron-frontend
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-node@39370e3970a6d050c480ffad4ff0ed4d3fdee5af # v4.1.0
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: desktop-electron-frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit Node.js dependencies
+        run: npm audit --audit-level=high

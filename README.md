@@ -61,6 +61,14 @@ yarn start
 
 ---
 
+## Documentation
+
+- Central docs hub: [`/docs/README.md`](docs/README.md)
+- Backend package docs: [`symmetry-unified-backend/README.md`](symmetry-unified-backend/README.md)
+- Frontend package docs: [`desktop-electron-frontend/README.md`](desktop-electron-frontend/README.md)
+
+---
+
 ## Tech Stack
 
 - **Frontend**: Electron 26 + React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
@@ -92,9 +100,9 @@ yarn start
 ```bash
 cd symmetry-unified-backend
 source venv/bin/activate
-pytest              # Run all tests
-pytest -v           # Verbose
-pytest --cov=app    # With coverage
+python -m pytest              # Run all tests
+python -m pytest -v           # Verbose
+python -m pytest --cov=app    # With coverage
 ```
 
 ---

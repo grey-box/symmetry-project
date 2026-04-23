@@ -22,8 +22,8 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from app.core.settings import LEVENSHTEIN_DISAMBIGUATION_MARGIN, SIMILARITY_THRESHOLD
-from app.models.wiki_structure import Article, Section
-from app.models.section_comparison import (
+from app.models.wiki.structure import Article, Section
+from app.models.comparison.models import (
     ParagraphDiff,
     SectionDiff,
     SectionCompareResponse,
@@ -320,7 +320,7 @@ def _compare_paragraphs_prototype(
     Matching follows the same greedy best-match strategy as _compare_paragraphs(),
     using the prototype's MIN_MATCH_THRESHOLD instead of the LaBSE threshold.
     """
-    from app.ai.translations import translate
+    from app.ai.translation import translate
 
     if not source_paragraphs and not target_paragraphs:
         return []
@@ -398,7 +398,9 @@ def _compare_paragraphs_prototype(
 
     for li, src_orig_idx in enumerate(left_orig_indices):
         row = matrix[li]
-        candidates = [rj for rj in range(len(right_orig_indices)) if rj not in used_right]
+        candidates = [
+            rj for rj in range(len(right_orig_indices)) if rj not in used_right
+        ]
 
         if not candidates:
             diffs.append(
@@ -585,7 +587,6 @@ def compare_article_sections(
             )
         )
 
-    total_sections = len(matched_pairs) + len(unmatched_source) + len(unmatched_target)
     overall_similarity = similarity_sum / len(matched_pairs) if matched_pairs else 0.0
 
     return SectionCompareResponse(

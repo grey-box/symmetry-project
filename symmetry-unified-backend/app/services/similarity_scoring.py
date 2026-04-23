@@ -475,12 +475,12 @@ def classify_band(
     """
     # Get family-aware thresholds if families provided
     if family_a and family_b:
-        very_close, same_branch, same_family, unrelated = get_family_threshold_bands(
+        very_close, same_branch, same_family, _unrelated = get_family_threshold_bands(
             family_a, family_b
         )
     else:
         # Default thresholds
-        very_close, same_branch, same_family, unrelated = 0.85, 0.60, 0.25, 0.10
+        very_close, same_branch, same_family, _unrelated = 0.85, 0.60, 0.25, 0.10
 
     if similarity_percent >= very_close * 100:
         return ("very_close", "likely the same language or very close dialects")

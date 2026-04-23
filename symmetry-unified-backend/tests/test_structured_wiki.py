@@ -286,43 +286,27 @@ class TestStructuredWikiRouter:
 
     def test_parse_wikipedia_url_success(self):
         """Test successful Wikipedia URL parsing"""
-        from app.routers.structured_wiki import parse_wikipedia_url
-        import asyncio
+        from app.services.wiki_utils import parse_wikipedia_url
 
-        async def test_parse():
-            lang, title = await parse_wikipedia_url(
-                "https://en.wikipedia.org/wiki/Test_Article"
-            )
-            assert lang == "en"
-            assert title == "Test Article"
-
-        asyncio.run(test_parse())
+        lang, title = parse_wikipedia_url("https://en.wikipedia.org/wiki/Test_Article")
+        assert lang == "en"
+        assert title == "Test Article"
 
     def test_parse_wikipedia_url_invalid_domain(self):
         """Test Wikipedia URL parsing with invalid domain"""
-        from app.routers.structured_wiki import parse_wikipedia_url
-        import asyncio
+        from app.services.wiki_utils import parse_wikipedia_url
 
-        async def test_parse():
-            with pytest.raises(ValueError) as exc_info:
-                await parse_wikipedia_url("https://example.com/wiki/Test")
-            assert "wikipedia" in str(exc_info.value).lower()
-
-        asyncio.run(test_parse())
+        with pytest.raises(ValueError) as exc_info:
+            parse_wikipedia_url("https://example.com/wiki/Test")
+        assert "wikipedia" in str(exc_info.value).lower()
 
     def test_parse_wikipedia_url_invalid_language(self):
         """Test Wikipedia URL parsing with invalid language code"""
-        from app.routers.structured_wiki import parse_wikipedia_url
-        import asyncio
+        from app.services.wiki_utils import parse_wikipedia_url
 
-        async def test_parse():
-            with pytest.raises(ValueError) as exc_info:
-                await parse_wikipedia_url(
-                    "https://invalidlangcode.wikipedia.org/wiki/Test"
-                )
-            assert "language" in str(exc_info.value).lower()
-
-        asyncio.run(test_parse())
+        with pytest.raises(ValueError) as exc_info:
+            parse_wikipedia_url("https://invalidlangcode.wikipedia.org/wiki/Test")
+        assert "language" in str(exc_info.value).lower()
 
 
 class TestLongReferenceId:

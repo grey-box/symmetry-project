@@ -1,5 +1,4 @@
 from .vectorizer import Vectorizer
-import math
 
 class SimilarityCalculator:
     def __init__(self):
