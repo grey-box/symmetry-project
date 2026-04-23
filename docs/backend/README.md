@@ -56,15 +56,13 @@ Endpoints are organized into logical routers under `app/routers/`:
 symmetry-unified-backend/
 ├── app/
 │   ├── ai/                    # AI comparison logic
-│   │   ├── semantic_comparison.py
-│   │   ├── model_registry.py  # Single source of truth for models
+│   │   ├── comparison.py
 │   │   ├── translation.py     # MarianMT translation
-│   │   └── translations.py    # Bridge: translate(text, src, tgt)
+│   ├── models/                # Pydantic v2 models
+│   │   ├── comparison/
+│   │   │   └── registry.py    # Single source of truth for models
 │   ├── core/
 │   │   └── settings.py        # All configurable thresholds
-│   ├── models/                # Pydantic v2 models
-│   │   ├── section_comparison.py
-│   │   └── wiki_structure.py
 │   ├── routers/               # API route handlers
 │   ├── services/              # Business logic
 │   │   ├── article_parser.py     # Wikipedia HTML → Article model
@@ -104,10 +102,8 @@ symmetry-unified-backend/
 |--------|------|-------------|
 | POST | `/symmetry/v1/articles/compare-sections` | **Primary**: Section-by-section comparison with paragraph diffs |
 | POST | `/symmetry/v1/articles/compare` | Legacy plain-text semantic comparison |
-| GET | `/symmetry/v1/comparison/semantic` | Semantic comparison (GET) |
 | POST | `/symmetry/v1/comparison/semantic` | Semantic comparison (POST) |
 | GET | `/symmetry/v1/comparison/translate_text` | Translate text (GET) |
-| POST | `/symmetry/v1/comparison/translate_text` | Translate text (POST) |
 
 ### Models Management
 
@@ -171,8 +167,8 @@ Tests are in `tests/`. Key test files:
 
 ## Key Design Decisions
 
-- **`translations.py`** wraps `translation.py`'s `translate_text()` to provide the `translate(text, src, tgt)` interface expected by `structured_wiki.py`. Import from `app.ai.translations` (plural), not `app.ai.translation` (singular).
-- **`model_registry.py`** is the single source of truth for all supported sentence-transformer models.
+- **`translation.py`** is the translation entrypoint used by the backend. Import translation helpers from `app.ai.translation` (singular), not `app.ai.translations` (plural).
+- **`app/models/comparison/registry.py`** is the single source of truth for all supported sentence-transformer models.
 - **`similarity_scoring.py`** provides Levenshtein disambiguation and language-family threshold selection, used by `section_comparison.py`.
 - **spaCy models** must be installed separately: `python -m spacy download en_core_web_sm`.
 - **MarianMT models** are downloaded on first use (can be slow on first request).

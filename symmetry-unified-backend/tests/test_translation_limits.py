@@ -238,9 +238,9 @@ class TestTranslationLimits:
     # edge case tests
 
     def test_unsupported_language(self):
-        """Test with unsupported language code - falls back to original text"""
-        result = translate("Hello world", "en", "xx")
-        assert result == "Hello world"
+        """Test with unsupported language code - raises validation error"""
+        with pytest.raises(ValueError, match="Unsupported translation pair"):
+            translate("Hello world", "en", "xx")
 
     def test_very_many_special_characters(self):
         """Test with predominantly special characters"""

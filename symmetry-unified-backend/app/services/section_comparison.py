@@ -320,7 +320,7 @@ def _compare_paragraphs_prototype(
     Matching follows the same greedy best-match strategy as _compare_paragraphs(),
     using the prototype's MIN_MATCH_THRESHOLD instead of the LaBSE threshold.
     """
-    from app.ai.translations import translate
+    from app.ai.translation import translate
 
     if not source_paragraphs and not target_paragraphs:
         return []

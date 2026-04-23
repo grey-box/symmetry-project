@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from fastapi import HTTPException
 
@@ -25,5 +26,5 @@ async def resolve_and_fetch_article(query: str, default_lang: str = "en"):
         logging.exception("Failed to fetch article '%s' (%s): %s", title, lang, str(e))
         raise HTTPException(
             status_code=404,
-            detail=f"Failed to fetch article '{title}' ({lang}): {e}",
+            detail=f"Failed to fetch article '{title}' ({lang}).",
         )

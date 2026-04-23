@@ -1,13 +1,12 @@
 from typing import List
-import logging
 
-from app.models.wiki.structure import Section
+from app.models.wiki.structure import Article, Section
 from app.models.wiki.responses import StructuredArticleResponse
 from app.ai.translation import translate
 
 
 def translate_article(
-    article, source_lang: str, target_lang: str
+    article: Article, source_lang: str, target_lang: str
 ) -> StructuredArticleResponse:
     """
     Translates an Article object and builds a StructuredArticleResponse.

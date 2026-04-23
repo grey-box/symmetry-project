@@ -63,12 +63,7 @@ def translate(text: str, source_lang: str, target_lang: str) -> str:
         elif source_lang == "en" and target_lang in ROMANCE_LANGS:
             model_name = "Helsinki-NLP/opus-mt-en-ROMANCE"
         else:
-            logger.warning(
-                "Unsupported translation pair %s -> %s. Returning original text.",
-                source_lang,
-                target_lang,
-            )
-            return text
+            raise ValueError(f"Unsupported translation pair: {source_lang} -> {target_lang}")
 
     try:
         tokenizer, model = load_translation_components(model_name)
@@ -92,10 +87,7 @@ def translate(text: str, source_lang: str, target_lang: str) -> str:
 
         return _translate_with_model(text, tokenizer, model)
     except Exception as exc:
-        logger.warning(
-            "Translation failed %s -> %s: %s. Returning original.",
-            source_lang,
-            target_lang,
-            exc,
-        )
-        return text
+        logger.exception("Translation failed %s -> %s", source_lang, target_lang)
+        raise RuntimeError(
+            f"Translation failed for language pair {source_lang} -> {target_lang}"
+        ) from exc
