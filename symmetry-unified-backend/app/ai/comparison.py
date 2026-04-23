@@ -315,14 +315,14 @@ def _run_prototype_comparison(
             key=lambda x: x["score"],
             reverse=True,
         )
-        best_ab = [
-            {
+        best_ab = []
+        for i, s in enumerate(left):
+            best_j = max(range(len(right)), key=lambda j: matrix[i][j])
+            best_ab.append({
                 "sentence": s,
-                "best_match": right[max(range(len(right)), key=lambda j: matrix[i][j])],
-                "score": matrix[i][max(range(len(right)), key=lambda j: matrix[i][j])],
-            }
-            for i, s in enumerate(left)
-        ]
+                "best_match": right[best_j],
+                "score": matrix[i][best_j],
+            })
         best_ba = [
             {
                 "sentence": s,
