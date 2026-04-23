@@ -1,4 +1,4 @@
-from app.ai import fact_extraction
+from app.models.extraction import engine as fact_extraction
 
 
 def test_spacy_sentence_segmentation_handles_abbreviations():

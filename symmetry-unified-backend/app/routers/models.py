@@ -1,11 +1,10 @@
-import logging
 from fastapi import APIRouter, Query
 
-from app.models import (
+from app.models.api import (
     ModelSelectionResponse,
     ListResponse,
 )
-from app.models.server_model import ServerModel
+from app.models.server import ServerModel
 
 router = APIRouter(prefix="/models", tags=["models"])
 

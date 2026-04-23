@@ -1,10 +1,47 @@
-venv
-frontend.log
-symmetry-unified-backend/log_pytest.txt
-backend_test.log
-backend.log
+# ── Python ────────────────────────────────────────────────────
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+log_pytest.txt
 datasets/
-.DS_Store
-**/tempCodeRunnerFile.py
-# Build artifacts
+
+# ── Node / Electron ───────────────────────────────────────────
+node_modules/
 /desktop-electron-frontend/dist/
+/desktop-electron-frontend/.vite/
+/desktop-electron-frontend/out/
+/desktop-electron-frontend/artifacts/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ── Local config & secrets ────────────────────────────────────
+.env
+config.json
+
+# ── OS / Editor ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
+
+# ── Logs ──────────────────────────────────────────────────────
+frontend.log
+backend.log
+backend_test.log
+*.log

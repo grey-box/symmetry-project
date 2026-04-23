@@ -1,4 +1,3 @@
-import re
 import nltk
 from nltk.corpus import wordnet
 from nltk.stem import WordNetLemmatizer
@@ -78,7 +77,6 @@ class SynonymMatcher:
             "swum": "swim",
             "thrown": "throw",
             "blown": "blow",
-            "grown": "grow",
             "known": "know",
             "shown": "show",
             "flown": "fly",
@@ -203,7 +201,7 @@ class SynonymMatcher:
 
         # Check if word_b appears as a lemma in any of word_a's synsets
         for syn in wordnet.synsets(word_a):
-            lemma_names = [l.name() for l in syn.lemmas()]
+            lemma_names = [lemma.name() for lemma in syn.lemmas()]
             if word_b in lemma_names:
                 self._share_synset_cache[key] = True
                 return True
@@ -321,13 +319,11 @@ class SynonymMatcher:
 
         for token_a in tokens_a:
             best_match_score = 0.0
-            best_match_word = None
 
             for token_b in tokens_b:
                 # check exact match first — skip all WordNet work if identical
                 if token_a == token_b:
                     best_match_score = 1.0
-                    best_match_word = token_b
                     break  # can't score higher than 1.0
 
                 if self.are_antonyms(token_a, token_b):
@@ -345,7 +341,6 @@ class SynonymMatcher:
 
                 if score > best_match_score:
                     best_match_score = score
-                    best_match_word = token_b
                     if best_match_score >= 1.0:  # perfect match found — stop early
                         break
 

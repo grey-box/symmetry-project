@@ -2,7 +2,7 @@ from fastapi import HTTPException
 from starlette import status
 from bs4 import BeautifulSoup
 import requests
-from app.models import TableResponse
+from app.models.wiki.analysis import TableResponse
 from app.services.wiki_utils import page_exists
 
 

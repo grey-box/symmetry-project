@@ -1,15 +1,12 @@
 import logging
-import asyncio
-import urllib.request
 from urllib.parse import urlparse, unquote
-from urllib.error import URLError
 from typing import Dict, Optional, Annotated
 
 import wikipediaapi
 import pycountry
 from fastapi import APIRouter, Query, HTTPException, Request
 
-from app.models import SourceArticleResponse
+from app.models.wiki.responses import SourceArticleResponse
 from app.services.cache import get_cached_article, set_cached_article
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["wiki"])

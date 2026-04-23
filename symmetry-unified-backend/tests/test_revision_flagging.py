@@ -5,13 +5,8 @@ All tests are fully offline — no Wikipedia API calls are made.
 Each test exercises one flagging rule in isolation so failures are easy to trace.
 """
 
-import pytest
-from app.models.revision import DiffResponse, Flag, Revision, SectionDiff
+from app.models.revision import DiffResponse, Revision, SectionDiff
 from app.services.revision_flagging import (
-    LEAD_SIMILARITY_THRESHOLD,
-    RAPID_EDIT_MIN_REVISIONS,
-    RAPID_EDIT_WINDOW_HOURS,
-    VOLUME_THRESHOLD,
     flag_revision,
 )
 

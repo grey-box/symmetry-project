@@ -1,9 +1,8 @@
 import pytest
-import anyio
 import torch
 from types import SimpleNamespace
 
-from app.ai import fact_extraction
+from app.models.extraction import engine as fact_extraction
 
 
 class DummyTokenizer:

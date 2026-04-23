@@ -1,7 +1,7 @@
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
 from starlette import status
-from app.models import InfoBoxResponse
+from app.models.wiki.analysis import InfoBoxResponse
 from app.services.wiki_utils import page_exists
 import requests
 
