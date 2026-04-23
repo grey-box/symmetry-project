@@ -146,15 +146,17 @@ FASTAPI_DEBUG=false
 ```bash
 cd symmetry-unified-backend
 source venv/bin/activate
-pytest                    # Run all tests
-pytest -v --tb=short      # Verbose with short tracebacks
-pytest --cov=app          # With coverage
+python -m pytest                    # Run all tests
+python -m pytest -v --tb=short      # Verbose with short tracebacks
+python -m pytest --cov=app          # With coverage
 ```
+
+For GitHub Copilot agent runs, allowlist `huggingface.co` before running tests marked `external`.
 
 Tests are in `tests/`. Key test files:
 
 | File | What it tests |
-|------|--------------|
+| ----- | -------------- |
 | `test_comparison.py` | Article comparison endpoints |
 | `test_similarity_scoring.py` | Levenshtein + language family logic |
 | `test_structured_wiki.py` | Article parsing |

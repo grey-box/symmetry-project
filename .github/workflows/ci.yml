@@ -38,7 +38,7 @@ jobs:
         run: python -m spacy download en_core_web_sm
 
       - name: Run tests
-        run: pytest -m "not slow and not external" --tb=short --junitxml=report.xml
+        run: python -m pytest -m "not slow and not external" --tb=short --junitxml=report.xml
 
       - name: Upload test results
         if: always()

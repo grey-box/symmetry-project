@@ -25,8 +25,8 @@ The primary feature is **section-by-section, paragraph-by-paragraph semantic com
 cd symmetry-unified-backend
 source venv/bin/activate
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-pytest                    # run tests
-pytest -v --tb=short      # verbose with short tracebacks
+python -m pytest          # run tests
+python -m pytest -v --tb=short      # verbose with short tracebacks
 ```
 
 ### Frontend
@@ -145,4 +145,6 @@ git push origin vX.Y.Z
 ## Testing
 
 Backend tests are in `symmetry-unified-backend/tests/`. Run with `pytest`.
+
+For Copilot agent runs, allowlist `huggingface.co` when running tests marked `external`.
 No frontend test suite is currently configured.

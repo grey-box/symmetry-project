@@ -22,6 +22,14 @@ _LANG_ALIASES = {
     "arabic": "ar",
 }
 
+_MODEL_FAILURE_FALLBACK_MARKERS = (
+    "repository not found",
+    "401 unauthorized",
+    "is not a local folder and is not a valid model identifier",
+    "connection",
+    "timed out",
+)
+
 
 def _normalize_lang_code(lang: str) -> str:
     normalized = (lang or "").strip().lower()
@@ -47,6 +55,11 @@ def _translate_batch_with_model(batch: list, tokenizer, model) -> list:
 
 def _translate_with_model(text: str, tokenizer, model) -> str:
     return _translate_batch_with_model([text], tokenizer, model)[0]
+
+
+def _should_fallback_to_source_text(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return any(marker in message for marker in _MODEL_FAILURE_FALLBACK_MARKERS)
 
 
 def translate(text: str, source_lang: str, target_lang: str) -> str:
@@ -88,6 +101,13 @@ def translate(text: str, source_lang: str, target_lang: str) -> str:
         return _translate_with_model(text, tokenizer, model)
     except Exception as exc:
         logger.exception("Translation failed %s -> %s", source_lang, target_lang)
+        if _should_fallback_to_source_text(exc):
+            logger.warning(
+                "Falling back to source text for %s -> %s due to model availability issues",
+                source_lang,
+                target_lang,
+            )
+            return text
         raise RuntimeError(
             f"Translation failed for language pair {source_lang} -> {target_lang}"
         ) from exc

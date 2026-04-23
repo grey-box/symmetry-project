@@ -135,9 +135,9 @@ See [backend/README.md](./backend/README.md) for the full API reference.
 ```bash
 cd symmetry-unified-backend
 source venv/bin/activate
-pytest              # Run all tests
-pytest -v           # Verbose
-pytest --cov=app    # With coverage
+python -m pytest              # Run all tests
+python -m pytest -v           # Verbose
+python -m pytest --cov=app    # With coverage
 ```
 
 ---
