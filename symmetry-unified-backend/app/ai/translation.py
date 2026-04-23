@@ -76,7 +76,9 @@ def translate(text: str, source_lang: str, target_lang: str) -> str:
         elif source_lang == "en" and target_lang in ROMANCE_LANGS:
             model_name = "Helsinki-NLP/opus-mt-en-ROMANCE"
         else:
-            raise ValueError(f"Unsupported translation pair: {source_lang} -> {target_lang}")
+            raise ValueError(
+                f"Unsupported translation pair: {source_lang} -> {target_lang}"
+            )
 
     try:
         tokenizer, model = load_translation_components(model_name)
