@@ -92,8 +92,8 @@ def sentences_diff(
 ) -> Tuple[List[str], List[int]]:
     unmatched_sentences: List[str] = []
     unmatched_indices: List[int] = []
-    for i, embedding in enumerate(source_embeddings):
-        similarities = cosine_similarity([embedding], reference_embeddings)[0]
+    sim_matrix = cosine_similarity(source_embeddings, reference_embeddings)
+    for i, similarities in enumerate(sim_matrix):
         if max(similarities) < similarity_threshold:
             unmatched_sentences.append(article_sentences[i])
             unmatched_indices.append(i)
