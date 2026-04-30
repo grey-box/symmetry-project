@@ -148,3 +148,30 @@ export interface RevisionDiffResponse {
   sections_modified: RevisionSectionChange[];
   overall_similarity: number;
 }
+
+export interface RevisionFlag {
+  revid: number;
+  reason: 'lead_section_modified' | 'section_removed' | 'high_volume_change' | 'rapid_successive_edits' | string;
+  severity: 'low' | 'medium' | 'high' | string;
+  detail: string;
+}
+
+export interface RevisionSectionDiff {
+  section_title: string;
+  status: 'added' | 'removed' | 'modified' | 'unchanged';
+  old_content?: string | null;
+  new_content?: string | null;
+  similarity_score?: number | null;
+  char_delta: number;
+  unified_diff?: string[] | null;
+}
+
+export interface RevisionDetailedDiffResponse {
+  old_revid: number;
+  new_revid: number;
+  title: string;
+  section_diffs: RevisionSectionDiff[];
+  total_chars_old: number;
+  total_chars_new: number;
+  flags?: RevisionFlag[] | null;
+}

@@ -4,6 +4,8 @@ import {
   Revision,
   RevisionDiffResponse,
   RevisionSectionChange,
+  RevisionDetailedDiffResponse,
+  RevisionFlag,
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
 
@@ -32,7 +34,7 @@ const SectionChangeList: React.FC<{ title: string; items: RevisionSectionChange[
           <div key={item.section_title} className="text-sm">
             <div className="font-medium">{item.section_title}</div>
             <div className="text-xs opacity-80">
-              Similarity: {(item.similarity_score * 100).toFixed(0)}%
+              Similarity: {item.similarity_score > 0 ? `${(item.similarity_score * 100).toFixed(0)}%` : 'n/a'}
             </div>
           </div>
         ))}
@@ -41,10 +43,21 @@ const SectionChangeList: React.FC<{ title: string; items: RevisionSectionChange[
   );
 };
 
+const flagTone = (severity: RevisionFlag['severity']) => {
+  if (severity === 'high') {
+    return 'bg-red-50 border-red-200 text-red-900';
+  }
+  if (severity === 'medium') {
+    return 'bg-amber-50 border-amber-200 text-amber-900';
+  }
+  return 'bg-blue-50 border-blue-200 text-blue-900';
+};
+
 const ThroughTimeComparison: React.FC = () => {
   const [query, setQuery] = useState('Python (programming language)');
   const [lang, setLang] = useState('en');
   const [limit, setLimit] = useState(20);
+  const [includeFlags, setIncludeFlags] = useState(true);
 
   const [historyLoading, setHistoryLoading] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
@@ -54,6 +67,7 @@ const ThroughTimeComparison: React.FC = () => {
   const [oldRevisionId, setOldRevisionId] = useState<number | null>(null);
   const [newRevisionId, setNewRevisionId] = useState<number | null>(null);
   const [diff, setDiff] = useState<RevisionDiffResponse | null>(null);
+  const [detailedDiff, setDetailedDiff] = useState<RevisionDetailedDiffResponse | null>(null);
 
   const sortedRevisions = useMemo(() => {
     return [...revisions].sort((a, b) => {
@@ -68,6 +82,7 @@ const ThroughTimeComparison: React.FC = () => {
     setHistoryLoading(true);
     setError(null);
     setDiff(null);
+    setDetailedDiff(null);
 
     try {
       const response = await structuredWikiService.getRevisionHistory({
@@ -112,16 +127,33 @@ const ThroughTimeComparison: React.FC = () => {
     setError(null);
 
     try {
+      const trimmedQuery = query.trim();
+      const parsed = trimmedQuery.includes('://')
+        ? structuredWikiService.parseWikipediaUrl(trimmedQuery)
+        : null;
+      const compareTitle = parsed?.title ?? trimmedQuery;
+      const compareLang = parsed?.lang ?? lang;
+
       const response = await structuredWikiService.getRevisionDiff({
         revid_a: oldRevisionId,
         revid_b: newRevisionId,
-        title: query.trim(),
-        lang,
+        title: compareTitle,
+        lang: compareLang,
       });
       setDiff(response);
+
+      const detailedResponse = await structuredWikiService.getRevisionDetailedDiff({
+        old_revid: oldRevisionId,
+        new_revid: newRevisionId,
+        title: compareTitle,
+        lang: compareLang,
+        include_flags: includeFlags,
+      });
+      setDetailedDiff(detailedResponse);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to compare revisions');
       setDiff(null);
+      setDetailedDiff(null);
     } finally {
       setCompareLoading(false);
     }
@@ -170,6 +202,17 @@ const ThroughTimeComparison: React.FC = () => {
                 onChange={(e) => setLimit(Math.max(2, Math.min(100, Number(e.target.value) || 20)))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md"
               />
+            </div>
+            <div className="md:col-span-2">
+              <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={includeFlags}
+                  onChange={(e) => setIncludeFlags(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Include revision risk flags (volume, removed sections, lead changes, rapid edits)
+              </label>
             </div>
             <div className="md:col-span-2 flex gap-3">
               <button
@@ -264,7 +307,7 @@ const ThroughTimeComparison: React.FC = () => {
         <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
           <h3 className="text-lg font-semibold">Revision Diff Summary</h3>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             <div className="bg-gray-50 rounded-lg p-3 text-center">
               <div className="text-2xl font-bold text-gray-800">{(diff.overall_similarity * 100).toFixed(0)}%</div>
               <div className="text-xs text-gray-500">Overall Similarity</div>
@@ -281,7 +324,36 @@ const ThroughTimeComparison: React.FC = () => {
               <div className="text-2xl font-bold text-amber-700">{diff.sections_modified.length}</div>
               <div className="text-xs text-amber-700">Modified Sections</div>
             </div>
+            <div className="bg-sky-50 rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold text-sky-700">{detailedDiff ? detailedDiff.total_chars_old : '-'}</div>
+              <div className="text-xs text-sky-700">Chars (old)</div>
+            </div>
+            <div className="bg-indigo-50 rounded-lg p-3 text-center">
+              <div className="text-2xl font-bold text-indigo-700">{detailedDiff ? detailedDiff.total_chars_new : '-'}</div>
+              <div className="text-xs text-indigo-700">Chars (new)</div>
+            </div>
           </div>
+
+          {includeFlags && detailedDiff && (
+            <div className="space-y-2">
+              <h4 className="font-semibold">Revision Risk Flags</h4>
+              {!detailedDiff.flags || detailedDiff.flags.length === 0 ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+                  No risk flags detected for this revision pair.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {detailedDiff.flags.map((flag) => (
+                    <div key={`${flag.revid}-${flag.reason}-${flag.detail}`} className={`rounded-lg border p-3 ${flagTone(flag.severity)}`}>
+                      <div className="text-sm font-semibold uppercase tracking-wide">{flag.reason.replaceAll('_', ' ')}</div>
+                      <div className="text-xs opacity-80 mb-1">Severity: {flag.severity}</div>
+                      <div className="text-sm">{flag.detail}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <SectionChangeList
