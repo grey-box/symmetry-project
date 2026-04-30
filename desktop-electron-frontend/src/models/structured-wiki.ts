@@ -121,3 +121,30 @@ export interface SectionCompareRequest {
   similarity_threshold?: number;
   model_name?: string;
 }
+
+export interface Revision {
+  revid: number;
+  parentid: number;
+  timestamp: string;
+  user: string;
+  comment: string;
+  size: number;
+}
+
+export interface RevisionSectionChange {
+  section_title: string;
+  old_content?: string | null;
+  new_content?: string | null;
+  similarity_score: number;
+}
+
+export interface RevisionDiffResponse {
+  revid_a: number;
+  revid_b: number;
+  title: string;
+  lang: string;
+  sections_added: RevisionSectionChange[];
+  sections_removed: RevisionSectionChange[];
+  sections_modified: RevisionSectionChange[];
+  overall_similarity: number;
+}
