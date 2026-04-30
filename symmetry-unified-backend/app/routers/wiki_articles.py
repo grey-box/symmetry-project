@@ -8,6 +8,7 @@ from fastapi import APIRouter, Query, HTTPException, Request
 
 from app.models.wiki.responses import SourceArticleResponse
 from app.services.cache import get_cached_article, set_cached_article
+from app.services.wiki_utils import parse_wikipedia_url, validate_language_code
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["wiki"])
 
@@ -22,6 +23,36 @@ VALID_LANGUAGE_CODES = {
     for lang in pycountry.languages
     if hasattr(lang, "alpha_3") and lang.alpha_3
 }
+
+
+def _extract_wiki_title(path: str) -> str:
+    """Extract and normalize a Wikipedia title from a /wiki/... URL path."""
+    if not path.startswith("/wiki/"):
+        return ""
+
+    title = path[len("/wiki/") :]
+    title = title.split("#", 1)[0]
+    title = title.split("?", 1)[0]
+    title = unquote(title.replace("_", " ")).strip()
+    return title
+
+
+async def validate_url(url: str) -> tuple[str, str]:
+    """Validate a Wikipedia URL and return (language, article title)."""
+    parsed = urlparse(url)
+
+    if not parsed.netloc.endswith(".wikipedia.org"):
+        raise HTTPException(status_code=400, detail="URL must use a Wikipedia domain.")
+
+    lang = parsed.netloc.split(".")[0]
+    if not validate_language_code(lang):
+        raise HTTPException(status_code=400, detail=f"Invalid language code '{lang}'.")
+
+    title = _extract_wiki_title(parsed.path)
+    if not title:
+        raise HTTPException(status_code=400, detail="Invalid Wikipedia URL provided.")
+
+    return lang, title
 
 
 @router.get(
@@ -53,19 +84,15 @@ async def get_article(
     title: Optional[str]
 
     if "://" in query:
-        try:
-            lang, title = await validate_url(query)
-        except HTTPException as e:
-            raise e
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid URL format provided.")
+        lang, title = await validate_url(query)
     else:
         title = query
 
     if not lang:
         lang = "en"
 
-    await validate_language_code(lang)
+    if not validate_language_code(lang):
+        raise HTTPException(status_code=400, detail=f"Invalid language code '{lang}'.")
 
     cached_content, cached_languages = get_cached_article(lang + "." + title)
     if cached_content:
@@ -88,73 +115,4 @@ async def get_article(
     return {"sourceArticle": article_content, "articleLanguages": languages}
 
 
-async def validate_url(url: str) -> tuple[str, str]:
-    parsed_url = urlparse(url)
-
-    if not parsed_url.netloc.endswith(".wikipedia.org"):
-        logging.info("Invalid domain '%s'", parsed_url.netloc)
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid Wikipedia URL format: Not Wikipedia or no language subdomain.",
-        )
-
-    split_url = parsed_url.netloc.split(".")
-
-    if len(split_url) != 3:
-        logging.info("Invalid subdomain '%s'", parsed_url.netloc)
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid Wikipedia URL format: Incorrect subdomain format.",
-        )
-
-    lang = split_url[0]
-    if not lang.isalpha() or len(lang) > 2:
-        logging.info("Invalid language code '%s'", lang)
-        raise HTTPException(status_code=400, detail="Invalid language code in URL.")
-
-    await validate_language_code(lang)
-
-    if not parsed_url.path.startswith("/wiki/"):
-        logging.debug("Invalid wiki article path '%s'", parsed_url.path)
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid Wikipedia URL format: Invalid article path.",
-        )
-
-    title = _extract_wiki_title(parsed_url.path)
-
-    if len(title) == 0:
-        logging.debug("Empty wiki article title")
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid Wikipedia URL format: No article specified.",
-        )
-
-    return lang, title
-
-
-def _extract_wiki_title(url: str) -> str:
-    title = url[6:]
-
-    for index, c in enumerate(title):
-        if c == "#" or c == "?":
-            title = title[0:index]
-            break
-
-    return unquote(title.replace("_", " "))
-
-
-async def validate_language_code(language_code: str):
-    if language_code in language_cache:
-        logging.info(f"Using cached validation for language code: {language_code}")
-        return language_cache[language_code]
-
-    if language_code not in VALID_LANGUAGE_CODES:
-        language_cache[language_code] = False
-        raise HTTPException(
-            status_code=400, detail=f"Invalid language code '{language_code}'."
-        )
-
-    logging.info(f"Valid language code (whitelist): {language_code}")
-    language_cache[language_code] = True
-    return True
+# validate_url, _extract_wiki_title and validate_language_code moved to app.services.wiki_utils

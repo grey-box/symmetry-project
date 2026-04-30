@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Phase } from '@/models/Phase'
 import { Separator } from '@/components/ui/separator'
 import StructuredArticleViewer from '@/components/StructuredArticleViewer'
+import CrossLanguageComparison from '@/components/CrossLanguageComparison'
+import ThroughTimeComparison from '@/components/ThroughTimeComparison'
 import TranslationSection from '@/components/TranslationSection'
 import ComparisonSection from '@/components/ComparisonSection'
 
@@ -24,6 +26,8 @@ const Home = () => {
 
   const tabs = [
     { phase: Phase.STRUCTURED_ARTICLE, label: 'Structured Article' },
+    { phase: Phase.CROSS_LANGUAGE_COMPARISON, label: 'Cross-Language Diff' },
+    { phase: Phase.THROUGH_TIME_COMPARISON, label: 'Through-Time Diff' },
     { phase: Phase.TRANSLATION, label: 'Translation (Legacy)' },
     { phase: Phase.AI_COMPARISON, label: 'AI Comparison (Legacy)' },
   ]
@@ -51,6 +55,18 @@ const Home = () => {
       {activeTab === Phase.STRUCTURED_ARTICLE && (
         <div id="structured-article-section">
           <StructuredArticleViewer initialLang="en" />
+        </div>
+      )}
+
+      {activeTab === Phase.CROSS_LANGUAGE_COMPARISON && (
+        <div id="cross-language-comparison-section">
+          <CrossLanguageComparison />
+        </div>
+      )}
+
+      {activeTab === Phase.THROUGH_TIME_COMPARISON && (
+        <div id="through-time-comparison-section">
+          <ThroughTimeComparison />
         </div>
       )}
 
