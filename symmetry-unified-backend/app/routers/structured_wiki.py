@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, Query, HTTPException
+from pydantic import BaseModel, Field
 
 from app.models.extraction.engine import (
     extract_facts,
@@ -12,6 +13,7 @@ from app.models.extraction.engine import (
     validate_model,
 )
 from app.ai.similarity_scoring import score_article_pair
+from app.ai.comparison import _get_model as _get_st_model
 
 from app.models.wiki.responses import (
     StructuredArticleResponse,
@@ -19,6 +21,10 @@ from app.models.wiki.responses import (
     StructuredCitationResponse,
     StructuredReferenceResponse,
     CitedArticle,
+)
+from app.models.wiki.paragraph_diff import (
+    ParagraphDiffResponse,
+    ParagraphDiffSection,
 )
 from app.models.extraction.models import FactExtractionRequest, FactExtractionResponse
 from app.models import (
@@ -33,6 +39,21 @@ from app.services.article_parser import article_fetcher, revision_fetcher
 from app.services.wiki_utils import detect_language_lag, parse_wikipedia_url
 from app.services.structured_translation import translate_article
 from app.services.revision_flagging import flag_revision
+from app.services.paragraph_diff import diff_sections as _diff_para_sections
+from app.models.comparison.registry import DEFAULT_MODEL
+
+
+class ParagraphDiffRequest(BaseModel):
+    source_query: str = Field(..., description="Source article title or Wikipedia URL")
+    target_query: str = Field(..., description="Target article title or Wikipedia URL")
+    source_lang: str = Field("en", description="Source language code")
+    target_lang: str = Field("en", description="Target language code")
+    similarity_threshold: float = Field(
+        0.5, ge=0.0, le=0.99, description="Minimum cosine similarity to consider a section/sentence match"
+    )
+    model_name: Optional[str] = Field(
+        None, description="Sentence-transformer model name (defaults to LaBSE)"
+    )
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
@@ -835,3 +856,99 @@ def _diff_sections(
             )
 
     return diffs
+
+
+# ---------------------------------------------------------------------------
+# Paragraph-level semantic diff
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/paragraph-diff",
+    response_model=ParagraphDiffResponse,
+    summary="Paragraph-Level Semantic Diff",
+    description=(
+        "Fetches two Wikipedia articles and produces a sentence-aligned, word-level diff. "
+        "For each matched section pair the sentences are aligned semantically using LaBSE "
+        "embeddings and each aligned pair is word-diffed with difflib.SequenceMatcher. "
+        "Tokens are classified as equal / replace / insert / delete."
+    ),
+)
+async def paragraph_diff(request: ParagraphDiffRequest):
+    logging.info(
+        "Calling paragraph-diff endpoint (source='%s' [%s], target='%s' [%s])",
+        request.source_query,
+        request.source_lang,
+        request.target_query,
+        request.target_lang,
+    )
+
+    # Resolve source
+    if "://" in request.source_query:
+        try:
+            src_lang, src_title = parse_wikipedia_url(request.source_query)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid source Wikipedia URL.")
+    else:
+        src_lang = request.source_lang
+        src_title = request.source_query
+
+    # Resolve target
+    if "://" in request.target_query:
+        try:
+            tgt_lang, tgt_title = parse_wikipedia_url(request.target_query)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid target Wikipedia URL.")
+    else:
+        tgt_lang = request.target_lang
+        tgt_title = request.target_query
+
+    try:
+        src_article = await article_fetcher(src_title, src_lang)
+        tgt_article = await article_fetcher(tgt_title, tgt_lang)
+    except Exception as exc:
+        logging.error("Error fetching articles for paragraph-diff: %s", exc)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch articles: {exc}"
+        )
+
+    model_name = request.model_name or DEFAULT_MODEL
+    try:
+        model = _get_st_model(model_name)
+    except Exception as exc:
+        logging.error("Failed to load model %s: %s", model_name, exc)
+        raise HTTPException(
+            status_code=500, detail=f"Failed to load embedding model: {exc}"
+        )
+
+    src_sections = [
+        (s.title, s.clean_content)
+        for s in src_article.sections
+        if s.clean_content.strip()
+    ]
+    tgt_sections = [
+        (s.title, s.clean_content)
+        for s in tgt_article.sections
+        if s.clean_content.strip()
+    ]
+
+    try:
+        sections: List[ParagraphDiffSection] = _diff_para_sections(
+            src_sections,
+            tgt_sections,
+            model,
+            threshold=request.similarity_threshold,
+        )
+    except Exception as exc:
+        logging.error("Error computing paragraph diff: %s", exc)
+        raise HTTPException(
+            status_code=500, detail=f"Paragraph diff computation failed: {exc}"
+        )
+
+    return ParagraphDiffResponse(
+        source_title=src_article.title,
+        target_title=tgt_article.title,
+        source_lang=src_lang,
+        target_lang=tgt_lang,
+        sections=sections,
+    )
