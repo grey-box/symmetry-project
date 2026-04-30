@@ -35,10 +35,45 @@ const SimilarityBar: React.FC<{ score: number }> = ({ score }) => {
   );
 };
 
+/** Keyword chip displayed in the margin for exclusive concepts */
+const KeywordChip: React.FC<{ keyword: string; side: 'source' | 'target' }> = ({ keyword, side }) => {
+  const color =
+    side === 'source'
+      ? 'bg-orange-100 text-orange-700 border-orange-200'
+      : 'bg-purple-100 text-purple-700 border-purple-200';
+  return (
+    <span
+      className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-mono leading-tight ${color}`}
+      title={`Exclusive to ${side} article`}
+    >
+      {keyword}
+    </span>
+  );
+};
+
+/** Margin column showing exclusive keywords for one side of the diff */
+const KeywordMargin: React.FC<{ keywords: string[]; side: 'source' | 'target' }> = ({ keywords, side }) => {
+  if (keywords.length === 0) return null;
+  const label = side === 'source' ? 'Source-only concepts' : 'Target-only concepts';
+  return (
+    <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+      <p className="text-[10px] uppercase tracking-wide text-gray-400 mb-1">{label}</p>
+      <div className="flex flex-wrap gap-1">
+        {keywords.map((kw) => (
+          <KeywordChip key={kw} keyword={kw} side={side} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
 /** Single paragraph diff row */
 const ParagraphDiffRow: React.FC<{ diff: ParagraphDiff }> = ({ diff }) => {
   const isMatched = diff.status === 'matched';
   const isMissing = diff.status === 'missing_in_target';
+
+  const srcKeywords = diff.source_exclusive_keywords ?? [];
+  const tgtKeywords = diff.target_exclusive_keywords ?? [];
 
   return (
     <div
@@ -53,7 +88,10 @@ const ParagraphDiffRow: React.FC<{ diff: ParagraphDiff }> = ({ diff }) => {
       {/* Source paragraph (left) */}
       <div className="text-sm leading-relaxed text-gray-700">
         {diff.source_text ? (
-          <p>{diff.source_text}</p>
+          <>
+            <p>{diff.source_text}</p>
+            {isMatched && <KeywordMargin keywords={srcKeywords} side="source" />}
+          </>
         ) : (
           <p className="italic text-gray-400">No corresponding paragraph in source</p>
         )}
@@ -62,21 +100,22 @@ const ParagraphDiffRow: React.FC<{ diff: ParagraphDiff }> = ({ diff }) => {
       {/* Target paragraph (right) */}
       <div className="text-sm leading-relaxed text-gray-700">
         {diff.target_text ? (
-          <p>{diff.target_text}</p>
-        ) : (
-          <p className="italic text-gray-400">No corresponding paragraph in target</p>
-        )}
-
-        {/* Scores */}
-        {isMatched && (
-          <div className="mt-2 space-y-1">
-            <SimilarityBar score={diff.similarity_score} />
-            {diff.levenshtein_score !== null && (
-              <div className="text-xs text-gray-400">
-                Levenshtein: {(diff.levenshtein_score * 100).toFixed(0)}%
+          <>
+            <p>{diff.target_text}</p>
+            {isMatched && (
+              <div className="mt-2 space-y-1">
+                <SimilarityBar score={diff.similarity_score} />
+                {diff.levenshtein_score !== null && (
+                  <div className="text-xs text-gray-400">
+                    Levenshtein: {(diff.levenshtein_score * 100).toFixed(0)}%
+                  </div>
+                )}
+                <KeywordMargin keywords={tgtKeywords} side="target" />
               </div>
             )}
-          </div>
+          </>
+        ) : (
+          <p className="italic text-gray-400">No corresponding paragraph in target</p>
         )}
       </div>
     </div>

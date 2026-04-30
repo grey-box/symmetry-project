@@ -9,6 +9,8 @@ import {
   ReferenceAnalysisRequest,
   SectionCompareRequest,
   SectionCompareResponse,
+  Revision,
+  RevisionDiffResponse,
   Section
 } from '../models/structured-wiki';
 import { FactExtractionModel, FactExtractionRequest, FactExtractionResponse } from '../models/FactExtraction';
@@ -137,6 +139,44 @@ class StructuredWikiService {
     }
 
     return response.json();
+  }
+
+  /**
+   * Get revision history for a Wikipedia article.
+   */
+  async getRevisionHistory(request: { query: string; lang?: string; limit?: number }): Promise<Revision[]> {
+    const params = new URLSearchParams();
+    params.append('query', request.query);
+    if (request.lang) {
+      params.append('lang', request.lang);
+    }
+    if (request.limit !== undefined) {
+      params.append('limit', String(request.limit));
+    }
+
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/revision-history?${params.toString()}`;
+    return this.fetchWithErrorHandling<Revision[]>(url);
+  }
+
+  /**
+   * Compare two revisions of the same article.
+   */
+  async getRevisionDiff(request: {
+    revid_a: number;
+    revid_b: number;
+    title: string;
+    lang?: string;
+  }): Promise<RevisionDiffResponse> {
+    const params = new URLSearchParams();
+    params.append('revid_a', String(request.revid_a));
+    params.append('revid_b', String(request.revid_b));
+    params.append('title', request.title);
+    if (request.lang) {
+      params.append('lang', request.lang);
+    }
+
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/diff?${params.toString()}`;
+    return this.fetchWithErrorHandling<RevisionDiffResponse>(url);
   }
 
   /**
