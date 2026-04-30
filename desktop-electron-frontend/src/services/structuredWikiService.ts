@@ -11,6 +11,7 @@ import {
   SectionCompareResponse,
   Revision,
   RevisionDiffResponse,
+  RevisionDetailedDiffResponse,
   Section
 } from '../models/structured-wiki';
 import { FactExtractionModel, FactExtractionRequest, FactExtractionResponse } from '../models/FactExtraction';
@@ -177,6 +178,31 @@ class StructuredWikiService {
 
     const url = `${API_BASE_URL}/symmetry/v1/wiki/diff?${params.toString()}`;
     return this.fetchWithErrorHandling<RevisionDiffResponse>(url);
+  }
+
+  /**
+   * Compare two revisions and return detailed section diffs, with optional flagging.
+   */
+  async getRevisionDetailedDiff(request: {
+    old_revid: number;
+    new_revid: number;
+    title: string;
+    lang?: string;
+    include_flags?: boolean;
+  }): Promise<RevisionDetailedDiffResponse> {
+    const params = new URLSearchParams();
+    params.append('old_revid', String(request.old_revid));
+    params.append('new_revid', String(request.new_revid));
+    params.append('title', request.title);
+    if (request.lang) {
+      params.append('lang', request.lang);
+    }
+    if (request.include_flags !== undefined) {
+      params.append('include_flags', String(request.include_flags));
+    }
+
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/revision-diff?${params.toString()}`;
+    return this.fetchWithErrorHandling<RevisionDetailedDiffResponse>(url);
   }
 
   /**

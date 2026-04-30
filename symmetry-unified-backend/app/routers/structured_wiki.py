@@ -27,10 +27,12 @@ from app.models import (
     SectionChange,
     RevisionDiffResponse,
     RevisionSectionDiff,
+    DiffResponse,
 )
 from app.services.article_parser import article_fetcher, revision_fetcher
 from app.services.wiki_utils import detect_language_lag, parse_wikipedia_url
 from app.services.structured_translation import translate_article
+from app.services.revision_flagging import flag_revision
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
@@ -646,6 +648,71 @@ async def get_diff(
         sections_modified=sections_modified,
         overall_similarity=overall_similarity,
     )
+
+
+@router.get(
+    "/revision-diff",
+    response_model=DiffResponse,
+    summary="Diff Two Revisions (Detailed)",
+    description=(
+        "Returns a section-level detailed diff between two revisions, including "
+        "character deltas and optional revision flags when `include_flags=true`."
+    ),
+)
+async def get_revision_diff(
+    old_revid: int = Query(..., description="First (older) revision ID"),
+    new_revid: int = Query(..., description="Second (newer) revision ID"),
+    title: str = Query(..., description="Wikipedia article title (e.g. 'Python')"),
+    lang: Optional[str] = Query(None, description="Language code (default 'en')"),
+    include_flags: bool = Query(
+        False,
+        description="Run revision flagging heuristics and include flags in the response.",
+    ),
+):
+    logging.info(
+        "Calling revision-diff endpoint (title='%s', old_revid=%d, new_revid=%d, include_flags=%s)",
+        title,
+        old_revid,
+        new_revid,
+        include_flags,
+    )
+
+    if not lang:
+        lang = "en"
+
+    try:
+        article_old = await revision_fetcher(old_revid, lang)
+        article_new = await revision_fetcher(new_revid, lang)
+    except Exception as e:
+        logging.error("Error fetching revisions for detailed diff: %s", str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch revisions: {str(e)}"
+        )
+
+    old_sections = {s.title: s.clean_content for s in article_old.sections}
+    new_sections = {s.title: s.clean_content for s in article_new.sections}
+    section_diffs = _diff_sections(old_sections, new_sections)
+
+    total_chars_old = sum(len(content) for content in old_sections.values())
+    total_chars_new = sum(len(content) for content in new_sections.values())
+
+    response = DiffResponse(
+        old_revid=old_revid,
+        new_revid=new_revid,
+        title=title,
+        section_diffs=section_diffs,
+        total_chars_old=total_chars_old,
+        total_chars_new=total_chars_new,
+    )
+
+    if include_flags:
+        try:
+            prev_revisions = await _fetch_revisions(title, lang, limit=10)
+        except Exception:
+            prev_revisions = []
+        response.flags = flag_revision(response, prev_revisions)
+
+    return response
 
 
 # ---------------------------------------------------------------------------
