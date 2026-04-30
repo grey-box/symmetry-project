@@ -25,6 +25,36 @@ VALID_LANGUAGE_CODES = {
 }
 
 
+def _extract_wiki_title(path: str) -> str:
+    """Extract and normalize a Wikipedia title from a /wiki/... URL path."""
+    if not path.startswith("/wiki/"):
+        return ""
+
+    title = path[len("/wiki/") :]
+    title = title.split("#", 1)[0]
+    title = title.split("?", 1)[0]
+    title = unquote(title.replace("_", " ")).strip()
+    return title
+
+
+async def validate_url(url: str) -> tuple[str, str]:
+    """Validate a Wikipedia URL and return (language, article title)."""
+    parsed = urlparse(url)
+
+    if not parsed.netloc.endswith(".wikipedia.org"):
+        raise HTTPException(status_code=400, detail="URL must use a Wikipedia domain.")
+
+    lang = parsed.netloc.split(".")[0]
+    if not validate_language_code(lang):
+        raise HTTPException(status_code=400, detail=f"Invalid language code '{lang}'.")
+
+    title = _extract_wiki_title(parsed.path)
+    if not title:
+        raise HTTPException(status_code=400, detail="Invalid Wikipedia URL provided.")
+
+    return lang, title
+
+
 @router.get(
     "/articles",
     response_model=SourceArticleResponse,
@@ -54,10 +84,7 @@ async def get_article(
     title: Optional[str]
 
     if "://" in query:
-        try:
-            lang, title = parse_wikipedia_url(query)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid URL format provided.")
+        lang, title = await validate_url(query)
     else:
         title = query
 
