@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 
 import SectionComparisonView from './SectionComparisonView';
-import { SectionCompareResponse } from '../models/structured-wiki';
+import SectionHeatmap from './SectionHeatmap';
+import SideBySideComparisonView from './SideBySideComparisonView';
+import { SectionCompareResponse, ParagraphDiffResponse } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
 
 const LANGUAGE_OPTIONS = [
@@ -26,6 +28,9 @@ const CrossLanguageComparison: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SectionCompareResponse | null>(null);
+  const [paragraphDiff, setParagraphDiff] = useState<ParagraphDiffResponse | null>(null);
+  const [paragraphDiffLoading, setParagraphDiffLoading] = useState(false);
+  const [showSideBySide, setShowSideBySide] = useState(false);
 
   const onCompare = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -41,6 +46,8 @@ const CrossLanguageComparison: React.FC = () => {
         similarity_threshold: threshold,
       });
       setResult(response);
+      setParagraphDiff(null);
+      setShowSideBySide(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Comparison failed');
       setResult(null);
@@ -48,6 +55,41 @@ const CrossLanguageComparison: React.FC = () => {
       setLoading(false);
     }
   };
+
+  const loadDetailedAnalysis = async () => {
+    setParagraphDiffLoading(true);
+    try {
+      const response = await structuredWikiService.getParagraphDiff({
+        source_query: sourceQuery.trim(),
+        target_query: targetQuery.trim(),
+        source_lang: sourceLang,
+        target_lang: targetLang,
+        similarity_threshold: threshold,
+      });
+      setParagraphDiff(response);
+      setShowSideBySide(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Paragraph diff failed');
+    } finally {
+      setParagraphDiffLoading(false);
+    }
+  };
+
+  const exportJson = () => {
+    const data = paragraphDiff ?? result;
+    if (!data) return;
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `comparison-${sourceQuery.replace(/\s+/g, '_')}-${targetQuery.replace(/\s+/g, '_')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const heatmapSections = result?.section_diffs
+    .filter((s) => s.status === 'matched')
+    .map((s) => ({ title: s.source_title || s.target_title, similarity: s.section_similarity })) ?? [];
 
   return (
     <section className="space-y-6">
@@ -138,7 +180,62 @@ const CrossLanguageComparison: React.FC = () => {
         <div className="p-4 bg-red-100 border border-red-300 text-red-700 rounded-md">{error}</div>
       )}
 
-      {result && <SectionComparisonView comparisonResult={result} />}
+      {result && (
+        <>
+          {/* Heatmap */}
+          {heatmapSections.length > 0 && (
+            <div className="bg-white rounded-xl shadow-md p-6">
+              <SectionHeatmap sections={heatmapSections} />
+            </div>
+          )}
+
+          {/* Action bar */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={loadDetailedAnalysis}
+              disabled={paragraphDiffLoading || !!paragraphDiff}
+              className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-md hover:bg-indigo-700 disabled:opacity-50"
+              data-testid="btn-detailed-analysis"
+            >
+              {paragraphDiffLoading ? 'Loading word-level diff…' : paragraphDiff ? 'Word-level diff loaded' : 'Detailed Analysis (word-level diff)'}
+            </button>
+
+            {paragraphDiff && (
+              <button
+                onClick={() => setShowSideBySide((v) => !v)}
+                className="px-4 py-2 bg-gray-700 text-white text-sm rounded-md hover:bg-gray-800"
+                data-testid="btn-toggle-side-by-side"
+              >
+                {showSideBySide ? 'Hide Side-by-Side View' : 'Show Side-by-Side View'}
+              </button>
+            )}
+
+            <button
+              onClick={exportJson}
+              className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-md hover:bg-gray-200 border border-gray-300"
+              data-testid="btn-export-json"
+            >
+              Export JSON
+            </button>
+          </div>
+
+          {/* Side-by-side view (word-level diff) */}
+          {paragraphDiff && showSideBySide && (
+            <div className="bg-white rounded-xl shadow-md overflow-hidden">
+              <SideBySideComparisonView
+                sourceTitle={paragraphDiff.source_title}
+                targetTitle={paragraphDiff.target_title}
+                sourceLang={paragraphDiff.source_lang}
+                targetLang={paragraphDiff.target_lang}
+                sections={paragraphDiff.sections}
+              />
+            </div>
+          )}
+
+          {/* Standard section comparison view */}
+          <SectionComparisonView comparisonResult={result} />
+        </>
+      )}
     </section>
   );
 };

@@ -123,19 +123,26 @@ const ParagraphDiffRow: React.FC<{ diff: ParagraphDiff }> = ({ diff }) => {
 };
 
 /** Expandable section diff card */
-const SectionDiffCard: React.FC<{ sectionDiff: SectionDiff; sourceLanguage: string; targetLanguage: string }> = ({
+const SectionDiffCard: React.FC<{
+  sectionDiff: SectionDiff;
+  sourceLanguage: string;
+  targetLanguage: string;
+  forceExpanded?: boolean | null;
+}> = ({
   sectionDiff,
   sourceLanguage,
   targetLanguage,
+  forceExpanded,
 }) => {
-  const [expanded, setExpanded] = useState(false);
+  const [localExpanded, setLocalExpanded] = useState(false);
+  const expanded = forceExpanded !== null && forceExpanded !== undefined ? forceExpanded : localExpanded;
   const hasParagraphs = sectionDiff.paragraph_diffs.length > 0;
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       {/* Section header (clickable) */}
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setLocalExpanded(!localExpanded)}
         className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -195,6 +202,7 @@ interface SectionComparisonViewProps {
 
 const SectionComparisonView: React.FC<SectionComparisonViewProps> = ({ comparisonResult }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [allExpanded, setAllExpanded] = useState<boolean | null>(null);
 
   const filteredSections =
     filterStatus === 'all'
@@ -246,7 +254,7 @@ const SectionComparisonView: React.FC<SectionComparisonViewProps> = ({ compariso
       </div>
 
       {/* Filter bar */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-gray-500">Filter:</span>
         {[
           { value: 'all', label: 'All', count: comparisonResult.section_diffs.length },
@@ -266,6 +274,22 @@ const SectionComparisonView: React.FC<SectionComparisonViewProps> = ({ compariso
             {f.label} ({f.count})
           </button>
         ))}
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={() => setAllExpanded(true)}
+            className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200"
+            data-testid="btn-expand-all"
+          >
+            Expand All
+          </button>
+          <button
+            onClick={() => setAllExpanded(false)}
+            className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200"
+            data-testid="btn-collapse-all"
+          >
+            Collapse All
+          </button>
+        </div>
       </div>
 
       {/* Section diff list */}
@@ -279,6 +303,7 @@ const SectionComparisonView: React.FC<SectionComparisonViewProps> = ({ compariso
               sectionDiff={sectionDiff}
               sourceLanguage={sourceLangLabel}
               targetLanguage={targetLangLabel}
+              forceExpanded={allExpanded}
             />
           ))
         )}

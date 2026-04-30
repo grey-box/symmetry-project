@@ -12,7 +12,9 @@ import {
   Revision,
   RevisionDiffResponse,
   RevisionDetailedDiffResponse,
-  Section
+  Section,
+  ParagraphDiffRequest,
+  ParagraphDiffResponse,
 } from '../models/structured-wiki';
 import { FactExtractionModel, FactExtractionRequest, FactExtractionResponse } from '../models/FactExtraction';
 
@@ -348,6 +350,25 @@ class StructuredWikiService {
   async validateFactExtractionModel(modelId: string): Promise<{ valid: boolean; model?: FactExtractionModel; error?: string }> {
     const url = `${API_BASE_URL}/symmetry/v1/wiki/fact-extraction-validate?model_id=${encodeURIComponent(modelId)}`;
     return this.fetchWithErrorHandling<{ valid: boolean; model?: FactExtractionModel; error?: string }>(url);
+  }
+
+  /**
+   * Get paragraph-level semantic diff between two Wikipedia articles.
+   * Returns sentence-aligned pairs with word-level token diffs (equal/replace/insert/delete).
+   */
+  async getParagraphDiff(request: ParagraphDiffRequest): Promise<ParagraphDiffResponse> {
+    const response = await fetch(`${API_BASE_URL}/symmetry/v1/wiki/paragraph-diff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Paragraph diff failed (${response.status}): ${errorBody}`);
+    }
+
+    return response.json();
   }
 }
 

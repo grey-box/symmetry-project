@@ -175,3 +175,45 @@ export interface RevisionDetailedDiffResponse {
   total_chars_new: number;
   flags?: RevisionFlag[] | null;
 }
+
+// Paragraph-diff types (matching backend ParagraphDiffResponse)
+
+export type WordTokenType = 'equal' | 'replace' | 'insert' | 'delete';
+
+export interface WordToken {
+  type: WordTokenType;
+  text?: string | null;
+  old?: string | null;
+  new?: string | null;
+}
+
+export interface AlignedSentencePair {
+  source_sentence: string;
+  target_sentence: string;
+  similarity: number;
+  word_diff: WordToken[];
+}
+
+export interface ParagraphDiffSection {
+  source_title: string;
+  target_title: string;
+  similarity: number;
+  aligned_pairs: AlignedSentencePair[];
+}
+
+export interface ParagraphDiffResponse {
+  source_title: string;
+  target_title: string;
+  source_lang: string;
+  target_lang: string;
+  sections: ParagraphDiffSection[];
+}
+
+export interface ParagraphDiffRequest {
+  source_query: string;
+  target_query: string;
+  source_lang?: string;
+  target_lang?: string;
+  similarity_threshold?: number;
+  model_name?: string;
+}
