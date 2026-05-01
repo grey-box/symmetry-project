@@ -54,7 +54,7 @@ def word_diff(text_a: str, text_b: str) -> List[WordToken]:
 
         if tag == "equal":
             if chunk_a.strip():
-                result.append(WordToken(type="equal", text=chunk_a))
+                result.append(WordToken(type="equal", text=chunk_a.strip()))
         elif tag == "replace":
             # Only emit non-whitespace replacements
             a_stripped = chunk_a.strip()
@@ -86,6 +86,19 @@ def _split_sentences(text: str) -> List[str]:
     text = text.replace("\n", " ").strip()
     raw = re.split(r"(?<=[.!?])\s+", text)
     return [s.strip() for s in raw if s.strip()]
+
+
+def _section_match_text(title: str, clean_content: str) -> str:
+    """Build the semantic matching text for a section.
+
+    The matching text combines the section title with the first sentence
+    of the cleaned section content so that section alignment considers both
+    heading and introductory text.
+    """
+    sentences = _split_sentences(clean_content)
+    if sentences:
+        return f"{title}. {sentences[0]}"
+    return title
 
 
 # ---------------------------------------------------------------------------
@@ -178,15 +191,15 @@ def diff_sections(
     if not source_sections or not target_sections:
         return []
 
-    # Encode section titles for matching
-    src_titles = [t for t, _ in source_sections]
-    tgt_titles = [t for t, _ in target_sections]
+    # Encode section title + intro sentence for matching
+    src_texts = [_section_match_text(t, c) for t, c in source_sections]
+    tgt_texts = [_section_match_text(t, c) for t, c in target_sections]
 
     try:
-        src_title_emb = model.encode(src_titles, show_progress_bar=False)
-        tgt_title_emb = model.encode(tgt_titles, show_progress_bar=False)
+        src_title_emb = model.encode(src_texts, show_progress_bar=False)
+        tgt_title_emb = model.encode(tgt_texts, show_progress_bar=False)
     except Exception as exc:
-        logger.error("Section title embedding failed: %s", exc)
+        logger.error("Section matching embedding failed: %s", exc)
         return []
 
     title_sim: np.ndarray = cosine_similarity(src_title_emb, tgt_title_emb)

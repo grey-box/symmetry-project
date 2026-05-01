@@ -1,6 +1,7 @@
 # Contributing to Project Symmetry
 
-Thank you for your interest in contributing! This guide covers everything you need to get started.
+Thank you for your interest in contributing! This guide covers everything you need
+to get started.
 
 ---
 
@@ -17,7 +18,8 @@ Thank you for your interest in contributing! This guide covers everything you ne
 
 ## Code of Conduct
 
-This project follows the [Contributor Covenant Code of Conduct](./CODE_OF_CONDUCT.md). By participating you agree to uphold it.
+This project follows the [Contributor Covenant Code of Conduct](./CODE_OF_CONDUCT.md).
+By participating you agree to uphold it.
 
 ---
 
@@ -109,7 +111,8 @@ ruff check symmetry-unified-backend/
 2. Target the `develop` branch (not `main` — that branch is reserved for releases).
 3. Fill in the PR template: describe *what* changed and *why*.
 4. One approval from a maintainer is required to merge.
-5. Add an entry under `## [Unreleased]` in [`CHANGELOG.md`](./CHANGELOG.md) following the existing format.
+5. Add an entry under `## [Unreleased]` in [`CHANGELOG.md`](./CHANGELOG.md) following the
+   existing format.
 
 ---
 
@@ -129,5 +132,6 @@ ruff check symmetry-unified-backend/
 
 ### Git Commits
 
-- Use [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`)
+- Use [Conventional Commits](https://www.conventionalcommits.org/)
+  (`feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`)
 - Keep commits atomic and focused on one change

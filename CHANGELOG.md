@@ -5,6 +5,8 @@ All notable changes to **Project Symmetry** are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/).
 
+<!-- markdownlint-disable MD013 MD024 MD036 -->
+
 ---
 
 ## [Unreleased]
@@ -103,19 +105,21 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Edited model options panel; users can now paste in a custom model name. (HuggingFace token integration pending.)
+- Edited model options panel so users can paste in a custom model name.
 
 ## [v0.7.1] – 2026-03-30
 
 ### Fixed
 
-- Second patch to unify similarity threshold configuration across all comparison paths (PR #21).
+- Second patch to unify similarity threshold configuration
+  across all comparison paths (PR #21).
 
 ## [v0.7.0] – 2026-03-30
 
 ### Fixed
 
-- Unified threshold configuration so the value flows consistently from frontend → API → comparison engine (PR #20).
+- Unified threshold configuration so the value flows consistently
+  from frontend → API → comparison engine (PR #20).
 
 ---
 
@@ -147,13 +151,15 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- `semantic_comparison.py` uses `DEFAULT_MODEL` constant and safe `.get()` lookups for comparison keys.
+- `semantic_comparison.py` uses `DEFAULT_MODEL` constant and safe
+  `.get()` lookups for comparison keys.
 
 ## [v0.6.2] – 2026-03-28
 
 ### Added
 
-- Exposed `model_name` and `similarity_threshold` as explicit API attributes (PR #16).
+- Exposed `model_name` and `similarity_threshold` as explicit API
+  attributes (PR #16).
 
 ## [v0.6.1] – 2026-03-28
 
@@ -169,7 +175,8 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 - Full semantic comparison pipeline merged, including LaBSE-based article comparison.
 - Renamed internal `a`/`b` variable names to `original`/`translated` for clarity.
-- Refactored `compareArticles` frontend service (removed unnecessary try/catch, streamlined Axios retrieval).
+- Refactored `compareArticles` frontend service (removed unnecessary
+  try/catch, streamlined Axios retrieval).
 
 ---
 
@@ -177,13 +184,15 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Refactored `compareArticles`: removed unnecessary try block, streamlined Axios instance retrieval.
+- Refactored `compareArticles`: removed unnecessary try block,
+  streamlined Axios instance retrieval.
 
 ## [v0.5.13] – 2026-03-28
 
 ### Changed
 
-- Renamed `a`/`b` variable names to `original`/`translated` throughout comparison pipeline.
+- Renamed `a`/`b` variable names to `original`/`translated`
+  throughout comparison pipeline.
 
 ## [v0.5.12] – 2026-03-28
 
@@ -219,7 +228,8 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- `docker-compose.yml`: install spaCy language models on container startup (cherry-pick of #11/#13).
+- `docker-compose.yml`: install spaCy language models on container
+  startup (cherry-pick of #11/#13).
 
 ## [v0.5.6] – 2026-03-28
 
@@ -231,7 +241,8 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- `docker-compose.yml`: added automatic spaCy model installation on startup (PR #11, #13).
+- `docker-compose.yml`: added automatic spaCy model
+  installation on startup (PR #11, #13).
 
 ## [v0.5.4] – 2026-03-24
 
@@ -295,7 +306,8 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- Fixed language detection by switching to a proper language-code package instead of a hardcoded list.
+- Fixed language detection by switching to a proper language-code
+  package instead of a hardcoded list.
 
 ## [v0.4.5] – 2026-02-23
 
@@ -326,7 +338,8 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- WIP: initial semantic comparison implementation and chunking updates (in-progress at time of tag).
+- WIP: initial semantic comparison implementation and chunking
+  updates (in-progress at time of tag).
 
 ## [v0.4.0] – 2026-02-16
 
@@ -354,7 +367,9 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Implemented full similarity scoring algorithm (`similarity_scoring.py`) with Levenshtein distance, loanword detection, and language family heuristics.
+- Implemented full similarity scoring algorithm
+  (`similarity_scoring.py`) with Levenshtein distance, loanword
+  detection, and language family heuristics.
 - Added corresponding test file.
 
 ## [v0.3.10] – 2026-02-13
@@ -526,14 +541,14 @@ Versioning: [Semantic Versioning](https://semver.org/).
 ### Bump recommendation rules
 
 | Rule | Bump |
-|------|------|
+| ------ | ------ |
 | Breaking API or data-model changes | `major` |
 | New features or new public API | `minor` |
 | Bug fixes, docs, tests, refactors, style, chore | `patch` |
 
 ### Example LLM prompt
 
-```
+```text
 Parse the following CHANGELOG.md and output a JSON array matching the schema in
 the "LLM Ingestion Instructions" section. Determine the recommended semantic
 version bump for each entry using conservative rules. Summarise release notes in

@@ -1,3 +1,4 @@
+import asyncio
 import difflib
 import logging
 from typing import Any, Dict, List, Optional
@@ -49,15 +50,39 @@ class ParagraphDiffRequest(BaseModel):
     source_lang: str = Field("en", description="Source language code")
     target_lang: str = Field("en", description="Target language code")
     similarity_threshold: float = Field(
-        0.5, ge=0.0, le=0.99, description="Minimum cosine similarity to consider a section/sentence match"
+        0.5,
+        ge=0.0,
+        le=0.99,
+        description="Minimum cosine similarity to consider a section/sentence match",
     )
     model_name: Optional[str] = Field(
         None, description="Sentence-transformer model name (defaults to LaBSE)"
     )
 
+
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
 structured_cache: Dict[str, StructuredArticleResponse] = {}
+
+
+def _resolve_article_query(
+    query: str, lang: Optional[str], field_name: str = "article"
+) -> tuple[str, str]:
+    """
+    Resolve a Wikipedia article query into (language, title).
+    Accepts either a full Wikipedia URL or a title.
+    """
+    if "://" in query:
+        try:
+            return parse_wikipedia_url(query)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid {field_name} Wikipedia URL.",
+            )
+    if not lang:
+        lang = "en"
+    return lang, query
 
 
 @router.get(
@@ -883,42 +908,33 @@ async def paragraph_diff(request: ParagraphDiffRequest):
         request.target_lang,
     )
 
-    # Resolve source
-    if "://" in request.source_query:
-        try:
-            src_lang, src_title = parse_wikipedia_url(request.source_query)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid source Wikipedia URL.")
-    else:
-        src_lang = request.source_lang
-        src_title = request.source_query
-
-    # Resolve target
-    if "://" in request.target_query:
-        try:
-            tgt_lang, tgt_title = parse_wikipedia_url(request.target_query)
-        except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid target Wikipedia URL.")
-    else:
-        tgt_lang = request.target_lang
-        tgt_title = request.target_query
+    src_lang, src_title = _resolve_article_query(
+        request.source_query, request.source_lang, field_name="source"
+    )
+    tgt_lang, tgt_title = _resolve_article_query(
+        request.target_query, request.target_lang, field_name="target"
+    )
 
     try:
-        src_article = await article_fetcher(src_title, src_lang)
-        tgt_article = await article_fetcher(tgt_title, tgt_lang)
-    except Exception as exc:
-        logging.error("Error fetching articles for paragraph-diff: %s", exc)
+        src_article, tgt_article = await asyncio.gather(
+            article_fetcher(src_title, src_lang),
+            article_fetcher(tgt_title, tgt_lang),
+        )
+    except Exception:
+        logging.exception("Error fetching articles for paragraph-diff")
         raise HTTPException(
-            status_code=500, detail=f"Failed to fetch articles: {exc}"
+            status_code=500,
+            detail="Internal server error while fetching articles for paragraph diff.",
         )
 
     model_name = request.model_name or DEFAULT_MODEL
     try:
         model = _get_st_model(model_name)
-    except Exception as exc:
-        logging.error("Failed to load model %s: %s", model_name, exc)
+    except Exception:
+        logging.exception("Failed to load model %s", model_name)
         raise HTTPException(
-            status_code=500, detail=f"Failed to load embedding model: {exc}"
+            status_code=500,
+            detail="Internal server error while loading the embedding model.",
         )
 
     src_sections = [
@@ -939,10 +955,11 @@ async def paragraph_diff(request: ParagraphDiffRequest):
             model,
             threshold=request.similarity_threshold,
         )
-    except Exception as exc:
-        logging.error("Error computing paragraph diff: %s", exc)
+    except Exception:
+        logging.exception("Error computing paragraph diff")
         raise HTTPException(
-            status_code=500, detail=f"Paragraph diff computation failed: {exc}"
+            status_code=500,
+            detail="Internal server error while computing paragraph diff.",
         )
 
     return ParagraphDiffResponse(
