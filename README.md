@@ -1,39 +1,12 @@
-# Project Symmetry - Cross-Language Wikipedia Article Gap Analysis Tool
+# Project Symmetry
 
-![Grey-box Logo](https://www.grey-box.ca/wp-content/uploads/2018/05/logoGREY-BOX.jpg)
+Minimal project README for local development and reference.
 
-![CI](https://github.com/grey-box/symmetry-project/actions/workflows/ci.yml/badge.svg) ![Release](https://github.com/grey-box/symmetry-project/actions/workflows/release.yml/badge.svg) ![Latest Release](https://img.shields.io/github/v/release/grey-box/symmetry-project)
+## What is this
 
-![Project-Symmetry: Cross-Language Wikipedia Article Semantic Analysis Tool](extras/symmetrydemo2.png)
+A repository with a Python FastAPI backend in `symmetry-unified-backend` and a frontend in `desktop-electron-frontend`.
 
-**A semantic analysis tool that compares Wikipedia articles across languages section-by-section and paragraph-by-paragraph to identify content gaps, missing information, and added content. Features word-level diff, revision risk flagging, and language-lag detection.**
-
----
-
-## Prerequisites
-
-- [Node.js](https://nodejs.org/) (v18+)
-- [Python](https://www.python.org/) (3.8-3.11)
-- [npm](https://www.npmjs.com/) / [yarn](https://yarnpkg.com/)
-- [Docker](https://www.docker.com/) (optional, for containerized deployment)
-
-## Start Everything (Local Development)
-
-```bash
-# Start both backend and frontend
-./start.sh all
-
-# Start with frontend in development mode
-./start.sh all --dev
-```
-
-## Using Docker Compose
-
-```bash
-./start.sh docker       # Foreground
-./start.sh docker-up    # Detached
-./start.sh docker-down  # Stop
-```
+## Local setup
 
 ### Backend
 
@@ -49,136 +22,29 @@ uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 ```bash
 cd desktop-electron-frontend
-yarn install
-yarn start
+npm install
+npm run dev
 ```
 
-## Access Points
+## Tests
 
-- **Frontend**: [http://localhost:5173](http://localhost:5173)
-- **Backend API**: [http://localhost:8000](http://localhost:8000)
-- **API Documentation (Swagger)**: [http://localhost:8000/docs](http://localhost:8000/docs)
-
----
-
-## Documentation
-
-- Central docs hub: [`/docs/README.md`](docs/README.md)
-- Backend package docs: [`symmetry-unified-backend/README.md`](symmetry-unified-backend/README.md)
-- Frontend package docs: [`desktop-electron-frontend/README.md`](desktop-electron-frontend/README.md)
-
----
-
-## Tech Stack
-
-- **Frontend**: Electron 26 + React 18 + TypeScript + Vite + Tailwind CSS + shadcn/ui
-- **Backend**: Python + FastAPI + sentence-transformers + spaCy + MarianMT
-- **Comparison Engine**: LaBSE sentence embeddings (cosine similarity) + Levenshtein distance for disambiguation
-
----
-
-## Section Comparison (Primary)
-
-- `POST /symmetry/v1/articles/compare-sections` — Compare two Wikipedia articles section-by-section with paragraph-level diffs
-
-## Structured Wiki
-
-- `GET /symmetry/v1/wiki/structured-article` — Parse article into sections/citations/references
-- `GET /symmetry/v1/wiki/paragraph-diff` — Word-level semantic diff between two article sections; returns aligned sentence pairs with per-token `equal / insert / delete / replace` tokens
-- `GET /symmetry/v1/wiki/revision-history` — Revision history with optional risk flags (`include_flags=true`)
-- `GET /symmetry/v1/wiki/revision-diff` — Diff between two revisions with section-level change breakdown
-
-## Legacy Comparison
-
-- `POST /symmetry/v1/articles/compare` — Plain-text semantic comparison
-
-## Models Management
-
-- `GET /models/comparison` — List comparison models
-
----
-
-## Testing
+### Backend
 
 ```bash
-# Backend unit tests (CI-equivalent)
 cd symmetry-unified-backend
 source venv/bin/activate
 python -m pytest -m "not slow and not external" --tb=short
-
-# Frontend E2E tests (requires backend + frontend running)
-cd desktop-electron-frontend
-npm run test:e2e              # Playwright headless
-npm run test:e2e:report       # Open HTML report
 ```
 
----
-
-## CI/CD
-
-The project uses GitHub Actions for continuous integration and automated releases.
-
-### Workflows
-
-| Workflow | Trigger | What it does |
-|----------|---------|--------------|
-| **CI** (`.github/workflows/ci.yml`) | Push/PR to `main` or `develop` | Runs backend tests, builds frontend web bundle, builds & smoke-tests frontend Docker image, runs docker-compose integration |
-| **Release** (`.github/workflows/release.yml`) | Push to `main` | Runs full CI → bumps version (semver) → creates git tag → creates GitHub release → publishes Docker images to GHCR |
-
----
-
-## Docker Images
-
-Released images are available from GHCR:
+### Frontend
 
 ```bash
-# Pull specific version
-docker pull ghcr.io/grey-box/symmetry-project/backend:1.1.0
-docker pull ghcr.io/grey-box/symmetry-project/frontend:1.1.0
-
-# Pull latest
-docker pull ghcr.io/grey-box/symmetry-project/backend:latest
-docker pull ghcr.io/grey-box/symmetry-project/frontend:latest
+cd desktop-electron-frontend
+npm test
 ```
 
-> **Note**: Frontend and backend are versioned independently. See [CHANGELOG.md](CHANGELOG.md) for the version history of each component.
+## Documentation
 
----
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Install dependencies (see Quick Start)
-4. Make changes and run tests
-5. Use [Conventional Commits](https://www.conventionalcommits.org/) for your commit messages
-6. Submit a pull request to `develop`
-7. After review, PRs are merged to `develop`, then promoted to `main` for release
-
----
-
-## Community
-
-- **Project Website**: [Project-Symmetry](https://www.grey-box.ca/project-symmetry/)
-- **GitHub Issues**: [Report Issues](https://github.com/grey-box/Project-Symmetry-AI/issues)
-- **Design Resources**: [Figma UX](https://www.figma.com/design/yN89gDcV3rdbje70X9RJGL/Project-Symmetry?node-id=199-529&t=MbzAcPzTNmWPFh8w-0)
-
----
-
-## License
-
-This project is licensed under the appropriate license. See the [LICENSE](LICENSE) file for details.
-
----
-
-## Acknowledgments
-
-- **Grey Box**: Project development and maintenance
-- **Wikipedia**: Source content and API access
-- **Open Source Community**: Libraries and tools
-
----
-
-**Last Updated**: March 2026
-**Version**: 2.0.0
-**Maintainers**: [grey-box](https://github.com/grey-box)
+- `docs/README.md`
+- `symmetry-unified-backend/README.md`
+- `desktop-electron-frontend/README.md`
