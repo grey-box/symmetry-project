@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 
+import RevisionTimeline, { computeRevisionSelection } from './RevisionTimeline';
+import SectionHeatmap from './SectionHeatmap';
 import {
   Revision,
   RevisionDiffResponse,
@@ -76,6 +78,17 @@ const ThroughTimeComparison: React.FC = () => {
       return tA - tB;
     });
   }, [revisions]);
+
+  const handleRevisionRowClick = (revid: number) => {
+    const [nextOld, nextNew] = computeRevisionSelection(
+      revid,
+      oldRevisionId,
+      newRevisionId,
+      sortedRevisions,
+    );
+    setOldRevisionId(nextOld);
+    setNewRevisionId(nextNew);
+  };
 
   const loadHistory = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -244,41 +257,17 @@ const ThroughTimeComparison: React.FC = () => {
         <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
           <h3 className="text-lg font-semibold">Revision Selection</h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Older Revision</label>
-              <select
-                value={oldRevisionId ?? ''}
-                onChange={(e) => setOldRevisionId(Number(e.target.value) || null)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
-              >
-                <option value="">Select older revision</option>
-                {sortedRevisions.map((rev) => (
-                  <option key={`old-${rev.revid}`} value={rev.revid}>
-                    {rev.revid} - {formatDate(rev.timestamp)} - {rev.user}
-                  </option>
-                ))}
-              </select>
-            </div>
+          <RevisionTimeline
+            revisions={revisions}
+            selectedOld={oldRevisionId}
+            selectedNew={newRevisionId}
+            onChange={(oldId, newId) => {
+              setOldRevisionId(oldId);
+              setNewRevisionId(newId);
+            }}
+          />
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Newer Revision</label>
-              <select
-                value={newRevisionId ?? ''}
-                onChange={(e) => setNewRevisionId(Number(e.target.value) || null)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"
-              >
-                <option value="">Select newer revision</option>
-                {sortedRevisions.map((rev) => (
-                  <option key={`new-${rev.revid}`} value={rev.revid}>
-                    {rev.revid} - {formatDate(rev.timestamp)} - {rev.user}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-md">
+          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md mt-4">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-600 sticky top-0">
                 <tr>
@@ -289,14 +278,27 @@ const ThroughTimeComparison: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {sortedRevisions.map((rev) => (
-                  <tr key={rev.revid} className="border-t border-gray-100 align-top">
-                    <td className="p-2 font-mono">{rev.revid}</td>
-                    <td className="p-2">{formatDate(rev.timestamp)}</td>
-                    <td className="p-2">{rev.user}</td>
-                    <td className="p-2 text-gray-600">{rev.comment || 'No edit comment'}</td>
-                  </tr>
-                ))}
+                {sortedRevisions.map((rev) => {
+                  const isOld = rev.revid === oldRevisionId;
+                  const isNew = rev.revid === newRevisionId;
+                  return (
+                    <tr
+                      key={rev.revid}
+                      className={`border-t border-gray-100 align-top cursor-pointer hover:bg-gray-50 ${isOld ? 'bg-blue-50' : isNew ? 'bg-green-50' : ''
+                        }`}
+                      onClick={() => handleRevisionRowClick(rev.revid)}
+                    >
+                      <td className="p-2 font-mono">
+                        {rev.revid}
+                        {isOld && <span className="ml-1 text-blue-600 text-xs font-bold">A</span>}
+                        {isNew && <span className="ml-1 text-green-600 text-xs font-bold">B</span>}
+                      </td>
+                      <td className="p-2">{formatDate(rev.timestamp)}</td>
+                      <td className="p-2">{rev.user}</td>
+                      <td className="p-2 text-gray-600">{rev.comment || 'No edit comment'}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -305,7 +307,25 @@ const ThroughTimeComparison: React.FC = () => {
 
       {diff && (
         <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
-          <h3 className="text-lg font-semibold">Revision Diff Summary</h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Revision Diff Summary</h3>
+            <button
+              onClick={() => {
+                const data = detailedDiff ?? diff;
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `revision-diff-${oldRevisionId}-${newRevisionId}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="px-3 py-1.5 text-sm bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 border border-gray-300"
+              data-testid="btn-export-json-revision"
+            >
+              Export JSON
+            </button>
+          </div>
 
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             <div className="bg-gray-50 rounded-lg p-3 text-center">
@@ -334,6 +354,16 @@ const ThroughTimeComparison: React.FC = () => {
             </div>
           </div>
 
+          {/* Section heatmap for modified sections */}
+          {diff.sections_modified.length > 0 && (
+            <SectionHeatmap
+              sections={diff.sections_modified.map((s) => ({
+                title: s.section_title,
+                similarity: s.similarity_score,
+              }))}
+            />
+          )}
+
           {includeFlags && detailedDiff && (
             <div className="space-y-2">
               <h4 className="font-semibold">Revision Risk Flags</h4>
@@ -345,7 +375,7 @@ const ThroughTimeComparison: React.FC = () => {
                 <div className="space-y-2">
                   {detailedDiff.flags.map((flag) => (
                     <div key={`${flag.revid}-${flag.reason}-${flag.detail}`} className={`rounded-lg border p-3 ${flagTone(flag.severity)}`}>
-                      <div className="text-sm font-semibold uppercase tracking-wide">{flag.reason.replaceAll('_', ' ')}</div>
+                      <div className="text-sm font-semibold uppercase tracking-wide">{flag.reason.replace(/_/g, ' ')}</div>
                       <div className="text-xs opacity-80 mb-1">Severity: {flag.severity}</div>
                       <div className="text-sm">{flag.detail}</div>
                     </div>

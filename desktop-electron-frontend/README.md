@@ -1,10 +1,13 @@
 # Project Symmetry - Desktop Electron Frontend
 
-A cross-platform desktop application built with Electron, React, and TypeScript for cross-language Wikipedia article gap analysis.
+A cross-platform desktop application built with Electron, React, and TypeScript for cross-language
+Wikipedia article gap analysis.
 
 ## Overview
 
-This frontend application provides a user-friendly interface for translating, comparing, and analyzing Wikipedia articles across different languages. It communicates with a FastAPI backend for semantic analysis and article processing.
+This frontend application provides a user-friendly interface for translating, comparing, and analyzing
+Wikipedia articles across different languages. It communicates with a FastAPI backend for semantic
+analysis and article processing.
 
 ## Tech Stack
 
@@ -51,7 +54,7 @@ The application follows Electron's multi-process architecture:
 
 ## Project Structure
 
-```
+```text
 desktop-electron-frontend/
 ├── src/
 │   ├── main.ts                 # Electron main process
@@ -150,7 +153,8 @@ yarn start
 
 ### Configuration
 
-The application reads default configuration from `config.default.json` in the parent directory and then applies custom overrides from `config.json`.
+The application reads default configuration from `config.default.json` in the parent directory and then
+applies custom overrides from `config.json`.
 
 A default config might look like:
 
@@ -163,8 +167,10 @@ A default config might look like:
   "DEFAULT_TIMEOUT": 30000,
   "SIMILARITY_THRESHOLD": 0.65,
   "COMPARISON_MODELS": [
-    { "value": "sentence-transformers/LaBSE", "label": "LaBSE (multilingual embeddings)" },
-    { "value": "similarity_prototype", "label": "Similarity Prototype (Phase 1/2/3 — English only, auto-translates)" }
+    { "value": "sentence-transformers/LaBSE",
+      "label": "LaBSE (multilingual embeddings)" },
+    { "value": "similarity_prototype",
+      "label": "Similarity Prototype (Phase 1/2/3 — English only, auto-translates)" }
   ]
 }
 ```

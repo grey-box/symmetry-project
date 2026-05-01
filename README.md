@@ -6,7 +6,7 @@
 
 ![Project-Symmetry: Cross-Language Wikipedia Article Semantic Analysis Tool](extras/symmetrydemo2.png)
 
-**A semantic analysis tool that compares Wikipedia articles across languages section-by-section and paragraph-by-paragraph to identify content gaps, missing information, and added content.**
+**A semantic analysis tool that compares Wikipedia articles across languages section-by-section and paragraph-by-paragraph to identify content gaps, missing information, and added content. Features word-level diff, revision risk flagging, and language-lag detection.**
 
 ---
 
@@ -79,30 +79,37 @@ yarn start
 
 ## Section Comparison (Primary)
 
-- `POST /symmetry/v1/articles/compare-sections` - Compare two Wikipedia articles section-by-section with paragraph-level diffs
+- `POST /symmetry/v1/articles/compare-sections` — Compare two Wikipedia articles section-by-section with paragraph-level diffs
 
 ## Structured Wiki
 
-- `GET /symmetry/v1/wiki/structured-article` - Parse article into sections/citations/references
+- `GET /symmetry/v1/wiki/structured-article` — Parse article into sections/citations/references
+- `GET /symmetry/v1/wiki/paragraph-diff` — Word-level semantic diff between two article sections; returns aligned sentence pairs with per-token `equal / insert / delete / replace` tokens
+- `GET /symmetry/v1/wiki/revision-history` — Revision history with optional risk flags (`include_flags=true`)
+- `GET /symmetry/v1/wiki/revision-diff` — Diff between two revisions with section-level change breakdown
 
 ## Legacy Comparison
 
-- `POST /symmetry/v1/articles/compare` - Plain-text semantic comparison
+- `POST /symmetry/v1/articles/compare` — Plain-text semantic comparison
 
 ## Models Management
 
-- `GET /models/comparison` - List comparison models
+- `GET /models/comparison` — List comparison models
 
 ---
 
 ## Testing
 
 ```bash
+# Backend unit tests (CI-equivalent)
 cd symmetry-unified-backend
 source venv/bin/activate
-python -m pytest              # Run all tests
-python -m pytest -v           # Verbose
-python -m pytest --cov=app    # With coverage
+python -m pytest -m "not slow and not external" --tb=short
+
+# Frontend E2E tests (requires backend + frontend running)
+cd desktop-electron-frontend
+npm run test:e2e              # Playwright headless
+npm run test:e2e:report       # Open HTML report
 ```
 
 ---
@@ -133,6 +140,8 @@ docker pull ghcr.io/grey-box/symmetry-project/frontend:1.1.0
 docker pull ghcr.io/grey-box/symmetry-project/backend:latest
 docker pull ghcr.io/grey-box/symmetry-project/frontend:latest
 ```
+
+> **Note**: Frontend and backend are versioned independently. See [CHANGELOG.md](CHANGELOG.md) for the version history of each component.
 
 ---
 

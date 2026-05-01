@@ -20,7 +20,7 @@ than distinct.  This makes the extraction meaningful even when source_lang
 
 import logging
 import re
-from typing import List, Optional, Set
+from typing import List, Set
 
 logger = logging.getLogger(__name__)
 
@@ -87,8 +87,7 @@ def _load_nlp(language: str):
         return nlp
     except OSError:
         logger.warning(
-            "spaCy model '%s' not installed. "
-            "Run: python -m spacy download %s",
+            "spaCy model '%s' not installed. Run: python -m spacy download %s",
             model_name,
             model_name,
         )
@@ -119,11 +118,7 @@ def _extract_concepts(text: str, language: str) -> Set[str]:
     nlp = _load_nlp(language)
     if nlp is None:
         # Fallback: split on spaces, keep tokens >= 4 chars that start uppercase
-        tokens = {
-            _normalise(t)
-            for t in text.split()
-            if len(t) >= 4 and t[0].isupper()
-        }
+        tokens = {_normalise(t) for t in text.split() if len(t) >= 4 and t[0].isupper()}
         return {t for t in tokens if len(t) >= _MIN_KEYWORD_LENGTH}
 
     doc = nlp(text)
@@ -131,8 +126,18 @@ def _extract_concepts(text: str, language: str) -> Set[str]:
     concepts: Set[str] = set()
 
     # Named entities (highest priority)
-    target_ent_types = {"PERSON", "ORG", "GPE", "LOC", "EVENT", "WORK_OF_ART",
-                        "FAC", "NORP", "PRODUCT", "LAW"}
+    target_ent_types = {
+        "PERSON",
+        "ORG",
+        "GPE",
+        "LOC",
+        "EVENT",
+        "WORK_OF_ART",
+        "FAC",
+        "NORP",
+        "PRODUCT",
+        "LAW",
+    }
     for ent in doc.ents:
         if ent.label_ in target_ent_types:
             norm = _normalise(ent.text)
@@ -152,11 +157,7 @@ def _extract_concepts(text: str, language: str) -> Set[str]:
     # If nothing was found (very short or purely numeric text), also scan nouns
     if not concepts:
         for token in doc:
-            if (
-                token.pos_ in {"NOUN", "ADJ"}
-                and not token.is_stop
-                and token.is_alpha
-            ):
+            if token.pos_ in {"NOUN", "ADJ"} and not token.is_stop and token.is_alpha:
                 norm = _normalise(token.lemma_)
                 if len(norm) >= _MIN_KEYWORD_LENGTH:
                     concepts.add(norm)

@@ -49,5 +49,16 @@ class SourceArticleResponse(BaseModel):
     articleLanguages: List[str]
 
 
+class AvailableTargetLanguage(BaseModel):
+    lang: str
+    title: str
+
+
+class ArticleLanguagesResponse(BaseModel):
+    source_lang: str
+    source_title: str
+    available_targets: List[AvailableTargetLanguage]
+
+
 class TranslateArticleResponse(BaseModel):
     translatedArticle: str
