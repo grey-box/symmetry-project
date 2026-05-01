@@ -1,7 +1,7 @@
 {
   "name": "project_symmetry",
   "productName": "project_symmetry",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "author": "Gerybox",
   "description": "Cross language wikipedia article gap analysis tool",
   "main": ".vite/build/main.js",
