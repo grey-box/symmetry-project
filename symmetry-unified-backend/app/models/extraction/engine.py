@@ -157,9 +157,6 @@ def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str
     if sentences_per_chunk == 0:
         return [[s] for s in sentences[:num_chunks]]
 
-    # Target words per chunk
-    target_words_per_chunk = total_words / num_chunks
-
     chunks: List[List[str]] = []
 
     for i in range(num_chunks):
@@ -402,6 +399,7 @@ async def extract_facts(
 
     config = get_model_config(model_id)
     model_name = config["model_name"]
+    provider = config.get("provider", "huggingface")
 
     # Build chunk list once
     if num_facts == 1:
