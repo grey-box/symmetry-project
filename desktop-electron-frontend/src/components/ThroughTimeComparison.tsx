@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 
-import RevisionTimeline from './RevisionTimeline';
+import RevisionTimeline, { computeRevisionSelection } from './RevisionTimeline';
 import SectionHeatmap from './SectionHeatmap';
 import {
   Revision,
@@ -78,6 +78,17 @@ const ThroughTimeComparison: React.FC = () => {
       return tA - tB;
     });
   }, [revisions]);
+
+  const handleRevisionRowClick = (revid: number) => {
+    const [nextOld, nextNew] = computeRevisionSelection(
+      revid,
+      oldRevisionId,
+      newRevisionId,
+      sortedRevisions,
+    );
+    setOldRevisionId(nextOld);
+    setNewRevisionId(nextNew);
+  };
 
   const loadHistory = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -273,16 +284,9 @@ const ThroughTimeComparison: React.FC = () => {
                   return (
                     <tr
                       key={rev.revid}
-                      className={`border-t border-gray-100 align-top cursor-pointer hover:bg-gray-50 ${
-                        isOld ? 'bg-blue-50' : isNew ? 'bg-green-50' : ''
-                      }`}
-                      onClick={() => {
-                        if (!oldRevisionId) {
-                          setOldRevisionId(rev.revid);
-                        } else if (!newRevisionId) {
-                          if (rev.revid !== oldRevisionId) setNewRevisionId(rev.revid);
-                        }
-                      }}
+                      className={`border-t border-gray-100 align-top cursor-pointer hover:bg-gray-50 ${isOld ? 'bg-blue-50' : isNew ? 'bg-green-50' : ''
+                        }`}
+                      onClick={() => handleRevisionRowClick(rev.revid)}
                     >
                       <td className="p-2 font-mono">
                         {rev.revid}
@@ -371,7 +375,7 @@ const ThroughTimeComparison: React.FC = () => {
                 <div className="space-y-2">
                   {detailedDiff.flags.map((flag) => (
                     <div key={`${flag.revid}-${flag.reason}-${flag.detail}`} className={`rounded-lg border p-3 ${flagTone(flag.severity)}`}>
-                      <div className="text-sm font-semibold uppercase tracking-wide">{flag.reason.replaceAll('_', ' ')}</div>
+                      <div className="text-sm font-semibold uppercase tracking-wide">{flag.reason.replace(/_/g, ' ')}</div>
                       <div className="text-xs opacity-80 mb-1">Severity: {flag.severity}</div>
                       <div className="text-sm">{flag.detail}</div>
                     </div>

@@ -33,6 +33,13 @@ class TestWordDiff:
         assert "Hello" in texts
         assert "world" in texts
 
+    def test_equal_token_strips_whitespace(self):
+        tokens = word_diff("Hello  world", "Hello world")
+        # The equal token should not preserve surrounding whitespace in the token text
+        equal_tokens = [t for t in tokens if t.type == "equal"]
+        assert equal_tokens
+        assert all(t.text == t.text.strip() for t in equal_tokens)
+
     def test_single_word_substitution(self):
         tokens = word_diff("Hello world", "Hello earth")
         types = [t.type for t in tokens]
@@ -188,6 +195,22 @@ class TestDiffSections:
 
         sections = diff_sections(src, tgt, model, threshold=0.0)
         assert isinstance(sections, list)
+
+    def test_section_matching_uses_title_and_intro_sentence(self):
+        model = MagicMock()
+        model.encode.side_effect = lambda sentences, **kwargs: np.eye(
+            max(len(sentences), 2)
+        )[: len(sentences)]
+
+        src = [("Intro title", "First sentence here. Second sentence.")]
+        tgt = [("Other title", "First sentence here. Another sentence.")]
+
+        diff_sections(src, tgt, model, threshold=0.0)
+
+        first_encode_args = model.encode.call_args_list[0][0][0]
+        second_encode_args = model.encode.call_args_list[1][0][0]
+        assert first_encode_args == ["Intro title. First sentence here."]
+        assert second_encode_args == ["Other title. First sentence here."]
 
     def test_empty_inputs(self):
         model = MagicMock()

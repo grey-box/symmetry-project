@@ -77,13 +77,12 @@ const ParagraphDiffRow: React.FC<{ diff: ParagraphDiff }> = ({ diff }) => {
 
   return (
     <div
-      className={`grid grid-cols-2 gap-4 p-3 rounded-md border ${
-        isMatched
+      className={`grid grid-cols-2 gap-4 p-3 rounded-md border ${isMatched
           ? 'border-green-200 bg-green-50/30'
           : isMissing
-          ? 'border-red-200 bg-red-50/30'
-          : 'border-blue-200 bg-blue-50/30'
-      }`}
+            ? 'border-red-200 bg-red-50/30'
+            : 'border-blue-200 bg-blue-50/30'
+        }`}
     >
       {/* Source paragraph (left) */}
       <div className="text-sm leading-relaxed text-gray-700">
@@ -127,72 +126,72 @@ const SectionDiffCard: React.FC<{
   sectionDiff: SectionDiff;
   sourceLanguage: string;
   targetLanguage: string;
-  forceExpanded?: boolean | null;
+  expanded: boolean;
+  onToggle: () => void;
 }> = ({
   sectionDiff,
   sourceLanguage,
   targetLanguage,
-  forceExpanded,
+  expanded,
+  onToggle,
 }) => {
-  const [localExpanded, setLocalExpanded] = useState(false);
-  const expanded = forceExpanded !== null && forceExpanded !== undefined ? forceExpanded : localExpanded;
-  const hasParagraphs = sectionDiff.paragraph_diffs.length > 0;
+    const hasParagraphs = sectionDiff.paragraph_diffs.length > 0;
 
-  return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden">
-      {/* Section header (clickable) */}
-      <button
-        onClick={() => setLocalExpanded(!localExpanded)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="text-gray-400 text-sm">{expanded ? '\u25BC' : '\u25B6'}</span>
-          <div className="min-w-0">
-            <div className="font-medium text-gray-800 truncate">
-              {sectionDiff.source_title || sectionDiff.target_title}
-            </div>
-            {sectionDiff.status === 'matched' && sectionDiff.source_title !== sectionDiff.target_title && (
-              <div className="text-xs text-gray-500 truncate">
-                {targetLanguage}: {sectionDiff.target_title}
+    return (
+      <div className="border border-gray-200 rounded-lg overflow-hidden">
+        {/* Section header (clickable) */}
+        <button
+          onClick={onToggle}
+          className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-gray-400 text-sm">{expanded ? '\u25BC' : '\u25B6'}</span>
+            <div className="min-w-0">
+              <div className="font-medium text-gray-800 truncate">
+                {sectionDiff.source_title || sectionDiff.target_title}
               </div>
+              {sectionDiff.status === 'matched' && sectionDiff.source_title !== sectionDiff.target_title && (
+                <div className="text-xs text-gray-500 truncate">
+                  {targetLanguage}: {sectionDiff.target_title}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0 ml-4">
+            {hasParagraphs && (
+              <span className="text-xs text-gray-400">{sectionDiff.paragraph_diffs.length} paragraphs</span>
             )}
+            <StatusBadge status={sectionDiff.status} similarity={sectionDiff.section_similarity} />
           </div>
-        </div>
+        </button>
 
-        <div className="flex items-center gap-3 shrink-0 ml-4">
-          {hasParagraphs && (
-            <span className="text-xs text-gray-400">{sectionDiff.paragraph_diffs.length} paragraphs</span>
-          )}
-          <StatusBadge status={sectionDiff.status} similarity={sectionDiff.section_similarity} />
-        </div>
-      </button>
+        {/* Paragraph diffs (expanded) */}
+        {expanded && hasParagraphs && (
+          <div className="border-t border-gray-200 p-4 space-y-3 bg-gray-50/50">
+            {/* Column headers */}
+            <div className="grid grid-cols-2 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide px-3">
+              <span>Source ({sourceLanguage})</span>
+              <span>Target ({targetLanguage})</span>
+            </div>
 
-      {/* Paragraph diffs (expanded) */}
-      {expanded && hasParagraphs && (
-        <div className="border-t border-gray-200 p-4 space-y-3 bg-gray-50/50">
-          {/* Column headers */}
-          <div className="grid grid-cols-2 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide px-3">
-            <span>Source ({sourceLanguage})</span>
-            <span>Target ({targetLanguage})</span>
+            {sectionDiff.paragraph_diffs.map((pDiff, idx) => (
+              <ParagraphDiffRow key={idx} diff={pDiff} />
+            ))}
           </div>
+        )}
 
-          {sectionDiff.paragraph_diffs.map((pDiff, idx) => (
-            <ParagraphDiffRow key={idx} diff={pDiff} />
-          ))}
-        </div>
-      )}
-
-      {/* Section without paragraphs (missing/added) */}
-      {expanded && !hasParagraphs && (
-        <div className="border-t border-gray-200 p-4 text-sm text-gray-500 italic">
-          {sectionDiff.status === 'missing_in_target'
-            ? 'This section exists in the source article but has no counterpart in the target.'
-            : 'This section exists only in the target article.'}
-        </div>
-      )}
-    </div>
-  );
-};
+        {/* Section without paragraphs (missing/added) */}
+        {expanded && !hasParagraphs && (
+          <div className="border-t border-gray-200 p-4 text-sm text-gray-500 italic">
+            {sectionDiff.status === 'missing_in_target'
+              ? 'This section exists in the source article but has no counterpart in the target.'
+              : 'This section exists only in the target article.'}
+          </div>
+        )}
+      </div>
+    );
+  };
 
 /** ---- Main component ---- */
 
@@ -202,7 +201,23 @@ interface SectionComparisonViewProps {
 
 const SectionComparisonView: React.FC<SectionComparisonViewProps> = ({ comparisonResult }) => {
   const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [allExpanded, setAllExpanded] = useState<boolean | null>(null);
+  const [defaultExpanded, setDefaultExpanded] = useState<boolean>(false);
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+
+  const getExpandedState = (sectionKey: string): boolean => {
+    const value = expandedSections[sectionKey];
+    return value === undefined ? defaultExpanded : value;
+  };
+
+  const expandAll = () => {
+    setDefaultExpanded(true);
+    setExpandedSections({});
+  };
+
+  const collapseAll = () => {
+    setDefaultExpanded(false);
+    setExpandedSections({});
+  };
 
   const filteredSections =
     filterStatus === 'all'
@@ -265,25 +280,24 @@ const SectionComparisonView: React.FC<SectionComparisonViewProps> = ({ compariso
           <button
             key={f.value}
             onClick={() => setFilterStatus(f.value)}
-            className={`px-3 py-1 rounded-full text-sm transition-colors ${
-              filterStatus === f.value
+            className={`px-3 py-1 rounded-full text-sm transition-colors ${filterStatus === f.value
                 ? 'bg-gray-800 text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-            }`}
+              }`}
           >
             {f.label} ({f.count})
           </button>
         ))}
         <div className="ml-auto flex gap-2">
           <button
-            onClick={() => setAllExpanded(true)}
+            onClick={expandAll}
             className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200"
             data-testid="btn-expand-all"
           >
             Expand All
           </button>
           <button
-            onClick={() => setAllExpanded(false)}
+            onClick={collapseAll}
             className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200"
             data-testid="btn-collapse-all"
           >
@@ -297,15 +311,26 @@ const SectionComparisonView: React.FC<SectionComparisonViewProps> = ({ compariso
         {filteredSections.length === 0 ? (
           <div className="text-center py-8 text-gray-400">No sections match the current filter.</div>
         ) : (
-          filteredSections.map((sectionDiff, idx) => (
-            <SectionDiffCard
-              key={`${sectionDiff.source_title}-${sectionDiff.target_title}-${idx}`}
-              sectionDiff={sectionDiff}
-              sourceLanguage={sourceLangLabel}
-              targetLanguage={targetLangLabel}
-              forceExpanded={allExpanded}
-            />
-          ))
+          filteredSections.map((sectionDiff, idx) => {
+            const sectionKey = `${sectionDiff.source_title}-${sectionDiff.target_title}-${idx}`;
+            const expanded = getExpandedState(sectionKey);
+
+            return (
+              <SectionDiffCard
+                key={sectionKey}
+                sectionDiff={sectionDiff}
+                sourceLanguage={sourceLangLabel}
+                targetLanguage={targetLangLabel}
+                expanded={expanded}
+                onToggle={() => {
+                  setExpandedSections((prev) => ({
+                    ...prev,
+                    [sectionKey]: !expanded,
+                  }));
+                }}
+              />
+            );
+          })
         )}
       </div>
     </div>
