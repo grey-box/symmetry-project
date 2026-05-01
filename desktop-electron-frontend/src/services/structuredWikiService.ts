@@ -353,6 +353,21 @@ class StructuredWikiService {
   }
 
   /**
+   * Parse a Wikipedia URL, detect source language and title, and return available
+   * target languages with their translated article titles.
+   */
+  async getArticleLanguages(url: string): Promise<{
+    source_lang: string;
+    source_title: string;
+    available_targets: Array<{ lang: string; title: string }>;
+  }> {
+    const params = new URLSearchParams({ url });
+    return this.fetchWithErrorHandling(
+      `${API_BASE_URL}/symmetry/v1/wiki/article-languages?${params.toString()}`
+    );
+  }
+
+  /**
    * Get paragraph-level semantic diff between two Wikipedia articles.
    * Returns sentence-aligned pairs with word-level token diffs (equal/replace/insert/delete).
    */
