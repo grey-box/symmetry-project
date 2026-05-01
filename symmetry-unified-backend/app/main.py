@@ -25,7 +25,7 @@ SIMILARITY_THRESHOLD = config.get("SIMILARITY_THRESHOLD", cast=float, default=0.
 
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(message)s")
 
-app = FastAPI(debug=FASTAPI_DEBUG, title="Symmetry Unified API", version="1.0.0")
+app = FastAPI(debug=FASTAPI_DEBUG, title="Symmetry Unified API", version="1.1.0")
 
 
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -70,7 +70,7 @@ app.include_router(config_router.router)
 async def root():
     return {
         "message": "Symmetry Unified API",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "endpoints": {
             "wiki": "/symmetry/v1/wiki",
             "comparison": "/symmetry/v1/comparison",

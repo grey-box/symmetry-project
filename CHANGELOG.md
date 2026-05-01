@@ -11,20 +11,137 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-**Paragraph-Diff Service with Word-Level Semantic Diff UI — PR #41**
+---
+
+## [v1.1.0] – 2026-05-01
+
+> `frontend 1.1.0` · `backend 1.1.0`
+
+**Paragraph-Diff Service with Word-Level Semantic Diff UI (PR #41)**
 
 ### Added
 
-- **Backend**: new `/symmetry/v1/wiki/paragraph-diff` endpoint (`app/routers/structured_wiki.py`) backed by `ParagraphDiffService` (`app/services/paragraph_diff.py`). Returns section-level aligned sentence pairs with per-token `word_diff` (equal / insert / delete / replace).
-- **Backend**: Pydantic models `AlignedSentencePair`, `ParagraphDiffSection`, `ParagraphDiffResponse`, `ParagraphDiffRequest` in `app/models/paragraph_diff.py`.
-- **Frontend**: `SemanticWordDiff` component — renders colored token spans (blue inserts, red deletes, orange replaces) with a similarity progress bar per sentence pair.
-- **Frontend**: `SideBySideComparisonView` component — synchronized dual-scroll panels for cross-language section comparison with `SemanticWordDiff` per section.
-- **Frontend**: `ParagraphDiffResponse`, `ParagraphDiffRequest`, `WordToken`, `AlignedSentencePair`, `ParagraphDiffSection` TypeScript interfaces in `src/models/structured-wiki.ts`.
-- **Frontend**: `structuredWikiService.getParagraphDiff()` method in `src/services/structuredWikiService.ts`.
-- **Frontend**: "Detailed Analysis (word-level diff)" button in `CrossLanguageComparison` tab that loads the paragraph-diff and activates `SideBySideComparisonView`.
+- **Backend `1.1.0`**: New `/symmetry/v1/wiki/paragraph-diff` endpoint (`app/routers/structured_wiki.py`) backed by `ParagraphDiffService` (`app/services/paragraph_diff.py`). Returns section-level aligned sentence pairs with per-token `word_diff` (equal / insert / delete / replace).
+- **Backend `1.1.0`**: Pydantic models `AlignedSentencePair`, `ParagraphDiffSection`, `ParagraphDiffResponse`, `ParagraphDiffRequest` in `app/models/paragraph_diff.py`.
+- **Frontend `1.1.0`**: `SemanticWordDiff` component — colored token spans (blue inserts, red deletes, orange replaces) with a similarity progress bar per sentence pair.
+- **Frontend `1.1.0`**: `SideBySideComparisonView` component — synchronized dual-scroll panels for cross-language section comparison with `SemanticWordDiff` per section.
+- **Frontend `1.1.0`**: TypeScript interfaces `ParagraphDiffResponse`, `ParagraphDiffRequest`, `WordToken`, `AlignedSentencePair`, `ParagraphDiffSection` in `src/models/structured-wiki.ts`.
+- **Frontend `1.1.0`**: `structuredWikiService.getParagraphDiff()` method in `src/services/structuredWikiService.ts`.
+- **Frontend `1.1.0`**: "Detailed Analysis (word-level diff)" button in `CrossLanguageComparison` tab that loads the paragraph-diff and activates `SideBySideComparisonView`.
+- **Frontend `1.1.0`**: Article language auto-detected from the Wikipedia URL in `CrossLanguageComparison`.
 - **Tests (E2E)**: Playwright test suite with 26 tests across `home`, `cross-language`, `through-time`, `paragraph-diff`, `structured-article`, and `error-states` spec files (22 passing, 4 skipped due to Wikipedia rate-limiting).
 - **Tests (E2E)**: `test:e2e` and `test:e2e:report` scripts added to `desktop-electron-frontend/package.json`.
-- **CI**: Playwright report artifacts excluded from git via `.gitignore` (`test-results/`, `playwright-report/*`).
+- **Scripts**: Demo video creation script (`desktop-electron-frontend/scripts/create-demo-video.mjs`).
+
+### Fixed
+
+- Miscellaneous code clarity improvements and comment fixes.
+
+### CI
+
+- Playwright report artifacts (`test-results/`, `playwright-report/*`) excluded from git.
+
+---
+
+## [v1.0.5] – 2026-04-30
+
+> `frontend 1.0.5` · `backend 1.0.5`
+
+**Through-Time Comparison Enrichment & Develop Baseline Unification**
+
+### Added
+
+- **Backend `1.0.5`** / **Frontend `1.0.5`**: Through-time comparison endpoint enriched with revision risk flags from the flagging service introduced in v1.0.3.
+- Unified develop baseline consolidating parallel feature branches into a coherent state.
+
+### CI
+
+- `report.xml` (backend Pytest JUnit output) excluded from git via `.gitignore`.
+
+---
+
+## [v1.0.4] – 2026-04-23
+
+> `backend 1.0.4` _(frontend unchanged at 1.0.2)_
+
+**Backend Architecture Refactor — Domain Reorganization (PR #35)**
+
+### Changed
+
+- **Backend `1.0.4`**: AI and model code reorganized into domain-scoped sub-packages:
+  - `models/comparison/` — engine, models, registry
+  - `models/extraction/` — engine, models, `fact_extraction_models.json`
+  - `models/translation/` — engine, registry, models
+- **Backend `1.0.4`**: Router helpers and service interfaces uniformized across all routers.
+
+---
+
+## [v1.0.3] – 2026-04-19
+
+> `backend 1.0.3` _(frontend unchanged at 1.0.2)_
+
+**Revision Flagging, Language Lag Detection & Revision Diff (PR #32)**
+
+### Added
+
+- **Backend `1.0.3`**: Revision flagging service (`app/services/revision_flagging.py`) — `flag_revision()` with four rules: `high_volume_change`, `section_removed`, `lead_section_modified`, `rapid_successive_edits`.
+- **Backend `1.0.3`**: `/revision-history` and `/revision-diff` endpoints on `structured_wiki` router with optional `include_flags` parameter.
+- **Backend `1.0.3`**: Language-lag detection — `get_latest_revision_timestamp()` and `detect_language_lag()` in `wiki_utils.py`.
+- **Backend `1.0.3`**: Pydantic models `Revision`, `SectionDiff`, `Flag`, `DiffResponse` in `app/models/revision.py`.
+- **Tests (Backend)**: 26 unit tests for revision flagging (`tests/test_revision_flagging.py`), all passing.
+
+---
+
+## [v1.0.2] – 2026-04-19
+
+> `frontend 1.0.2` · `backend 1.0.2`
+
+**Similarity 3.0 — Side-by-Side Comparison View (PR #33)**
+
+### Added
+
+- **Frontend `1.0.2`**: Side-by-side comparison view in `ComparisonSection` — missing sentences shown with red strikethrough, extra sentences with green underline.
+- **Frontend `1.0.2`**: Legend for comparison results.
+- **Frontend `1.0.2`**: Similarity threshold connected from frontend through API to comparison engine with progress bar.
+
+### Changed
+
+- **Backend `1.0.2`**: `CompareResponse` now includes raw comparisons; returned when available.
+
+---
+
+## [v1.0.1] – 2026-04-12
+
+> `backend 1.0.1` _(frontend unchanged at 1.0.0)_
+
+**Backend Fixes & Python 3.11 Compatibility**
+
+### Fixed
+
+- **Backend `1.0.1`**: `SyntaxError` in `config.py` caused by f-string backslash incompatibility with Python < 3.12.
+- **Backend `1.0.1`**: Removed `async` keyword from `extract_facts_endpoint`; removed `llama-cpp-python` from `requirements.txt`.
+- **Backend `1.0.1`**: `start.sh` updated to use Python 3.11; improved async handling in fact extraction.
+
+### CI
+
+- Frontend `dist/` build artifacts excluded from git via `.gitignore`.
+
+---
+
+## [v1.0.0] – 2026-04-10
+
+> `frontend 1.0.0` · `backend 1.0.0`
+
+**CI/CD, Translation Progress Bar & Config Management**
+
+### Added
+
+- **CI**: GitHub Actions workflow (`ci.yml`) for automated backend tests, frontend web bundle build, Docker image smoke test, and docker-compose integration (PR #18).
+- **Frontend `1.0.0`**: Translation progress indicator bar (PR #24).
+
+### Changed
+
+- **Backend `1.0.0`**: Refactored configuration management and model loading.
 
 ---
 
