@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query, HTTPException, Request
 
 from app.models.wiki.responses import SourceArticleResponse
 from app.services.cache import get_cached_article, set_cached_article
-from app.services.wiki_utils import parse_wikipedia_url, validate_language_code
+from app.services.wiki_utils import validate_language_code
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["wiki"])
 

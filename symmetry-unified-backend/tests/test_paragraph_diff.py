@@ -8,7 +8,6 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 
 from app.services.paragraph_diff import (
     align_paragraphs,
@@ -111,7 +110,6 @@ class TestAlignParagraphs:
         call_count = [0]
 
         def encode_side_effect(sentences, **kwargs):
-            idx = call_count[0]
             call_count[0] += 1
             n = len(sentences)
             vecs = np.eye(max(n, 2))[:n]
@@ -178,9 +176,8 @@ class TestDiffSections:
         call_count = [0]
 
         def encode_side_effect(sentences, **kwargs):
-            n = len(sentences)
-            idx = call_count[0]
             call_count[0] += 1
+            n = len(sentences)
             vecs = np.eye(max(n, 2))[:n]
             return vecs
 
