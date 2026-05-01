@@ -10,7 +10,7 @@ from __future__ import annotations
 import difflib
 import logging
 import re
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Word-level diff
 # ---------------------------------------------------------------------------
+
 
 def _tokenize(text: str) -> List[str]:
     """Split text into word + punctuation tokens preserving whitespace markers."""
@@ -78,6 +79,7 @@ def word_diff(text_a: str, text_b: str) -> List[WordToken]:
 # Sentence splitting
 # ---------------------------------------------------------------------------
 
+
 def _split_sentences(text: str) -> List[str]:
     """Lightweight sentence splitter — avoids spaCy dependency in this module."""
     # Normalize newlines then split on terminal punctuation
@@ -89,6 +91,7 @@ def _split_sentences(text: str) -> List[str]:
 # ---------------------------------------------------------------------------
 # Paragraph / sentence alignment
 # ---------------------------------------------------------------------------
+
 
 def align_paragraphs(
     source_sentences: List[str],
@@ -149,6 +152,7 @@ def align_paragraphs(
 # ---------------------------------------------------------------------------
 # Section-level diff
 # ---------------------------------------------------------------------------
+
 
 def diff_sections(
     source_sections: List[Tuple[str, str]],  # (title, clean_content)
