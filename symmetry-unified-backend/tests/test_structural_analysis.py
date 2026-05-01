@@ -1,4 +1,4 @@
-from unittest.mock import patch, Mock
+from unittest.mock import patch
 from fastapi import HTTPException
 import pytest
 
@@ -248,10 +248,18 @@ class TestStructuralAnalysisRouter:
                 data["citations"],
             )
 
-        mock_table_analysis.side_effect = lambda t, l: side_effect(t, l)[0]
-        mock_header_analysis.side_effect = lambda t, l: side_effect(t, l)[1]
-        mock_infobox_analysis.side_effect = lambda t, l: side_effect(t, l)[2]
-        mock_citation_analysis.side_effect = lambda t, l: side_effect(t, l)[3]
+        mock_table_analysis.side_effect = lambda title, lang: side_effect(title, lang)[
+            0
+        ]
+        mock_header_analysis.side_effect = lambda title, lang: side_effect(title, lang)[
+            1
+        ]
+        mock_infobox_analysis.side_effect = lambda title, lang: side_effect(
+            title, lang
+        )[2]
+        mock_citation_analysis.side_effect = lambda title, lang: side_effect(
+            title, lang
+        )[3]
         mock_image_count.return_value = 5
 
         with patch(

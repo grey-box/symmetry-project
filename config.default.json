@@ -1,0 +1,65 @@
+{
+  "BACKEND_BASE_URL": "http://127.0.0.1:8000",
+  "BACKEND_PORT": 8000,
+  "FRONTEND_PORT": 5173,
+  "OLLAMA_BASE_URL": "http://localhost:11434",
+  "DEFAULT_TIMEOUT": 30000,
+  "SIMILARITY_THRESHOLD": 0.65,
+  "COMPARISON_MODELS": [
+    {
+      "value": "sentence-transformers/LaBSE",
+      "label": "LaBSE (multilingual embeddings)"
+    },
+    {
+      "value": "similarity_prototype",
+      "label": "Similarity Prototype (Phase 1/2/3 — English only, auto-translates)"
+    }
+  ],
+  "DEFAULT_MODEL": "sentence-transformers/LaBSE",
+  "PRESELECTED_ARTICLES": [
+    {
+      "label": "Python (programming language)",
+      "url": "https://en.wikipedia.org/wiki/Python_(programming_language)"
+    },
+    {
+      "label": "Solar System",
+      "url": "https://en.wikipedia.org/wiki/Solar_System"
+    },
+    {
+      "label": "Artificial intelligence",
+      "url": "https://en.wikipedia.org/wiki/Artificial_intelligence"
+    },
+    {
+      "label": "World War II",
+      "url": "https://en.wikipedia.org/wiki/World_War_II"
+    },
+    {
+      "label": "C++",
+      "url": "https://en.wikipedia.org/wiki/C%2B%2B"
+    },
+    {
+      "label": "Unicode",
+      "url": "https://en.wikipedia.org/wiki/Unicode"
+    }
+  ],
+  "THRESHOLD_PRESETS": [
+    {
+      "label": "Sensitive",
+      "value": 0.55,
+      "description": "fewer flags; fast review",
+      "speedRange": "1s-5s"
+    },
+    {
+      "label": "Balanced",
+      "value": 0.65,
+      "description": "balanced output; fast-medium review",
+      "speedRange": "1s-3s"
+    },
+    {
+      "label": "Strict",
+      "value": 0.75,
+      "description": "more flags; slower review",
+      "speedRange": "3s-11s"
+    }
+  ]
+}

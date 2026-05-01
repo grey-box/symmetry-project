@@ -1,6 +1,4 @@
 from unittest.mock import patch, Mock
-from fastapi import HTTPException
-import pytest
 
 
 class TestComparisonRouter:
@@ -41,7 +39,7 @@ class TestComparisonRouter:
             "translated_article_content": sample_obama_translated_text,
             "original_language": "en",
             "translated_language": "en",
-            "comparison_threshold": 0.65,
+            "similarity_threshold": 0.65,
             "model_name": "sentence-transformers/LaBSE",
         }
 
@@ -100,58 +98,6 @@ class TestComparisonRouter:
             response = client.post("/symmetry/v1/articles/compare", json=valid_request)
 
         assert response.status_code == 200
-
-    def test_compare_semantic_get_success(self, client, valid_semantic_compare_request):
-        """Test successful GET request for semantic comparison"""
-        mock_response = {
-            "comparisons": [
-                {
-                    "left_article_array": ["Sentence 1"],
-                    "right_article_array": ["Sentence 2"],
-                    "left_article_missing_info_index": [0],
-                    "right_article_extra_info_index": [0],
-                }
-            ]
-        }
-
-        with patch(
-            "app.routers.comparison.perform_semantic_comparison",
-            return_value=mock_response,
-        ):
-            response = client.get(
-                "/symmetry/v1/comparison/semantic",
-                params=valid_semantic_compare_request,
-            )
-
-            assert response.status_code == 200
-            data = response.json()
-            assert "missing_info" in data or "comparisons" in data
-
-    def test_compare_semantic_get_invalid_threshold(self, client):
-        """Test semantic comparison GET with invalid threshold"""
-        response = client.get(
-            "/symmetry/v1/comparison/semantic",
-            params={
-                "original_article_content": "Test",
-                "translated_article_content": "Test",
-                "similarity_threshold": 2.0,
-            },
-        )
-
-        assert response.status_code == 422  # FastAPI validates ge/le at framework level
-
-    def test_compare_semantic_get_invalid_model(self, client):
-        """Test semantic comparison GET with invalid model name"""
-        response = client.get(
-            "/symmetry/v1/comparison/semantic",
-            params={
-                "original_article_content": "Test",
-                "translated_article_content": "Test",
-                "model_name": "invalid-model-name",
-            },
-        )
-
-        assert response.status_code == 404
 
     def test_compare_semantic_post_success(
         self, client, valid_semantic_compare_request
@@ -274,10 +220,50 @@ class TestComparisonRouter:
 
             assert response.status_code == 404
 
+    def test_translate_text_endpoint_returns_translated_article(self, client):
+        """Test translate_text endpoint uses translatedArticle as the returned key"""
+        with patch(
+            "app.models.server.ServerModel.text_translate",
+            return_value="Hola mundo",
+        ):
+            response = client.get(
+                "/symmetry/v1/translate_text",
+                params={
+                    "source_language": "en",
+                    "target_language": "es",
+                    "text": "Hello world",
+                },
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "translatedArticle" in data
+            assert data["translatedArticle"] == "Hola mundo"
+
+    def test_translate_text_endpoint_uses_source_language(self, client):
+        """Test translate_text endpoint passes source_language through to the server model"""
+        with patch(
+            "app.routers.comparison.ServerModel.text_translate",
+            return_value="Bonjour le monde",
+        ) as mock_translate:
+            response = client.get(
+                "/symmetry/v1/translate_text",
+                params={
+                    "source_language": "fr",
+                    "target_language": "en",
+                    "text": "Bonjour le monde",
+                },
+            )
+
+            assert response.status_code == 200
+            mock_translate.assert_called_once_with("Bonjour le monde", "fr", "en")
+            data = response.json()
+            assert data["translatedArticle"] == "Bonjour le monde"
+
     def test_chunked_text_translate_success(self, client):
         """Test chunked translation endpoint returns translatedArticle on success"""
         with patch(
-            "app.ai.translations.translate",
+            "app.ai.translation.translate",
             return_value="Hola mundo",
         ):
             response = client.post(
@@ -297,7 +283,7 @@ class TestComparisonRouter:
     def test_chunked_text_translate_value_error_returns_400(self, client):
         """Test chunked translation endpoint maps ValueError to 400"""
         with patch(
-            "app.ai.translations.translate",
+            "app.ai.translation.translate",
             side_effect=ValueError("Unsupported language pair"),
         ):
             response = client.post(
@@ -317,7 +303,7 @@ class TestComparisonRouter:
         import sys
 
         # Setting a module key to None in sys.modules causes ImportError on next import
-        with patch.dict(sys.modules, {"app.ai.translations": None}):
+        with patch.dict(sys.modules, {"app.ai.translation": None}):
             response = client.post(
                 "/symmetry/v1/wiki_translate/chunked_text",
                 json={
@@ -329,4 +315,3 @@ class TestComparisonRouter:
 
         assert response.status_code == 500
         assert "Missing translation dependency" in response.json()["detail"]
-

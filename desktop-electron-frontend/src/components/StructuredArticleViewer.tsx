@@ -4,24 +4,23 @@ import {
   StructuredArticleResponse,
   StructuredCitationResponse,
   StructuredReferenceResponse,
-  SectionCompareResponse,
   Section
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
 import { FactExtractionModel, FactExtractionResponse } from '../models/FactExtraction';
+import { translateArticleChunked } from '@/services/translateArticle';
 
-const languageCodes = [
-  'en', 'es', 'fr', 'de', 'it', 'pt',
-  'nl', 'pl', 'ru', 'zh', 'ja',
-  'ko', 'ar', 'hi', 'tr',
+const TRANSLATION_LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'fr', label: 'French' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'de', label: 'German' },
+  { code: 'it', label: 'Italian' },
+  { code: 'pt', label: 'Portuguese' },
+  { code: 'ru', label: 'Russian' },
+  { code: 'zh', label: 'Chinese' },
+  { code: 'ja', label: 'Japanese' },
 ];
-
-const displayNames = new Intl.DisplayNames(['en'], { type: 'language' });
-const TRANSLATION_LANGUAGES = languageCodes.map(code => ({
-  code,
-  label: displayNames.of(code) ?? code,
-}));
-
 
 
 interface StructuredArticleViewerProps {
@@ -43,12 +42,13 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [targetLang, setTargetLang] = useState(initialLang);
   const [translating, setTranslating] = useState(false);
-  
+  const [translatedArticle, setTranslatedArticle] = useState<string>('');
+
   // Fact extraction states
   const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
   const [selectedFactModel, setSelectedFactModel] = useState<string>('');
   const [customFactModel, setCustomFactModel] = useState<string>('');
-  const [customModelValidation, setCustomModelValidation] = useState<{valid: boolean; error?: string} | null>(null);
+  const [customModelValidation, setCustomModelValidation] = useState<{ valid: boolean; error?: string } | null>(null);
   const [validatingCustomModel, setValidatingCustomModel] = useState<boolean>(false);
   const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
   const [extractingSection, setExtractingSection] = useState<string | null>(null);
@@ -57,14 +57,6 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
   const [hoveredChunk, setHoveredChunk] = useState<string | null>(null);
   const [clickedChunk, setClickedChunk] = useState<string | null>(null);
-
-  // Section comparison state
-  const [comparisonResult, setComparisonResult] = useState<SectionCompareResponse | null>(null);
-  const [compareLang, setCompareLang] = useState('es');
-  const [comparing, setComparing] = useState(false);
-  const [showComparison, setShowComparison] = useState(false);
-
-
 
   // Load article data
   const loadArticle = async (query: string, lang: string) => {
@@ -82,63 +74,13 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
       setCitationAnalysis(citationsData);
       setReferenceAnalysis(referencesData);
 
-      if (articleData.sections.length > 0) {
-        setSelectedSection(articleData.sections[0].title);
+      if (articleData.sections?.length > 0) {
+        setSelectedSection(articleData.sections[0]?.title ?? null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load article');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const translateArticle = async () => {
-    if (!article) return;
-
-    setTranslating(true);
-    setError(null);
-
-    try {
-      const translatedArticle =
-        await structuredWikiService.getTranslatedStructuredArticle({
-          source_lang: article.lang,
-          target_lang: targetLang,
-          title: article.title,
-        });
-
-      setArticle(translatedArticle);
-      setTargetLang(translatedArticle.lang);
-      setCitationAnalysis(null); // These are temporarily set to NULL, as we only want content translated.
-      setReferenceAnalysis(null); // In the future, we may use this to compare citations/references between languages.
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to translate article');
-    } finally {
-      setTranslating(false);
-    }
-  };
-
-
-  /** Run section-by-section comparison against another language */
-  const runSectionComparison = async () => {
-    if (!article) return;
-
-    setComparing(true);
-    setError(null);
-
-    try {
-      const result = await structuredWikiService.compareSections({
-        source_query: article.title,
-        target_query: article.title, // same article, different language
-        source_lang: article.lang,
-        similarity_threshold: 0.5,
-      });
-
-      setComparisonResult(result);
-      setShowComparison(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Section comparison failed');
-    } finally {
-      setComparing(false);
     }
   };
 
@@ -172,7 +114,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   // Auto-calculate num_facts based on selected section word count
   useEffect(() => {
     if (!autoNumFacts || !article || !selectedSection) return;
-    
+
     const section = article.sections.find(s => s.title === selectedSection);
     if (section) {
       const wordCount = section.clean_content.split(' ').length;
@@ -189,14 +131,17 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         const models = await structuredWikiService.getFactExtractionModels();
         setFactModels(models);
         if (models.length > 0 && !selectedFactModel) {
-          setSelectedFactModel(models[0].id);
+          const firstModel = models[0];
+          if (firstModel) {
+            setSelectedFactModel(firstModel.id);
+          }
         }
       } catch (err) {
         console.error('Failed to load fact extraction models:', err);
         setFactError('Failed to load fact extraction models');
       }
     };
-    
+
     loadFactModels();
   }, []);
 
@@ -223,7 +168,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         section_title: sectionTitle,
         num_facts: numFacts
       });
-      
+
       setSectionFacts(prev => ({
         ...prev,
         [sectionTitle]: response
@@ -238,7 +183,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
 
   const handleValidateCustomModel = async () => {
     if (!customFactModel.trim()) {
-      setCustomModelValidation({valid: false, error: 'Please enter a model name'});
+      setCustomModelValidation({ valid: false, error: 'Please enter a model name' });
       return;
     }
 
@@ -249,7 +194,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     try {
       const result = await structuredWikiService.validateFactExtractionModel(customFactModel.trim());
       setCustomModelValidation(result);
-      
+
       if (result.valid && result.model) {
         // Auto-select the custom model
         setSelectedFactModel(result.model.id);
@@ -265,6 +210,33 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     }
   };
 
+  // Translate the structured article into a different language
+  const handleTranslate = async () => {
+    if (!article || translating || targetLang === article.lang) {
+      return;
+    }
+
+    setTranslating(true);
+    setError(null);
+
+    try {
+      const sourceText = article.sections.map((section) => section.clean_content).join('\n\n');
+      const response = await translateArticleChunked(sourceText, article.lang, targetLang);
+      const translated = response.data?.translatedArticle || '';
+
+      if (!translated.trim()) {
+        throw new Error('Translated content is empty.');
+      }
+
+      setTranslatedArticle(translated);
+    } catch (err) {
+      console.error('Error translating structured article:', err);
+      setError(err instanceof Error ? err.message : 'Translation failed');
+    } finally {
+      setTranslating(false);
+    }
+  };
+
   const normalize = (s: string) => s.replace(/\s+/g, ' ').trim();
   // Helper to highlight hovered/clicked chunk in content
   const highlightChunk = (content: string, chunk: string | null, isClickHighlight = false): React.ReactNode => {
@@ -273,7 +245,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
     const normalizedContent = normalize(content);
     const parts = normalizedContent.split(new RegExp(`(${escapedChunk})`, 'gi'));
     if (parts.length === 1) return content;
-    
+
     return (
       <>
         {parts.map((part, index) => {
@@ -317,8 +289,10 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
 
   // Clear clicked highlight when section changes
   useEffect(() => {
-    setClickedChunk(null);
-    setHoveredChunk(null);
+    return () => {
+      setClickedChunk(null);
+      setHoveredChunk(null);
+    };
   }, [selectedSection]);
 
   return (
@@ -379,7 +353,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
               </select>
 
               <button
-                onClick={translateArticle}
+                onClick={handleTranslate}
                 disabled={translating || targetLang === article.lang}
                 className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -390,6 +364,24 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                 {article.lang} → {targetLang}
               </span>
             </div>
+
+            {translatedArticle && (
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-medium text-blue-800">Translated Article Preview</span>
+                  <button
+                    type="button"
+                    onClick={() => setTranslatedArticle('')}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    Clear
+                  </button>
+                </div>
+                <div className="max-h-64 overflow-y-auto text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
+                  {translatedArticle}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -412,7 +404,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                   ))}
                 </select>
               </div>
-              
+
               {/* Custom Model Input */}
               <div className="flex items-center gap-2">
                 <div className="flex-1 max-w-md">
@@ -438,7 +430,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                   {validatingCustomModel ? 'Validating...' : 'Validate & Use'}
                 </button>
               </div>
-              
+
               {/* Custom Model Validation Feedback */}
               {customModelValidation && (
                 <div className={`text-sm ${customModelValidation.valid ? 'text-green-600' : 'text-red-600'}`}>
@@ -450,7 +442,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                 </div>
               )}
             </div>
-            
+
             {/* Number of Facts Control */}
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-sm text-gray-700">
@@ -462,7 +454,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                 />
                 Auto
               </label>
-              
+
               {!autoNumFacts && (
                 <div className="flex items-center gap-2">
                   <input
@@ -477,7 +469,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                   <span className="text-sm text-gray-500">facts</span>
                 </div>
               )}
-              
+
               {autoNumFacts && (
                 <span className="text-sm text-gray-500">
                   (auto: based on section length)
@@ -508,7 +500,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                   'Extract Facts'
                 )}
               </button>
-              
+
               {/* Show which section is being extracted */}
               {extractingSection && (
                 <span className="text-sm text-gray-500">
@@ -558,7 +550,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Most Cited Articles */}
-        {!showComparison && mostCited.length > 0 && (
+        {mostCited.length > 0 && (
           <div className="mb-6 p-4 bg-gray-50 rounded-lg">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Most Cited Articles</h3>
             <div className="space-y-2">
@@ -575,7 +567,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* Article Content */}
-        {!showComparison && article && (
+        {article && (
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             {/* Section Navigation */}
             <div className="lg:col-span-1">
@@ -586,8 +578,8 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                     key={index}
                     onClick={() => setSelectedSection(section.title)}
                     className={`w-full text-left p-2 rounded transition-colors ${selectedSection === section.title
-                        ? 'bg-blue-100 text-blue-800 border-l-4 border-blue-500'
-                        : 'hover:bg-gray-100 text-gray-700'
+                      ? 'bg-blue-100 text-blue-800 border-l-4 border-blue-500'
+                      : 'hover:bg-gray-100 text-gray-700'
                       }`}
                   >
                     <div className="font-medium">{section.title}</div>
@@ -638,21 +630,20 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                                 Extracted Facts
                               </h5>
                               <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                                {sectionFacts[section.title].model_used}
+                                {sectionFacts[section.title]?.model_used}
                               </span>
                             </div>
-                            {sectionFacts[section.title].facts.length > 0 ? (
+                            {(sectionFacts[section.title]?.facts?.length ?? 0) > 0 ? (
                               <ul className="space-y-2">
-                                {sectionFacts[section.title].facts.map((fact, index) => {
+                                {sectionFacts[section.title]?.facts?.map((fact, index) => {
                                   const chunk = sectionFacts[section.title]?.chunks?.[index] || '';
                                   const isHovered = hoveredChunk === chunk;
                                   const isClicked = clickedChunk === chunk;
                                   return (
                                     <li
                                       key={index}
-                                      className={`flex items-start gap-2 text-sm text-gray-700 p-2 rounded transition-colors cursor-pointer ${
-                                        isClicked ? 'bg-orange-100 outline outline-2 outline-orange-400' : isHovered ? 'bg-yellow-100' : ''
-                                      }`}
+                                      className={`flex items-start gap-2 text-sm text-gray-700 p-2 rounded transition-colors cursor-pointer ${isClicked ? 'bg-orange-100 outline outline-2 outline-orange-400' : isHovered ? 'bg-yellow-100' : ''
+                                        }`}
                                       onMouseEnter={() => setHoveredChunk(chunk)}
                                       onMouseLeave={() => setHoveredChunk(null)}
                                       onClick={() => handleFactClick(chunk)}
@@ -727,6 +718,34 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
                             )}
                           </button>
                         </div>
+
+                        {/* Display Extracted Facts */}
+                        {sectionFacts[section.title] && (
+                          <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                            <div className="flex items-center gap-2 mb-3">
+                              <h5 className="font-semibold text-purple-900">
+                                Extracted Facts
+                              </h5>
+                              <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                                {sectionFacts[section.title].model_used}
+                              </span>
+                            </div>
+                            {sectionFacts[section.title].facts.length > 0 ? (
+                              <ul className="space-y-2">
+                                {sectionFacts[section.title].facts.map((fact, index) => (
+                                  <li key={index} className="flex items-start gap-2 text-sm text-gray-700">
+                                    <span className="text-purple-500 mt-1">•</span>
+                                    <span>{fact}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-600 italic">
+                                No facts could be extracted from this section.
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -737,7 +756,7 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
         )}
 
         {/* References Section */}
-        {!showComparison && referenceAnalysis && referenceAnalysis.references.length > 0 && (
+        {referenceAnalysis && referenceAnalysis.references.length > 0 && (
           <div className="mt-8 pt-8 border-t border-gray-200">
             <h3 className="text-xl font-bold text-gray-800 mb-4">
               References ({referenceAnalysis.total_references})

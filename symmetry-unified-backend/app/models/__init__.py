@@ -1,25 +1,14 @@
-from app.models.wiki_structure import Citation, Reference, Section, Article
-from app.models.response import (
+from app.models.wiki.structure import Citation, Reference, Section, Article
+from app.models.wiki.responses import (
     SourceArticleResponse,
     TranslateArticleResponse,
-    ArticleComparisonResponse,
-    MissingInfo,
-    ExtraInfo,
-)
-from app.models.comparison import (
-    CompareRequest,
-    ComparisonResult,
-    CompareResponse,
-    SentenceDiff,
-)
-from app.models.structured_response import (
     StructuredArticleResponse,
     StructuredSectionResponse,
     StructuredCitationResponse,
     StructuredReferenceResponse,
     CitedArticle,
 )
-from app.models.structural_analysis import (
+from app.models.wiki.analysis import (
     TableResponse,
     HeaderCount,
     InfoBoxResponse,
@@ -30,17 +19,41 @@ from app.models.structural_analysis import (
     TableInfo,
     InfoBoxAttribute,
 )
-from app.models.comparison_request import (
+from app.models.comparison.models import (
+    CompareRequest,
+    ComparisonResult,
+    CompareResponse,
+    SentenceDiff,
     SemanticCompareRequest,
     BaseCompareRequest,
-    ChunkedTranslateRequest,
+    SectionCompareRequest,
+    SectionCompareResponse,
+    SectionDiff as SectionComparisonDiff,
+    ParagraphDiff,
+    ArticleComparisonResponse,
+    MissingInfo,
+    ExtraInfo,
 )
-from app.models.api_models import (
+from app.models.translation.models import ChunkedTranslateRequest
+from app.models.api import (
     ModelSelectionResponse,
     ListResponse,
+)
+from app.models.extraction.models import (
     FactExtractionRequest,
     FactExtractionResponse,
 )
+from app.models.revision import (
+    Revision,
+    SectionDiff as RevisionSectionDiff,
+    Flag,
+    DiffResponse,
+    LagReport,
+    SectionChange,
+    RevisionDiffResponse,
+)
+
+SectionDiff = SectionComparisonDiff
 
 __all__ = [
     "Citation",
@@ -72,13 +85,21 @@ __all__ = [
     "InfoBoxAttribute",
     "SemanticCompareRequest",
     "BaseCompareRequest",
-    "ChunkedTranslateRequest",
     "ModelSelectionResponse",
     "ListResponse",
     "SectionCompareRequest",
     "SectionCompareResponse",
+    "SectionComparisonDiff",
     "SectionDiff",
     "ParagraphDiff",
+    "ChunkedTranslateRequest",
     "FactExtractionRequest",
     "FactExtractionResponse",
+    "Revision",
+    "RevisionSectionDiff",
+    "Flag",
+    "DiffResponse",
+    "LagReport",
+    "SectionChange",
+    "RevisionDiffResponse",
 ]

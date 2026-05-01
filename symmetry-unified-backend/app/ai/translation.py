@@ -1,72 +1,115 @@
-from transformers import MarianMTModel, MarianTokenizer
-import torch
+"""MarianMT translation engine with chunking and LRU model cache."""
 
-from app.ai.translation_model_registry import (
-    get_supported_target_langs,
-    get_translation_model_name,
+import logging
+from functools import lru_cache
+
+from transformers import MarianMTModel, MarianTokenizer
+
+from app.models.translation.registry import get_translation_model_name, ROMANCE_LANGS
+from app.services.chunking import chunk_text
+
+logger = logging.getLogger(__name__)
+
+TRANSLATION_CHUNK_CHAR_THRESHOLD = 1500
+TRANSLATION_CHUNK_WORD_SIZE = 300
+TRANSLATION_BATCH_SIZE = 4
+
+_LANG_ALIASES = {
+    "english": "en",
+    "spanish": "es",
+    "french": "fr",
+    "hindi": "hi",
+    "arabic": "ar",
+}
+
+_MODEL_FAILURE_FALLBACK_MARKERS = (
+    "repository not found",
+    "401 unauthorized",
+    "is not a local folder and is not a valid model identifier",
+    "connection",
+    "timed out",
 )
 
 
-def translate_text(input_text: str, target_lang: str):
-    """
-    Translate text to the specified target language.
-    Supported language pairs (source -> target):
-    - English -> Spanish, French, German, Italian, Portuguese, Dutch, Polish, Russian, Chinese, Japanese, Korean, Arabic, Hindi, Turkish
-    - Spanish -> English, French, German, Italian, Portuguese
-    - French -> English, Spanish, German, Italian, Portuguese
-    - German -> English, Spanish, French, Italian, Portuguese
-    - Italian -> English, Spanish, French, German, Portuguese
-    - Portuguese -> English, Spanish, French, German, Italian
-    - Dutch -> English
-    - Polish -> English
-    - Russian -> English
-    - Chinese -> English
-    - Japanese -> English
-    - Korean -> English
-    - Arabic -> English
-    - Hindi -> English
-    - Turkish -> English
-    For Romance languages (Spanish, French, Italian, Portuguese, Romanian, Catalan, etc.) to English,
-    you can also use the generic 'ROMANCE-en' model.
-    Usage: Enter text and target language separated by comma (e.g., "Hello world,es" or "Bonjour,en")
-    """
+def _normalize_lang_code(lang: str) -> str:
+    normalized = (lang or "").strip().lower()
+    normalized = _LANG_ALIASES.get(normalized, normalized)
+    normalized = normalized.replace("_", "-")
+    if "-" in normalized:
+        normalized = normalized.split("-")[0]
+    return normalized
 
-    # Clean and parse inputs
-    target_lang = target_lang.strip().lower()
 
-    # Use translation model configuration from JSON if available.
-    if target_lang == "en":
-        model_name = "Helsinki-NLP/opus-mt-ROMANCE-en"
-    else:
-        model_name = get_translation_model_name("en", target_lang)
+@lru_cache(maxsize=4)
+def load_translation_components(model_name: str):
+    tokenizer = MarianTokenizer.from_pretrained(model_name)
+    model = MarianMTModel.from_pretrained(model_name)
+    return tokenizer, model
 
+
+def _translate_batch_with_model(batch: list, tokenizer, model) -> list:
+    inputs = tokenizer(batch, return_tensors="pt", padding=True, truncation=True)
+    translated = model.generate(**inputs)
+    return [tokenizer.decode(t, skip_special_tokens=True) for t in translated]
+
+
+def _translate_with_model(text: str, tokenizer, model) -> str:
+    return _translate_batch_with_model([text], tokenizer, model)[0]
+
+
+def _should_fallback_to_source_text(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return any(marker in message for marker in _MODEL_FAILURE_FALLBACK_MARKERS)
+
+
+def translate(text: str, source_lang: str, target_lang: str) -> str:
+    source_lang = _normalize_lang_code(source_lang)
+    target_lang = _normalize_lang_code(target_lang)
+
+    if not text.strip() or source_lang == target_lang:
+        return text
+
+    model_name = get_translation_model_name(source_lang, target_lang)
     if model_name is None:
-        available_langs = ", ".join(["en"] + get_supported_target_langs("en"))
-        raise ValueError(
-            f"Target language '{target_lang}' not supported. Available: {available_langs}"
-        )
+        if source_lang in ROMANCE_LANGS and target_lang == "en":
+            model_name = "Helsinki-NLP/opus-mt-ROMANCE-en"
+        elif source_lang == "en" and target_lang in ROMANCE_LANGS:
+            model_name = "Helsinki-NLP/opus-mt-en-ROMANCE"
+        else:
+            raise ValueError(
+                f"Unsupported translation pair: {source_lang} -> {target_lang}"
+            )
 
     try:
-        # Load tokenizer and model
-        tokenizer = MarianTokenizer.from_pretrained(model_name)
-        model = MarianMTModel.from_pretrained(model_name)
+        tokenizer, model = load_translation_components(model_name)
 
-        # Prepare input text
-        if target_lang == "en":
-            # For Romance to English, the model expects the text as-is
-            input_text_formatted = input_text
-        else:
-            # For English to other languages, format appropriately
-            input_text_formatted = input_text
+        if len(text) > TRANSLATION_CHUNK_CHAR_THRESHOLD:
+            chunks = [
+                c
+                for c in chunk_text(
+                    text, chunk_size=TRANSLATION_CHUNK_WORD_SIZE, overlap=0
+                )
+                if c.strip()
+            ]
+            translated_chunks = []
+            for i in range(0, len(chunks), TRANSLATION_BATCH_SIZE):
+                translated_chunks.extend(
+                    _translate_batch_with_model(
+                        chunks[i : i + TRANSLATION_BATCH_SIZE], tokenizer, model
+                    )
+                )
+            return "\n\n".join(translated_chunks).strip()
 
-        # Tokenize and translate
-        inputs = tokenizer(input_text_formatted, return_tensors="pt", padding=True)
-        with torch.no_grad():
-            translated = model.generate(**inputs)
-
-        # Decode the result
-        translated_text = tokenizer.decode(translated[0], skip_special_tokens=True)
-        return translated_text
-
-    except Exception as e:
-        return f"Translation error: {str(e)}"
+        return _translate_with_model(text, tokenizer, model)
+    except Exception as exc:
+        logger.exception("Translation failed %s -> %s", source_lang, target_lang)
+        if _should_fallback_to_source_text(exc):
+            logger.warning(
+                "Falling back to source text for %s -> %s due to model availability issues",
+                source_lang,
+                target_lang,
+            )
+            return text
+        raise RuntimeError(
+            f"Translation failed for language pair {source_lang} -> {target_lang}"
+        ) from exc

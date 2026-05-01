@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException, Path
 from starlette import status
-from app.models import (
+from app.models.wiki.analysis import (
     FinalAnalysisResponse,
-    MultiLanguageScoreResponse,
     AnalysisResultsResponse,
 )
 from app.services import (
@@ -13,7 +12,6 @@ from app.services import (
     image_analysis,
     wiki_utils,
 )
-from pydantic import BaseModel, Field
 
 router = APIRouter(
     prefix="/operations",
@@ -102,7 +100,7 @@ async def get_results(
         if lang_code == source_language:
             current_title = normalized_title
         else:
-            current_title = wiki_utils.get_translation(
+            current_title = await wiki_utils.get_translation(
                 normalized_title, source_language, lang_code
             )
 

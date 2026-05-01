@@ -9,7 +9,12 @@ import {
   ReferenceAnalysisRequest,
   SectionCompareRequest,
   SectionCompareResponse,
-  Section
+  Revision,
+  RevisionDiffResponse,
+  RevisionDetailedDiffResponse,
+  Section,
+  ParagraphDiffRequest,
+  ParagraphDiffResponse,
 } from '../models/structured-wiki';
 import { FactExtractionModel, FactExtractionRequest, FactExtractionResponse } from '../models/FactExtraction';
 
@@ -140,6 +145,69 @@ class StructuredWikiService {
   }
 
   /**
+   * Get revision history for a Wikipedia article.
+   */
+  async getRevisionHistory(request: { query: string; lang?: string; limit?: number }): Promise<Revision[]> {
+    const params = new URLSearchParams();
+    params.append('query', request.query);
+    if (request.lang) {
+      params.append('lang', request.lang);
+    }
+    if (request.limit !== undefined) {
+      params.append('limit', String(request.limit));
+    }
+
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/revision-history?${params.toString()}`;
+    return this.fetchWithErrorHandling<Revision[]>(url);
+  }
+
+  /**
+   * Compare two revisions of the same article.
+   */
+  async getRevisionDiff(request: {
+    revid_a: number;
+    revid_b: number;
+    title: string;
+    lang?: string;
+  }): Promise<RevisionDiffResponse> {
+    const params = new URLSearchParams();
+    params.append('revid_a', String(request.revid_a));
+    params.append('revid_b', String(request.revid_b));
+    params.append('title', request.title);
+    if (request.lang) {
+      params.append('lang', request.lang);
+    }
+
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/diff?${params.toString()}`;
+    return this.fetchWithErrorHandling<RevisionDiffResponse>(url);
+  }
+
+  /**
+   * Compare two revisions and return detailed section diffs, with optional flagging.
+   */
+  async getRevisionDetailedDiff(request: {
+    old_revid: number;
+    new_revid: number;
+    title: string;
+    lang?: string;
+    include_flags?: boolean;
+  }): Promise<RevisionDetailedDiffResponse> {
+    const params = new URLSearchParams();
+    params.append('old_revid', String(request.old_revid));
+    params.append('new_revid', String(request.new_revid));
+    params.append('title', request.title);
+    if (request.lang) {
+      params.append('lang', request.lang);
+    }
+    if (request.include_flags !== undefined) {
+      params.append('include_flags', String(request.include_flags));
+    }
+
+    const url = `${API_BASE_URL}/symmetry/v1/wiki/revision-diff?${params.toString()}`;
+    return this.fetchWithErrorHandling<RevisionDetailedDiffResponse>(url);
+  }
+
+  /**
    * Utility method to parse Wikipedia URL and extract title and language
    */
   parseWikipediaUrl(url: string): { title: string; lang: string } | null {
@@ -149,8 +217,8 @@ class StructuredWikiService {
 
       if (match) {
         return {
-          lang: match[1],
-          title: decodeURIComponent(match[2].replace(/_/g, ' '))
+          lang: match[1] ?? 'en',
+          title: decodeURIComponent((match[2] ?? '').replace(/_/g, ' '))
         };
       }
 
@@ -282,6 +350,40 @@ class StructuredWikiService {
   async validateFactExtractionModel(modelId: string): Promise<{ valid: boolean; model?: FactExtractionModel; error?: string }> {
     const url = `${API_BASE_URL}/symmetry/v1/wiki/fact-extraction-validate?model_id=${encodeURIComponent(modelId)}`;
     return this.fetchWithErrorHandling<{ valid: boolean; model?: FactExtractionModel; error?: string }>(url);
+  }
+
+  /**
+   * Parse a Wikipedia URL, detect source language and title, and return available
+   * target languages with their translated article titles.
+   */
+  async getArticleLanguages(url: string): Promise<{
+    source_lang: string;
+    source_title: string;
+    available_targets: Array<{ lang: string; title: string }>;
+  }> {
+    const params = new URLSearchParams({ url });
+    return this.fetchWithErrorHandling(
+      `${API_BASE_URL}/symmetry/v1/wiki/article-languages?${params.toString()}`
+    );
+  }
+
+  /**
+   * Get paragraph-level semantic diff between two Wikipedia articles.
+   * Returns sentence-aligned pairs with word-level token diffs (equal/replace/insert/delete).
+   */
+  async getParagraphDiff(request: ParagraphDiffRequest): Promise<ParagraphDiffResponse> {
+    const response = await fetch(`${API_BASE_URL}/symmetry/v1/wiki/paragraph-diff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(`Paragraph diff failed (${response.status}): ${errorBody}`);
+    }
+
+    return response.json();
   }
 }
 

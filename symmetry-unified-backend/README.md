@@ -5,6 +5,7 @@ A unified FastAPI application combining Wikipedia article semantic comparison an
 ## Overview
 
 This backend consolidates three separate repositories:
+
 - `backend-fastapi/` - AI-based semantic comparison and structured wiki parsing
 - `fastapi/` - Core FastAPI application structure
 - `wil-symmetry-ccsu-rawkit-2025/` - Structural analysis with router pattern
@@ -12,12 +13,14 @@ This backend consolidates three separate repositories:
 ## Features
 
 ### Wikipedia Article Operations
+
 - Fetch articles by URL or title with automatic language detection
 - Get available translations for articles
 - Parse structured articles with sections, citations, and references
 - LRU cache with TTL for performance optimization
 
 ### Semantic Comparison
+
 - **Semantic comparison** (Sentence Transformers)
   - Support for multiple models: LaBSE, XLM-RoBERTa, multi-qa-distilbert-cos-v1, etc.
   - Configurable similarity threshold
@@ -26,11 +29,13 @@ This backend consolidates three separate repositories:
   - Enhanced error handling with success tracking
 
 ### Translation
+
 - Text translation using configured translation models
 - Model management (select, import, delete)
 - Multiple model support
 
 ### Structural Analysis
+
 - Table analysis (count, rows, columns per table)
 - Header analysis (H1-H6 counts)
 - Infobox analysis (attribute extraction)
@@ -51,11 +56,12 @@ The easiest way to get started is using the unified start script from the projec
 ```
 
 This will:
+
 1. Create a virtual environment (`venv/`) if it doesn't exist
 2. Install all dependencies from `requirements.txt`
-3. Start FastAPI server at http://127.0.0.1:8000
+3. Start FastAPI server at <http://127.0.0.1:8000>
 
-Access interactive API documentation at: http://127.0.0.1:8000/docs
+Access interactive API documentation at: <http://127.0.0.1:8000/docs>
 
 ### Manual Setup
 
@@ -91,12 +97,14 @@ cp .env.template .env
 ## Running the Application
 
 ### Development Mode (with hot reload)
+
 ```bash
 source venv/bin/activate
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ### Production Mode
+
 ```bash
 source venv/bin/activate
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4
@@ -105,13 +113,16 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 4
 ## Architecture
 
 ### Router Pattern
+
 API endpoints organized into logical routers:
+
 - `wiki_articles.py` - Article fetching operations
 - `structured_wiki.py` - Structured article data endpoints
 - `comparison.py` - Semantic comparison endpoints
 - `structural_analysis.py` - Multi-language structural analysis
 
 ### Directory Structure
+
 ```
 symmetry-unified-backend/
 ├── app/
@@ -146,10 +157,12 @@ symmetry-unified-backend/
 ## API Endpoints
 
 ### Root & Health
+
 - `GET /` - API information and endpoint overview
 - `GET /health` - Health check
 
 ### Wiki Articles
+
 - `GET /symmetry/v1/wiki/articles?query={url|title}&lang={code}` - Fetch Wikipedia article
 - `GET /symmetry/v1/wiki/structured-article?query={url|title}&lang={code}` - Get structured article with sections, citations, references
 - `GET /symmetry/v1/wiki/structured-section?query={url|title}&section={name}` - Get specific section with metadata
@@ -158,6 +171,7 @@ symmetry-unified-backend/
 - `GET /wiki_translate/source_article?url={url}&title={title}&language={code}` - Get translated article
 
 ### Comparison
+
 - `POST /symmetry/v1/articles/compare` - Compare two articles (semantic comparison)
 - `GET /symmetry/v1/comparison/semantic?text_a={text}&text_b={text}&threshold={float}&model={name}` - Semantic comparison (GET)
 - `POST /symmetry/v1/comparison/semantic` - Semantic comparison (POST)
@@ -165,6 +179,7 @@ symmetry-unified-backend/
 - `POST /symmetry/v1/comparison/translate_text` - Translate text (POST)
 
 ### Models Management
+
 - `GET /models/translation` - List available translation models
 - `GET /models/translation/selected` - Get selected translation model
 - `GET /models/translation/select?modelname={name}` - Select translation model
@@ -177,11 +192,13 @@ symmetry-unified-backend/
 - `GET /models/comparison/import?model={name}&from_huggingface={bool}` - Import comparison model
 
 ### Structural Analysis
+
 - `GET /operations/{source_language}/{title}` - Analyze article across 6 languages with quality scoring
 
 ## Configuration
 
 Environment variables in `.env`:
+
 ```
 LOG_LEVEL=INFO          # DEBUG, INFO, WARNING, ERROR
 FASTAPI_DEBUG=False     # Enable/disable debug mode and stack traces
@@ -190,18 +207,21 @@ FASTAPI_DEBUG=False     # Enable/disable debug mode and stack traces
 ## Dependencies
 
 ### Core
+
 - fastapi>=0.104.0
 - uvicorn[standard]>=0.24.0
 - pydantic>=2.0.0
 - requests>=2.31.0
 
 ### Wikipedia APIs
+
 - wikipedia-api
 - wikipedia>=1.4.0
 - beautifulsoup4>=4.12.0
 - lxml>=4.9.0
 
 ### AI/ML
+
 - sentence-transformers>=2.2.0
 - scikit-learn>=1.3.0
 - spacy>=3.7.0
@@ -211,15 +231,19 @@ FASTAPI_DEBUG=False     # Enable/disable debug mode and stack traces
 ## Troubleshooting
 
 ### "python3: command not found"
+
 Edit `start.sh` and change `python3` to `python`.
 
 ### Permission denied on start.sh
+
 ```bash
 chmod +x start.sh
 ```
 
 ### Virtual environment issues
+
 Rebuild from scratch:
+
 ```bash
 deactivate
 rm -rf venv/
@@ -227,14 +251,18 @@ rm -rf venv/
 ```
 
 ### Model loading issues
+
 For semantic comparison and translation, the backend will automatically download required models:
+
 - spaCy language models (en_core_web_sm, fr_core_news_sm, etc.)
 - Sentence transformer models (LaBSE, XLM-RoBERTa, etc.)
 
 Models are cached locally after first download.
 
 ### Dependencies fail to install
+
 Ensure Python 3.8+ is installed:
+
 ```bash
 python3 --version
 ```
@@ -242,12 +270,14 @@ python3 --version
 ## Development
 
 ### Adding New Endpoints
+
 1. Create Pydantic models in `app/models/__init__.py`
 2. Implement business logic in `app/services/`
 3. Add route handler in appropriate router in `app/routers/`
 4. Include router in `app/main.py`
 
 ### Testing
+
 ```bash
 source venv/bin/activate
 pytest
@@ -258,6 +288,7 @@ pytest
 ### Before Deleting Old Repositories
 
 1. **Test the unified application**:
+
    ```bash
    ./start.sh
    # Access http://127.0.0.1:8000/docs
@@ -273,7 +304,9 @@ pytest
 3. **Update frontend configurations** to point to new backend URL if needed
 
 ### Delete Old Repositories
+
 After verification, remove the original three repositories:
+
 ```bash
 cd /Users/francois/git/symmetry-project-202512/article-compare-backend
 rm -rf backend-fastapi/ fastapi/ wil-symmetry-ccsu-rawkit-2025/

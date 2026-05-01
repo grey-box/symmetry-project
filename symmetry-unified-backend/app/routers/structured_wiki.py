@@ -1,32 +1,88 @@
+import asyncio
+import difflib
 import logging
-import re
-from typing import Dict, Optional, List, Any
-from urllib.parse import urlparse
+from typing import Any, Dict, List, Optional
 
+import httpx
 from fastapi import APIRouter, Query, HTTPException
+from pydantic import BaseModel, Field
 
-from app.ai.translations import translate
-from app.models.wiki_structure import Section
-
-from app.models import (
-    StructuredArticleResponse,
-    StructuredSectionResponse,
-    StructuredCitationResponse,
-    StructuredReferenceResponse,
-    FactExtractionRequest,
-    FactExtractionResponse,
-)
-from app.services.article_parser import article_fetcher
-from app.ai.fact_extraction import (
+from app.models.extraction.engine import (
     extract_facts,
     get_available_models,
     get_model_config,
     validate_model,
 )
+from app.ai.similarity_scoring import score_article_pair
+from app.ai.comparison import _get_model as _get_st_model
+
+from app.models.wiki.responses import (
+    StructuredArticleResponse,
+    StructuredSectionResponse,
+    StructuredCitationResponse,
+    StructuredReferenceResponse,
+    CitedArticle,
+)
+from app.models.wiki.paragraph_diff import (
+    ParagraphDiffResponse,
+    ParagraphDiffSection,
+)
+from app.models.extraction.models import FactExtractionRequest, FactExtractionResponse
+from app.models import (
+    Revision,
+    LagReport,
+    SectionChange,
+    RevisionDiffResponse,
+    RevisionSectionDiff,
+    DiffResponse,
+)
+from app.services.article_parser import article_fetcher, revision_fetcher
+from app.services.wiki_utils import detect_language_lag, parse_wikipedia_url
+from app.services.structured_translation import translate_article
+from app.services.revision_flagging import flag_revision
+from app.services.paragraph_diff import diff_sections as _diff_para_sections
+from app.models.comparison.registry import DEFAULT_MODEL
+
+
+class ParagraphDiffRequest(BaseModel):
+    source_query: str = Field(..., description="Source article title or Wikipedia URL")
+    target_query: str = Field(..., description="Target article title or Wikipedia URL")
+    source_lang: str = Field("en", description="Source language code")
+    target_lang: str = Field("en", description="Target language code")
+    similarity_threshold: float = Field(
+        0.5,
+        ge=0.0,
+        le=0.99,
+        description="Minimum cosine similarity to consider a section/sentence match",
+    )
+    model_name: Optional[str] = Field(
+        None, description="Sentence-transformer model name (defaults to LaBSE)"
+    )
+
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["structured-wiki"])
 
-structured_cache: Dict[str, Dict] = {}
+structured_cache: Dict[str, StructuredArticleResponse] = {}
+
+
+def _resolve_article_query(
+    query: str, lang: Optional[str], field_name: str = "article"
+) -> tuple[str, str]:
+    """
+    Resolve a Wikipedia article query into (language, title).
+    Accepts either a full Wikipedia URL or a title.
+    """
+    if "://" in query:
+        try:
+            return parse_wikipedia_url(query)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid {field_name} Wikipedia URL.",
+            )
+    if not lang:
+        lang = "en"
+    return lang, query
 
 
 @router.get(
@@ -54,7 +110,7 @@ async def get_structured_article(
 
     if "://" in query:
         try:
-            lang, title = await parse_wikipedia_url(query)
+            lang, title = parse_wikipedia_url(query)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
     else:
@@ -68,7 +124,7 @@ async def get_structured_article(
         return structured_cache[cache_key]
 
     try:
-        article = article_fetcher(title, lang)
+        article = await article_fetcher(title, lang)
 
         total_citations = sum(
             len(section.citations or []) for section in article.sections
@@ -132,7 +188,7 @@ async def get_structured_section(
 
     if "://" in query:
         try:
-            lang, title = await parse_wikipedia_url(query)
+            lang, title = parse_wikipedia_url(query)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
     else:
@@ -141,7 +197,7 @@ async def get_structured_section(
             lang = "en"
 
     try:
-        article = article_fetcher(title, lang)
+        article = await article_fetcher(title, lang)
 
         target_section = None
         for section in article.sections:
@@ -203,7 +259,7 @@ async def get_citation_analysis(
 
     if "://" in query:
         try:
-            lang, title = await parse_wikipedia_url(query)
+            lang, title = parse_wikipedia_url(query)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
     else:
@@ -212,7 +268,7 @@ async def get_citation_analysis(
             lang = "en"
 
     try:
-        article = article_fetcher(title, lang)
+        article = await article_fetcher(title, lang)
 
         all_citations = []
         for section in article.sections:
@@ -228,8 +284,8 @@ async def get_citation_analysis(
                 citation_counts[citation.url] = citation_counts.get(citation.url, 0) + 1
 
         url_to_title = {cit.url: cit.label for cit in all_citations if cit.url}
-        most_cited = [
-            {"title": url_to_title.get(url, "Unknown"), "count": count}
+        most_cited: List[CitedArticle] = [
+            CitedArticle(title=url_to_title.get(url, "Unknown"), count=count)
             for url, count in sorted(
                 citation_counts.items(), key=lambda x: x[1], reverse=True
             )[:10]
@@ -271,7 +327,7 @@ async def get_reference_analysis(
 
     if "://" in query:
         try:
-            lang, title = await parse_wikipedia_url(query)
+            lang, title = parse_wikipedia_url(query)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
     else:
@@ -280,7 +336,7 @@ async def get_reference_analysis(
             lang = "en"
 
     try:
-        article = article_fetcher(title, lang)
+        article = await article_fetcher(title, lang)
 
         total_references = len(article.references)
         references_with_urls = sum(1 for ref in article.references if ref.url)
@@ -308,31 +364,6 @@ async def get_reference_analysis(
         )
 
 
-async def parse_wikipedia_url(url: str) -> tuple[str, str]:
-    parsed_url = urlparse(url)
-
-    if not parsed_url.netloc.endswith(".wikipedia.org"):
-        raise ValueError("Invalid domain - must be Wikipedia")
-
-    parts = parsed_url.netloc.split(".")
-    if len(parts) != 3:
-        raise ValueError("Invalid URL format")
-
-    lang = parts[0]
-    if not lang.isalpha() or len(lang) > 2:
-        raise ValueError("Invalid language code")
-
-    if not parsed_url.path.startswith("/wiki/"):
-        raise ValueError("Invalid article path")
-
-    title = parsed_url.path[6:].replace("_", " ")
-
-    if not title:
-        raise ValueError("Empty article title")
-
-    return lang, title
-
-
 @router.get("/structured-translated-article", response_model=StructuredArticleResponse)
 async def structured_translated_article(
     source_lang: str = "en",
@@ -351,7 +382,7 @@ async def structured_translated_article(
     # 1. Resolve title
     if url:
         try:
-            parsed_lang, parsed_title = await parse_wikipedia_url(url)
+            parsed_lang, parsed_title = parse_wikipedia_url(url)
             source_lang = parsed_lang
             title = parsed_title
         except ValueError:
@@ -362,7 +393,7 @@ async def structured_translated_article(
 
     try:
         # 2. Fetch original article
-        article = article_fetcher(title, source_lang)
+        article = await article_fetcher(title, source_lang)
 
         # 3. Translate + build response (delegated)
         response = translate_article(article, source_lang, target_lang)
@@ -387,44 +418,7 @@ async def structured_translated_article(
         )
 
 
-def translate_article(
-    article,
-    source_lang: str,
-    target_lang: str,
-) -> StructuredArticleResponse:
-    """
-    Translates an Article object and builds a StructuredArticleResponse.
-    """
-
-    translated_sections: List[Section] = []
-
-    for section in article.sections:
-        translated_sections.append(
-            Section(
-                title=translate(section.title, source_lang, target_lang),
-                raw_content=translate(section.raw_content, source_lang, target_lang),
-                clean_content=translate(
-                    section.clean_content, source_lang, target_lang
-                ),
-                citations=section.citations,
-                citation_position=section.citation_position,
-            )
-        )
-
-    total_citations = sum(
-        len(section.citations or []) for section in translated_sections
-    )
-
-    return StructuredArticleResponse(
-        title=translate(article.title, source_lang, target_lang),
-        lang=target_lang,
-        source=f"wikipedia+model({source_lang}->{target_lang})",
-        sections=translated_sections,
-        references=article.references,
-        total_sections=len(translated_sections),
-        total_citations=total_citations,
-        total_references=len(article.references),
-    )
+# translate_article was moved to app.services.structured_translation
 
 
 @router.get("/fact-extraction-models", response_model=List[Dict[str, Any]])
@@ -440,6 +434,97 @@ async def get_fact_extraction_models():
     except Exception as e:
         logging.error("Error fetching fact extraction models: %s", str(e))
         raise HTTPException(status_code=500, detail=f"Failed to fetch models: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Revision history
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/revision-history",
+    response_model=List[Revision],
+    summary="Get Article Revision History",
+    description=(
+        "Returns the most recent revisions for a Wikipedia article, newest first. "
+        "Accepts either a Wikipedia URL or a plain article title."
+    ),
+)
+async def get_revision_history(
+    query: str = Query(
+        ...,
+        description="Wikipedia article title or URL",
+    ),
+    lang: Optional[str] = Query(
+        None,
+        description="Language code (e.g. 'en'). Inferred from URL if omitted.",
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+        description="Number of revisions to return (1–100, default 20).",
+    ),
+):
+    logging.info("Calling revision-history endpoint (query='%s')", query)
+
+    if "://" in query:
+        try:
+            lang, title = parse_wikipedia_url(query)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid Wikipedia URL format.")
+    else:
+        title = query
+        if not lang:
+            lang = "en"
+
+    try:
+        revisions = await _fetch_revisions(title, lang, limit)
+    except Exception as e:
+        logging.error("Error fetching revisions for '%s': %s", title, str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch revisions: {str(e)}"
+        )
+
+    return revisions
+
+
+# ---------------------------------------------------------------------------
+# Language lag detection
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/lag",
+    response_model=List[LagReport],
+    summary="Detect Language Lag",
+    description=(
+        "Compares the latest revision timestamp of a source-language Wikipedia article "
+        "against one or more target languages. Returns a lag report for each target language "
+        "indicating whether the translation is behind the source and by how many days."
+    ),
+)
+async def get_language_lag(
+    title: str = Query(..., description="Wikipedia article title (e.g. 'Python')"),
+    source_lang: str = Query("en", description="Source language code (default 'en')"),
+    target_langs: List[str] = Query(
+        ..., description="Target language codes to compare (e.g. 'fr', 'es')"
+    ),
+):
+    logging.info(
+        "Calling lag endpoint (title='%s', source='%s', targets=%s)",
+        title,
+        source_lang,
+        target_langs,
+    )
+    try:
+        reports = await detect_language_lag(title, source_lang, target_langs)
+    except Exception as e:
+        logging.error("Error detecting language lag for '%s': %s", title, str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to detect language lag: {str(e)}"
+        )
+    return reports
 
 
 @router.get("/fact-extraction-validate")
@@ -458,8 +543,6 @@ async def validate_fact_extraction_model(
     Returns:
         Dictionary with validation result and model info if valid
     """
-    logging.info("Validating fact extraction model: %s", model_id)
-
     try:
         config = validate_model(model_id)
         return {"valid": True, "model": config}
@@ -512,7 +595,6 @@ async def extract_facts_endpoint(request: FactExtractionRequest):
         )
 
         return response
-
     except ValueError as e:
         logging.error("ValueError in fact extraction: %s", str(e))
         raise HTTPException(status_code=400, detail=str(e))
@@ -521,3 +603,369 @@ async def extract_facts_endpoint(request: FactExtractionRequest):
         raise HTTPException(
             status_code=500, detail=f"Failed to extract facts: {str(e)}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Revision-to-revision diff
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/diff",
+    response_model=RevisionDiffResponse,
+    summary="Diff Two Revision Snapshots",
+    description=(
+        "Given two revision IDs for the same article, fetches both snapshots and returns "
+        "a structured diff: sections added, removed, or modified, each with a similarity "
+        "score, plus an overall similarity score for the full article."
+    ),
+)
+async def get_diff(
+    revid_a: int = Query(..., description="First (older) revision ID"),
+    revid_b: int = Query(..., description="Second (newer) revision ID"),
+    title: str = Query(..., description="Wikipedia article title (e.g. 'Python')"),
+    lang: Optional[str] = Query(None, description="Language code (default 'en')"),
+):
+    logging.info(
+        "Calling diff endpoint (title='%s', revid_a=%d, revid_b=%d)",
+        title,
+        revid_a,
+        revid_b,
+    )
+
+    if not lang:
+        lang = "en"
+
+    try:
+        article_a = await revision_fetcher(revid_a, lang)
+        article_b = await revision_fetcher(revid_b, lang)
+    except Exception as e:
+        logging.error("Error fetching revisions: %s", str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch revisions: {str(e)}"
+        )
+
+    sections_a = {s.title: s.clean_content for s in article_a.sections}
+    sections_b = {s.title: s.clean_content for s in article_b.sections}
+
+    titles_a = set(sections_a)
+    titles_b = set(sections_b)
+
+    sections_added = [
+        SectionChange(
+            section_title=t,
+            old_content=None,
+            new_content=sections_b[t],
+            similarity_score=0.0,
+        )
+        for t in titles_b - titles_a
+    ]
+    sections_removed = [
+        SectionChange(
+            section_title=t,
+            old_content=sections_a[t],
+            new_content=None,
+            similarity_score=0.0,
+        )
+        for t in titles_a - titles_b
+    ]
+    sections_modified = [
+        SectionChange(
+            section_title=t,
+            old_content=sections_a[t],
+            new_content=sections_b[t],
+            similarity_score=score,
+        )
+        for t in titles_a & titles_b
+        if (score := round(score_article_pair(sections_a[t], sections_b[t]), 4)) < 0.99
+    ]
+
+    full_text_a = " ".join(sections_a.values())
+    full_text_b = " ".join(sections_b.values())
+    overall_similarity = round(score_article_pair(full_text_a, full_text_b), 4)
+
+    return RevisionDiffResponse(
+        revid_a=revid_a,
+        revid_b=revid_b,
+        title=title,
+        lang=lang,
+        sections_added=sections_added,
+        sections_removed=sections_removed,
+        sections_modified=sections_modified,
+        overall_similarity=overall_similarity,
+    )
+
+
+@router.get(
+    "/revision-diff",
+    response_model=DiffResponse,
+    summary="Diff Two Revisions (Detailed)",
+    description=(
+        "Returns a section-level detailed diff between two revisions, including "
+        "character deltas and optional revision flags when `include_flags=true`."
+    ),
+)
+async def get_revision_diff(
+    old_revid: int = Query(..., description="First (older) revision ID"),
+    new_revid: int = Query(..., description="Second (newer) revision ID"),
+    title: str = Query(..., description="Wikipedia article title (e.g. 'Python')"),
+    lang: Optional[str] = Query(None, description="Language code (default 'en')"),
+    include_flags: bool = Query(
+        False,
+        description="Run revision flagging heuristics and include flags in the response.",
+    ),
+):
+    logging.info(
+        "Calling revision-diff endpoint (title='%s', old_revid=%d, new_revid=%d, include_flags=%s)",
+        title,
+        old_revid,
+        new_revid,
+        include_flags,
+    )
+
+    if not lang:
+        lang = "en"
+
+    try:
+        article_old = await revision_fetcher(old_revid, lang)
+        article_new = await revision_fetcher(new_revid, lang)
+    except Exception as e:
+        logging.error("Error fetching revisions for detailed diff: %s", str(e))
+        raise HTTPException(
+            status_code=500, detail=f"Failed to fetch revisions: {str(e)}"
+        )
+
+    old_sections = {s.title: s.clean_content for s in article_old.sections}
+    new_sections = {s.title: s.clean_content for s in article_new.sections}
+    section_diffs = _diff_sections(old_sections, new_sections)
+
+    total_chars_old = sum(len(content) for content in old_sections.values())
+    total_chars_new = sum(len(content) for content in new_sections.values())
+
+    response = DiffResponse(
+        old_revid=old_revid,
+        new_revid=new_revid,
+        title=title,
+        section_diffs=section_diffs,
+        total_chars_old=total_chars_old,
+        total_chars_new=total_chars_new,
+    )
+
+    if include_flags:
+        try:
+            prev_revisions = await _fetch_revisions(title, lang, limit=10)
+        except Exception:
+            prev_revisions = []
+        response.flags = flag_revision(response, prev_revisions)
+
+    return response
+
+
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
+
+
+async def _fetch_revisions(title: str, lang: str, limit: int = 20) -> List[Revision]:
+    """Call the MediaWiki API to retrieve recent revisions for *title*."""
+    url = f"https://{lang}.wikipedia.org/w/api.php"
+    params = {
+        "action": "query",
+        "titles": title,
+        "prop": "revisions",
+        "rvprop": "ids|timestamp|user|comment|size",
+        "rvlimit": limit,
+        "rvdir": "older",
+        "format": "json",
+    }
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.get(
+            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
+        )
+        r.raise_for_status()
+        data = r.json()
+
+    pages = data.get("query", {}).get("pages", {})
+    if not pages:
+        return []
+
+    page = next(iter(pages.values()))
+    raw_revisions = page.get("revisions", [])
+
+    revisions: List[Revision] = []
+    for rev in raw_revisions:
+        revisions.append(
+            Revision(
+                revid=rev.get("revid", 0),
+                parentid=rev.get("parentid", 0),
+                timestamp=rev.get("timestamp", ""),
+                user=rev.get("user", ""),
+                comment=rev.get("comment", ""),
+                size=rev.get("size", 0),
+            )
+        )
+    return revisions
+
+
+def _diff_sections(
+    old: Dict[str, str], new: Dict[str, str]
+) -> List[RevisionSectionDiff]:
+    """
+    Produce a SectionDiff for every section that appears in either revision.
+    """
+    all_titles = list(old.keys()) + [t for t in new.keys() if t not in old]
+    diffs: List[RevisionSectionDiff] = []
+
+    for title in all_titles:
+        old_text = old.get(title)
+        new_text = new.get(title)
+
+        if old_text is None:
+            # Section added in the new revision
+            assert new_text is not None
+            diffs.append(
+                RevisionSectionDiff(
+                    section_title=title,
+                    status="added",
+                    old_content=None,
+                    new_content=new_text,
+                    similarity_score=None,
+                    char_delta=len(new_text),
+                    unified_diff=None,
+                )
+            )
+        elif new_text is None:
+            # Section removed in the new revision
+            diffs.append(
+                RevisionSectionDiff(
+                    section_title=title,
+                    status="removed",
+                    old_content=old_text,
+                    new_content=None,
+                    similarity_score=None,
+                    char_delta=-len(old_text),
+                    unified_diff=None,
+                )
+            )
+        else:
+            # Section present in both — compute similarity and diff
+            matcher = difflib.SequenceMatcher(None, old_text, new_text)
+            similarity = matcher.ratio()
+            char_delta = len(new_text) - len(old_text)
+
+            if similarity >= 0.99:
+                status = "unchanged"
+                udiff = None
+            else:
+                status = "modified"
+                udiff = list(
+                    difflib.unified_diff(
+                        old_text.splitlines(),
+                        new_text.splitlines(),
+                        fromfile=f"rev_old/{title}",
+                        tofile=f"rev_new/{title}",
+                        lineterm="",
+                    )
+                )
+
+            diffs.append(
+                RevisionSectionDiff(
+                    section_title=title,
+                    status=status,
+                    old_content=old_text,
+                    new_content=new_text,
+                    similarity_score=round(similarity, 4),
+                    char_delta=char_delta,
+                    unified_diff=udiff,
+                )
+            )
+
+    return diffs
+
+
+# ---------------------------------------------------------------------------
+# Paragraph-level semantic diff
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/paragraph-diff",
+    response_model=ParagraphDiffResponse,
+    summary="Paragraph-Level Semantic Diff",
+    description=(
+        "Fetches two Wikipedia articles and produces a sentence-aligned, word-level diff. "
+        "For each matched section pair the sentences are aligned semantically using LaBSE "
+        "embeddings and each aligned pair is word-diffed with difflib.SequenceMatcher. "
+        "Tokens are classified as equal / replace / insert / delete."
+    ),
+)
+async def paragraph_diff(request: ParagraphDiffRequest):
+    logging.info(
+        "Calling paragraph-diff endpoint (source='%s' [%s], target='%s' [%s])",
+        request.source_query,
+        request.source_lang,
+        request.target_query,
+        request.target_lang,
+    )
+
+    src_lang, src_title = _resolve_article_query(
+        request.source_query, request.source_lang, field_name="source"
+    )
+    tgt_lang, tgt_title = _resolve_article_query(
+        request.target_query, request.target_lang, field_name="target"
+    )
+
+    try:
+        src_article, tgt_article = await asyncio.gather(
+            article_fetcher(src_title, src_lang),
+            article_fetcher(tgt_title, tgt_lang),
+        )
+    except Exception:
+        logging.exception("Error fetching articles for paragraph-diff")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while fetching articles for paragraph diff.",
+        )
+
+    model_name = request.model_name or DEFAULT_MODEL
+    try:
+        model = _get_st_model(model_name)
+    except Exception:
+        logging.exception("Failed to load model %s", model_name)
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while loading the embedding model.",
+        )
+
+    src_sections = [
+        (s.title, s.clean_content)
+        for s in src_article.sections
+        if s.clean_content.strip()
+    ]
+    tgt_sections = [
+        (s.title, s.clean_content)
+        for s in tgt_article.sections
+        if s.clean_content.strip()
+    ]
+
+    try:
+        sections: List[ParagraphDiffSection] = _diff_para_sections(
+            src_sections,
+            tgt_sections,
+            model,
+            threshold=request.similarity_threshold,
+        )
+    except Exception:
+        logging.exception("Error computing paragraph diff")
+        raise HTTPException(
+            status_code=500,
+            detail="Internal server error while computing paragraph diff.",
+        )
+
+    return ParagraphDiffResponse(
+        source_title=src_article.title,
+        target_title=tgt_article.title,
+        source_lang=src_lang,
+        target_lang=tgt_lang,
+        sections=sections,
+    )

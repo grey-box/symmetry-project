@@ -1,0 +1,5 @@
+node_modules/
+symmetry-unified-backend/venv/
+desktop-electron-frontend/node_modules/
+desktop-electron-frontend/test-results/
+test-results/

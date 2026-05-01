@@ -1,10 +1,13 @@
 # Project Symmetry - Desktop Electron Frontend
 
-A cross-platform desktop application built with Electron, React, and TypeScript for cross-language Wikipedia article gap analysis.
+A cross-platform desktop application built with Electron, React, and TypeScript for cross-language
+Wikipedia article gap analysis.
 
 ## Overview
 
-This frontend application provides a user-friendly interface for translating, comparing, and analyzing Wikipedia articles across different languages. It communicates with a FastAPI backend for semantic analysis and article processing.
+This frontend application provides a user-friendly interface for translating, comparing, and analyzing
+Wikipedia articles across different languages. It communicates with a FastAPI backend for semantic
+analysis and article processing.
 
 ## Tech Stack
 
@@ -23,6 +26,7 @@ This frontend application provides a user-friendly interface for translating, co
 The application follows Electron's multi-process architecture:
 
 ### Main Process (Node.js)
+
 - **Location**: `src/main.ts`
 - **Responsibilities**:
   - Application lifecycle management
@@ -32,6 +36,7 @@ The application follows Electron's multi-process architecture:
   - File system access
 
 ### Preload Script
+
 - **Location**: `src/preload.ts`
 - **Responsibilities**:
   - Exposes safe APIs to renderer process via `contextBridge`
@@ -39,6 +44,7 @@ The application follows Electron's multi-process architecture:
   - Manages config access
 
 ### Renderer Process (React)
+
 - **Entry**: `src/index.tsx` → `src/App.tsx`
 - **Responsibilities**:
   - UI rendering and user interaction
@@ -48,7 +54,7 @@ The application follows Electron's multi-process architecture:
 
 ## Project Structure
 
-```
+```text
 desktop-electron-frontend/
 ├── src/
 │   ├── main.ts                 # Electron main process
@@ -117,6 +123,7 @@ desktop-electron-frontend/
 ## Getting Started
 
 ### Prerequisites
+
 - Node.js v18+
 - Yarn or npm
 - Backend API server (FastAPI)
@@ -146,19 +153,34 @@ yarn start
 
 ### Configuration
 
-The application reads configuration from a `config.json` file in the parent directory:
+The application reads default configuration from `config.default.json` in the parent directory and then
+applies custom overrides from `config.json`.
+
+A default config might look like:
 
 ```json
 {
-  "port": 8000,
-  "backendBaseUrl": "http://127.0.0.1:8000"
+  "BACKEND_BASE_URL": "http://127.0.0.1:8000",
+  "BACKEND_PORT": 8000,
+  "FRONTEND_PORT": 5173,
+  "OLLAMA_BASE_URL": "http://localhost:11434",
+  "DEFAULT_TIMEOUT": 30000,
+  "SIMILARITY_THRESHOLD": 0.65,
+  "COMPARISON_MODELS": [
+    { "value": "sentence-transformers/LaBSE",
+      "label": "LaBSE (multilingual embeddings)" },
+    { "value": "similarity_prototype",
+      "label": "Similarity Prototype (Phase 1/2/3 — English only, auto-translates)" }
+  ]
 }
 ```
 
 Configuration is loaded via:
-1. Main process reads `config.json`
-2. Config is exposed to renderer via IPC
-3. Services use config to set API base URL
+
+1. Main process reads `config.default.json`
+2. Main process applies overrides from `config.json`
+3. Config is exposed to renderer via IPC
+4. Services use config to set API base URL and UI defaults
 
 ## Available Scripts
 
@@ -177,12 +199,14 @@ yarn lint               # Run linter (not configured yet)
 The app uses Electron's IPC (Inter-Process Communication) for secure data exchange:
 
 **From Renderer to Main:**
+
 ```typescript
 // In renderer process
 const config = await window.electronAPI.getAppConfig();
 ```
 
 **IPC Handlers (main.ts):**
+
 - `get-app-config` - Retrieve application configuration
 - `start-backend` - Start backend API process
 
@@ -198,6 +222,7 @@ import { compareArticles } from '@/services/compareArticles';
 ```
 
 The axios instance is configured with:
+
 - Dynamic base URL from config
 - 10-second timeout
 - Request/response interceptors for debugging
@@ -358,12 +383,14 @@ export const MyComponent = React.forwardRef<HTMLDivElement, MyComponentProps>(
 ## Type System
 
 TypeScript configuration includes:
+
 - Strict mode enabled
 - Path aliases: `@/*` → `./src/*`
 - No unchecked indexed access
 - ES6 target
 
 ### Common Type Locations
+
 - **API Types**: `src/models/apis/`
 - **Component Props**: Inline or separate files
 - **Forms**: `src/models/*FormType.ts`
@@ -384,6 +411,7 @@ All components use Tailwind utility classes:
 ### Custom Styles
 
 Global styles in `src/index.css`:
+
 - Tailwind directives
 - Custom CSS variables
 - Component-specific styles
@@ -395,6 +423,7 @@ Global styles in `src/index.css`:
 **Issue**: Backend fails to start when app launches
 
 **Solutions**:
+
 1. Check if Python 3 is installed: `python3 --version`
 2. Verify backend path in `src/main.ts`
 3. Check console logs in DevTools (Cmd+Opt+I)
@@ -405,6 +434,7 @@ Global styles in `src/index.css`:
 **Issue**: Cannot access `window.electronAPI`
 
 **Solutions**:
+
 1. Ensure preload script is loaded in main.ts
 2. Check `webPreferences.preload` path
 3. Verify contextBridge is configured in preload.ts
@@ -414,6 +444,7 @@ Global styles in `src/index.css`:
 **Issue**: Vite build fails
 
 **Solutions**:
+
 1. Clear node_modules: `rm -rf node_modules && yarn install`
 2. Check TypeScript errors: `yarn tsc --noEmit`
 3. Verify all imports use `@/` alias or relative paths
@@ -423,6 +454,7 @@ Global styles in `src/index.css`:
 **Issue**: Changes don't reflect in app
 
 **Solutions**:
+
 1. Ensure development mode is running
 2. Check if Vite dev server is running
 3. Restart the app: Quit and run `yarn start`
@@ -432,6 +464,7 @@ Global styles in `src/index.css`:
 **Issue**: Port 8000 already in use
 
 **Solutions**:
+
 ```bash
 # Kill process on port 8000
 lsof -ti:8000 | xargs kill -9
@@ -442,6 +475,7 @@ lsof -ti:8000 | xargs kill -9
 ## Environment Variables
 
 The app doesn't use `.env` files directly. Configuration is managed via:
+
 - `config.json` - Runtime configuration
 - `forge.config.js` - Build configuration
 - `tsconfig.json` - TypeScript configuration
@@ -461,12 +495,14 @@ yarn test
 ## Performance Optimization
 
 ### Current Optimizations
+
 - Vite's fast HMR (Hot Module Replacement)
 - Code splitting via dynamic imports
 - Lazy loading of routes (potential enhancement)
 - Axios request/response caching (potential enhancement)
 
 ### Recommended Enhancements
+
 - Implement React.memo for expensive components
 - Add virtual scrolling for large lists
 - Implement service workers for offline caching
@@ -475,12 +511,14 @@ yarn test
 ## Security Considerations
 
 ### Current Security Measures
+
 - contextBridge for safe IPC communication
 - No direct Node.js access in renderer
 - Content Security Policy (CSP) headers (potential)
 - Input validation via TypeScript and Pydantic
 
 ### Best Practices
+
 - Never expose sensitive data via IPC
 - Validate all user input
 - Use HTTPS for API calls in production

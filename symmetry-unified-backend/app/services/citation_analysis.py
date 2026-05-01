@@ -1,6 +1,6 @@
 import re
 from bs4 import BeautifulSoup
-from app.models import CitationAnalysisResponse
+from app.models.wiki.analysis import CitationAnalysisResponse
 from fastapi import HTTPException
 import requests
 from requests import RequestException
