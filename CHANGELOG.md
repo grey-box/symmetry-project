@@ -9,7 +9,20 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-*No changes staged yet for the next release.*
+**Paragraph-Diff Service with Word-Level Semantic Diff UI — PR #41**
+
+### Added
+
+- **Backend**: new `/symmetry/v1/wiki/paragraph-diff` endpoint (`app/routers/structured_wiki.py`) backed by `ParagraphDiffService` (`app/services/paragraph_diff.py`). Returns section-level aligned sentence pairs with per-token `word_diff` (equal / insert / delete / replace).
+- **Backend**: Pydantic models `AlignedSentencePair`, `ParagraphDiffSection`, `ParagraphDiffResponse`, `ParagraphDiffRequest` in `app/models/paragraph_diff.py`.
+- **Frontend**: `SemanticWordDiff` component — renders colored token spans (blue inserts, red deletes, orange replaces) with a similarity progress bar per sentence pair.
+- **Frontend**: `SideBySideComparisonView` component — synchronized dual-scroll panels for cross-language section comparison with `SemanticWordDiff` per section.
+- **Frontend**: `ParagraphDiffResponse`, `ParagraphDiffRequest`, `WordToken`, `AlignedSentencePair`, `ParagraphDiffSection` TypeScript interfaces in `src/models/structured-wiki.ts`.
+- **Frontend**: `structuredWikiService.getParagraphDiff()` method in `src/services/structuredWikiService.ts`.
+- **Frontend**: "Detailed Analysis (word-level diff)" button in `CrossLanguageComparison` tab that loads the paragraph-diff and activates `SideBySideComparisonView`.
+- **Tests (E2E)**: Playwright test suite with 26 tests across `home`, `cross-language`, `through-time`, `paragraph-diff`, `structured-article`, and `error-states` spec files (22 passing, 4 skipped due to Wikipedia rate-limiting).
+- **Tests (E2E)**: `test:e2e` and `test:e2e:report` scripts added to `desktop-electron-frontend/package.json`.
+- **CI**: Playwright report artifacts excluded from git via `.gitignore` (`test-results/`, `playwright-report/*`).
 
 ---
 

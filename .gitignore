@@ -46,3 +46,5 @@ backend.log
 backend_test.log
 *.log
 symmetry-unified-backend/report.xml
+test-results/
+desktop-electron-frontend/playwright-report/*
