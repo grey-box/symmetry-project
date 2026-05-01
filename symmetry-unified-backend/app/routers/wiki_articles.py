@@ -6,7 +6,11 @@ import wikipediaapi
 import pycountry
 from fastapi import APIRouter, Query, HTTPException, Request
 
-from app.models.wiki.responses import SourceArticleResponse
+from app.models.wiki.responses import (
+    SourceArticleResponse,
+    ArticleLanguagesResponse,
+    AvailableTargetLanguage,
+)
 from app.services.cache import get_cached_article, set_cached_article
 from app.services.wiki_utils import validate_language_code
 
@@ -113,6 +117,45 @@ async def get_article(
     set_cached_article(lang + "." + title, article_content, languages)
 
     return {"sourceArticle": article_content, "articleLanguages": languages}
+
+
+@router.get(
+    "/article-languages",
+    response_model=ArticleLanguagesResponse,
+    summary="Get Available Target Languages",
+    description=(
+        "Parse a Wikipedia URL, detect source language and article title, "
+        "and return all available target languages with their translated article titles."
+    ),
+)
+async def get_article_languages(
+    url: Annotated[
+        str,
+        Query(
+            description="Full Wikipedia URL (e.g., https://en.wikipedia.org/wiki/Python)"
+        ),
+    ],
+):
+    lang, title = await validate_url(url)
+
+    wiki_wiki = wikipediaapi.Wikipedia(
+        user_agent="SymmetryUnified/1.0 (contact@grey-box.ca)", language=lang
+    )
+    page = wiki_wiki.page(title)
+
+    if not page.exists():
+        raise HTTPException(status_code=404, detail="Article not found.")
+
+    available_targets = [
+        AvailableTargetLanguage(lang=lang_code, title=langlink.title)
+        for lang_code, langlink in sorted((page.langlinks or {}).items())
+    ]
+
+    return ArticleLanguagesResponse(
+        source_lang=lang,
+        source_title=page.title,
+        available_targets=available_targets,
+    )
 
 
 # validate_url, _extract_wiki_title and validate_language_code moved to app.services.wiki_utils
