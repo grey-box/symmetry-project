@@ -12,6 +12,7 @@
     "test:rpa": "node scripts/e2e-rpa.mjs --headless",
     "test:e2e": "playwright test",
     "test:e2e:report": "playwright show-report playwright-report",
+    "demo:video": "node scripts/create-demo-video.mjs",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",
