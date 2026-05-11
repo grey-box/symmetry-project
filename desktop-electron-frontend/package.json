@@ -71,6 +71,10 @@
   "overrides": {
     "tar": "^7.5.11",
     "tmp": "^0.2.4",
-    "@tootallnate/once": "^3.0.1"
+    "@tootallnate/once": "^3.0.1",
+    "@electron/node-gyp": "10.2.0-electron.2",
+    "electron-installer-common": "^0.10.4",
+    "glob": "^10.4.5",
+    "cacache": "^17.1.4"
   }
 }
