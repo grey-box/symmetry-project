@@ -4,8 +4,9 @@
  * Uses Pluto — a small article with a shorter diff to keep tests fast.
  */
 import { test, expect } from '@playwright/test';
+import { config } from '../config';
 
-const ARTICLE = 'Pluto';
+const ARTICLE = config.src_article;
 
 /** Load revision history and wait for the timeline to appear */
 async function loadRevisions(page: import('@playwright/test').Page) {

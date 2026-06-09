@@ -1,0 +1,7 @@
+{
+  "src_url": "https://en.wikipedia.org/wiki/Pluto",
+  "src_article": "Pluto",
+  "tgt_article": "Pluton_(planète_naine)",
+  "target_lang": "fr",
+  "api_base": "http://127.0.0.1:8000"
+}
