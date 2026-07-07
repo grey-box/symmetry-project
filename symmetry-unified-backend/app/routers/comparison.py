@@ -1,5 +1,6 @@
 import logging
 import re
+from concurrent.futures import TimeoutError
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -265,7 +266,7 @@ def translate_text_endpoint(
 )
 def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
     try:
-        from app.ai.translation import translate as chunked_translate
+        from app.ai.translation import translate_with_timeout
 
         logging.info(
             "Chunked translation request (source='%s', target='%s', chars=%d)",
@@ -273,7 +274,7 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
             payload.target_language,
             len(payload.text or ""),
         )
-        translated = chunked_translate(
+        translated = translate_with_timeout(
             payload.text,
             payload.source_language,
             payload.target_language,
@@ -288,6 +289,9 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
                 "and restart the backend."
             ),
         )
+    except TimeoutError as e:
+        logging.exception("Chunked translation timed out: %s", str(e))
+        raise HTTPException(status_code=504, detail=str(e))
     except ValueError as e:
         logging.exception("Chunked translation validation error: %s", str(e))
         raise HTTPException(status_code=400, detail=str(e))

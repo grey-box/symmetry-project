@@ -1,18 +1,22 @@
 """MarianMT translation engine with chunking and LRU model cache."""
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from functools import lru_cache
 
 from transformers import MarianMTModel, MarianTokenizer
 
+from app.config import get_translation_config
 from app.models.translation.registry import get_translation_model_name, ROMANCE_LANGS
 from app.services.chunking import chunk_text
 
 logger = logging.getLogger(__name__)
 
-TRANSLATION_CHUNK_CHAR_THRESHOLD = 1500
-TRANSLATION_CHUNK_WORD_SIZE = 300
-TRANSLATION_BATCH_SIZE = 4
+_cfg = get_translation_config()
+TRANSLATION_CHUNK_CHAR_THRESHOLD = _cfg.get("chunk_char_threshold", 1500)
+TRANSLATION_CHUNK_WORD_SIZE = _cfg.get("chunk_word_size", 300)
+TRANSLATION_BATCH_SIZE = _cfg.get("batch_size", 4)
+TRANSLATION_TIMEOUT = _cfg.get("timeout_seconds", 120)
 
 _LANG_ALIASES = {
     "english": "en",
@@ -60,6 +64,20 @@ def _translate_with_model(text: str, tokenizer, model) -> str:
 def _should_fallback_to_source_text(exc: Exception) -> bool:
     message = str(exc).lower()
     return any(marker in message for marker in _MODEL_FAILURE_FALLBACK_MARKERS)
+
+
+_executor = ThreadPoolExecutor(max_workers=1)
+
+
+def translate_with_timeout(text: str, source_lang: str, target_lang: str, timeout: int = TRANSLATION_TIMEOUT) -> str:
+    future = _executor.submit(translate, text, source_lang, target_lang)
+    try:
+        return future.result(timeout=timeout)
+    except TimeoutError:
+        raise TimeoutError(
+            f"Translation timed out after {timeout}s for {source_lang} -> {target_lang} "
+            f"({len(text)} chars)"
+        )
 
 
 def translate(text: str, source_lang: str, target_lang: str) -> str:

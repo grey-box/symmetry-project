@@ -1,0 +1,8 @@
+{
+  "translation": {
+    "chunk_char_threshold": 1500,
+    "chunk_word_size": 300,
+    "batch_size": 4,
+    "timeout_seconds": 120
+  }
+}

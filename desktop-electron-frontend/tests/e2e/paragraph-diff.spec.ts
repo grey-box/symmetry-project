@@ -4,11 +4,12 @@
  * Uses Pluto/Pluton — a small article that loads quickly with LaBSE.
  */
 import { test, expect } from '@playwright/test';
+import { config } from '../config';
 
-const API_BASE = 'http://127.0.0.1:8000';
-// Small articles to keep LaBSE compute time reasonable
-const SRC = 'Pluto';
-const TGT = 'Pluton_(planète_naine)';
+const API_BASE = config.api_base;
+const SRC = config.src_article;
+const TGT = config.tgt_article;
+const SRC_URL = config.src_url;
 
 /** Call paragraph-diff with retries on 429 (Wikipedia rate limiting). */
 async function paragraphDiffWithRetry(
@@ -88,10 +89,9 @@ test.describe('Paragraph Diff', () => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Cross-Language Diff' }).click();
 
-    await page.locator('input').nth(0).fill(SRC);
-    await page.locator('input').nth(1).fill(TGT);
-    await page.locator('select').nth(0).selectOption('en');
-    await page.locator('select').nth(1).selectOption('fr');
+    await page.locator('input').first().fill(SRC_URL);
+    await expect(page.locator('select')).toBeVisible({ timeout: 15_000 });
+    await page.locator('select').first().selectOption(config.target_lang);
 
     await page.getByRole('button', { name: 'Compare Sections' }).click();
     // Wait dynamically for results

@@ -28,12 +28,10 @@ test.describe('Error States', () => {
     expect(errorVisible).toBeTruthy();
   });
 
-  test('cross-language comparison with empty inputs shows validation error or disabled button', async ({ page }) => {
+  test('cross-language comparison with empty URL shows disabled button', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Cross-Language Diff' }).click();
-    // Clear both text inputs
-    await page.locator('input').nth(0).fill('');
-    await page.locator('input').nth(1).fill('');
+    // URL input starts empty, no target section visible yet
     const compareBtn = page.getByRole('button', { name: 'Compare Sections' });
     await expect(compareBtn).toBeDisabled();
   });

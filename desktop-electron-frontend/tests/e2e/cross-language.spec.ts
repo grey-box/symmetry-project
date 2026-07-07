@@ -4,17 +4,18 @@
  * Uses Pluto/Pluton — a small article that loads quickly with LaBSE.
  */
 import { test, expect } from '@playwright/test';
+import { config } from '../config';
 
-// Small article pair: EN Pluto → FR Pluton_(planète_naine)
-const SRC = 'Pluto';
-const TGT = 'Pluton_(planète_naine)';
+const SRC_URL = config.src_url;
+const TARGET_LANG = config.target_lang;
 
 /** Fill comparison form and click Compare Sections, then wait for results */
 async function runComparison(page: import('@playwright/test').Page) {
-  await page.locator('input').nth(0).fill(SRC);
-  await page.locator('input').nth(1).fill(TGT);
-  await page.locator('select').nth(0).selectOption('en');
-  await page.locator('select').nth(1).selectOption('fr');
+  await page.locator('input').first().fill(SRC_URL);
+  // Wait for URL resolution (target language dropdown appears)
+  await expect(page.locator('select')).toBeVisible({ timeout: 15_000 });
+  await page.locator('select').first().selectOption(TGT_LANG);
+  // Target title is auto-filled — just click compare
   await page.getByRole('button', { name: 'Compare Sections' }).click();
   await expect(
     page.locator('text=/Section Comparison|Overall Similarity/i').first()

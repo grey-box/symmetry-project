@@ -33,9 +33,9 @@ python -m pytest -v --tb=short      # verbose with short tracebacks
 
 ```bash
 cd desktop-electron-frontend
-yarn install
-yarn start                # dev mode
-yarn build                # production build
+npm install
+npm start                # dev mode
+npm run build            # production build
 ```
 
 ---
