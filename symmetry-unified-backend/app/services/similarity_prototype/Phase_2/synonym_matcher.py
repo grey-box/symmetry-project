@@ -191,8 +191,8 @@ class SynonymMatcher:
         word_a = self.lemmatize(word_a)
         word_b = self.lemmatize(word_b)
 
-        synsets_a = set(s.name() for s in wordnet.synsets(word_a))
-        synsets_b = set(s.name() for s in wordnet.synsets(word_b))
+        synsets_a = {s.name() for s in wordnet.synsets(word_a)}
+        synsets_b = {s.name() for s in wordnet.synsets(word_b)}
 
         # Direct synset overlap
         if synsets_a & synsets_b:
@@ -332,9 +332,7 @@ class SynonymMatcher:
                     wu_score = self.wu_palmer_similarity(token_a, token_b)
                     shares_synset = self.share_synset(token_a, token_b)
 
-                    if shares_synset:
-                        score = wu_score
-                    elif wu_score >= 0.9:
+                    if shares_synset or wu_score >= 0.9:
                         score = wu_score
                     else:
                         score = 0.0

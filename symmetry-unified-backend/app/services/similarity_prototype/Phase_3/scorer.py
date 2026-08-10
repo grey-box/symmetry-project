@@ -1,10 +1,13 @@
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from Phase_1.similarity import SimilarityCalculator
 from Phase_2.synonym_matcher import SynonymMatcher
+
 from Phase_3.role_comparator import RoleComparator
+
 
 class Scorer:
     def __init__(self):

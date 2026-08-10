@@ -2,15 +2,10 @@
 
 Kept at project root for easier import by other teams/tools.
 """
-from typing import List, Dict, Optional
-
 import re
 
-try:
-    import requests
-    from bs4 import BeautifulSoup
-except Exception:
-    raise
+import requests
+from bs4 import BeautifulSoup
 
 # nltk's sent_tokenize if available; otherwise use a regex fallback
 try:
@@ -30,7 +25,7 @@ def fetch_html(url: str, timeout: int = 10) -> str:
     return resp.text
 
 
-def filter_trivial_sentences(sentences: List[str], min_words: int = 4) -> List[str]:
+def filter_trivial_sentences(sentences: list[str], min_words: int = 4) -> list[str]:
     filtered = []
     for sent in sentences:
         word_count = len(sent.split())
@@ -38,7 +33,7 @@ def filter_trivial_sentences(sentences: List[str], min_words: int = 4) -> List[s
             filtered.append(sent)
     return filtered
 
-def get_flat_sentences(url: str, max_paragraphs: Optional[int] = None) -> List[str]:
+def get_flat_sentences(url: str, max_paragraphs: int | None = None) -> list[str]:
     parsed = parse_url_to_paragraph_sentences(url, max_paragraphs)
     
     flat = []
@@ -59,7 +54,7 @@ def clean_sentence(sentence: str) -> str:
     sentence = re.sub(r'\(\d+°[NS].*?\)', '', sentence)
     return sentence.strip()
 
-def extract_paragraphs(html: str) -> List[str]:
+def extract_paragraphs(html: str) -> list[str]:
     soup = BeautifulSoup(html, "html.parser")
     content = soup.find(id="mw-content-text") or soup.find("div", class_="mw-parser-output")
     if content is None:
@@ -80,7 +75,7 @@ def extract_paragraphs(html: str) -> List[str]:
 _SENT_SPLIT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"'\(\[])")
 
 
-def _regex_split_sentences(text: str) -> List[str]:
+def _regex_split_sentences(text: str) -> list[str]:
     t = re.sub(r"\s+", " ", text).strip()
     if not t:
         return []
@@ -89,7 +84,7 @@ def _regex_split_sentences(text: str) -> List[str]:
     return parts
 
 
-def split_into_sentences(text: str) -> List[str]:
+def split_into_sentences(text: str) -> list[str]:
     if _NLTK_AVAILABLE:
         try:
             return sent_tokenize(text)
@@ -105,7 +100,7 @@ def split_into_sentences(text: str) -> List[str]:
         return _regex_split_sentences(text)
 
 
-def parse_url_to_paragraph_sentences(url: str, max_paragraphs: Optional[int] = None) -> List[Dict[str, List[str]]]:
+def parse_url_to_paragraph_sentences(url: str, max_paragraphs: int | None = None) -> list[dict[str, list[str]]]:
     html = fetch_html(url)
     paras = extract_paragraphs(html)
     if max_paragraphs is not None:
@@ -118,7 +113,7 @@ def parse_url_to_paragraph_sentences(url: str, max_paragraphs: Optional[int] = N
     return out
 
 
-def vectorize_paragraphs_tfidf(paragraphs: List[Dict[str, List[str]]]):
+def vectorize_paragraphs_tfidf(paragraphs: list[dict[str, list[str]]]):
     from Phase_1.vectorizer import Vectorizer
 
     flat = []

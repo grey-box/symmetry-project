@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -18,9 +18,9 @@ class WordToken(BaseModel):
     """
 
     type: Literal["equal", "replace", "insert", "delete"] = Field()
-    text: Optional[str] = Field(default=None)
-    old: Optional[str] = Field(default=None)
-    new: Optional[str] = Field(default=None)
+    text: str | None = Field(default=None)
+    old: str | None = Field(default=None)
+    new: str | None = Field(default=None)
 
 
 class AlignedSentencePair(BaseModel):
@@ -29,7 +29,7 @@ class AlignedSentencePair(BaseModel):
     source_sentence: str = Field()
     target_sentence: str = Field()
     similarity: float = Field(ge=0.0, le=1.0)
-    word_diff: List[WordToken] = Field(default_factory=list)
+    word_diff: list[WordToken] = Field(default_factory=list)
 
 
 class ParagraphDiffSection(BaseModel):
@@ -38,7 +38,7 @@ class ParagraphDiffSection(BaseModel):
     source_title: str = Field()
     target_title: str = Field()
     similarity: float = Field(ge=0.0, le=1.0)
-    aligned_pairs: List[AlignedSentencePair] = Field(default_factory=list)
+    aligned_pairs: list[AlignedSentencePair] = Field(default_factory=list)
 
 
 class ParagraphDiffResponse(BaseModel):
@@ -48,4 +48,4 @@ class ParagraphDiffResponse(BaseModel):
     target_title: str = Field()
     source_lang: str = Field()
     target_lang: str = Field()
-    sections: List[ParagraphDiffSection] = Field(default_factory=list)
+    sections: list[ParagraphDiffSection] = Field(default_factory=list)

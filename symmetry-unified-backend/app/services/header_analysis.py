@@ -1,9 +1,10 @@
+import requests
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
 from starlette import status
+
 from app.models.wiki.analysis import HeaderCount
 from app.services.wiki_utils import page_exists
-import requests
 
 
 def count_html_headers(page_title: str, target_language: str) -> HeaderCount:

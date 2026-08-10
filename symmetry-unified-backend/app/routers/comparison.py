@@ -5,22 +5,22 @@ from concurrent.futures import TimeoutError
 from fastapi import APIRouter, HTTPException, Query
 
 from app.models.comparison.models import (
+    ArticleComparisonResponse,
     CompareRequest,
     CompareResponse,
-    ArticleComparisonResponse,
-    SemanticCompareRequest,
+    ExtraInfo,
+    MissingInfo,
     SectionCompareRequest,
     SectionCompareResponse,
-    MissingInfo,
-    ExtraInfo,
+    SemanticCompareRequest,
     SentenceDiff,
 )
+from app.models.comparison.registry import COMPARISON_MODELS
+from app.models.server import ServerModel
 from app.models.translation.models import ChunkedTranslateRequest
 from app.models.wiki.responses import TranslateArticleResponse
-from app.models.server import ServerModel
-from app.models.comparison.registry import COMPARISON_MODELS
-from app.services.section_comparison import compare_article_sections
 from app.services.router_utils import resolve_and_fetch_article
+from app.services.section_comparison import compare_article_sections
 
 try:
     from app.ai.comparison import perform_semantic_comparison
@@ -175,9 +175,11 @@ def translate_article(
         ..., description="Target language code (e.g., 'fr', 'es', 'de')"
     ),
 ):
-    import wikipediaapi
-    from app.services.wiki_utils import get_translation
     from urllib.parse import unquote
+
+    import wikipediaapi
+
+    from app.services.wiki_utils import get_translation
 
     logging.info(
         f"Calling translate article endpoint for title: {title}, url: {url} and language: {language}"
@@ -280,8 +282,8 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
             payload.target_language,
         )
         return {"translatedArticle": translated}
-    except ImportError as e:
-        logging.exception("Chunked translation dependency error: %s", str(e))
+    except ImportError:
+        logging.exception("Chunked translation dependency error")
         raise HTTPException(
             status_code=500,
             detail=(
@@ -290,14 +292,14 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
             ),
         )
     except TimeoutError as e:
-        logging.exception("Chunked translation timed out: %s", str(e))
+        logging.exception("Chunked translation timed out")
         raise HTTPException(status_code=504, detail=str(e))
     except ValueError as e:
-        logging.exception("Chunked translation validation error: %s", str(e))
+        logging.exception("Chunked translation validation error")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logging.exception("Chunked translation failed: %s", str(e))
-        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+        logging.exception("Chunked translation failed")
+        raise HTTPException(status_code=500, detail=f"Translation failed: {e!s}")
 
 
 # ---------------------------------------------------------------------------

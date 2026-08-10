@@ -1,0 +1,2 @@
+{"ts":"2026-08-10T02:12:45.518Z","level":"info","component":"plugin","msg":"Orchestrator starting — automation: OFF","meta":{"automation":false}}
+{"ts":"2026-08-10T02:12:45.518Z","level":"info","component":"plugin","msg":"Ponytail active at full level","meta":{"ponytailLevel":"full"}}

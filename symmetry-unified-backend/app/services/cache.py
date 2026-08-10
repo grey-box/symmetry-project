@@ -1,9 +1,8 @@
 import hashlib
 import logging
-from time import time
-from typing import Dict, List, Optional, Tuple
 from collections import OrderedDict
 from sys import getsizeof
+from time import time
 
 CACHE_LIMIT = 10
 TTL_SECONDS = 4000
@@ -11,7 +10,7 @@ TTL_SECONDS = 4000
 
 class ArticleCache:
     def __init__(self, max_size: int = CACHE_LIMIT, ttl: int = TTL_SECONDS):
-        self.cache: "OrderedDict[str, Dict]" = OrderedDict()
+        self.cache: OrderedDict[str, dict] = OrderedDict()
         self.max_size = max_size
         self.ttl = ttl
         self.current_size = 0
@@ -19,7 +18,7 @@ class ArticleCache:
     def _get_cache_key(self, key: str) -> str:
         return hashlib.md5(key.encode()).hexdigest()
 
-    def get(self, key: str) -> Tuple[Optional[str], Optional[List[str]]]:
+    def get(self, key: str) -> tuple[str | None, list[str] | None]:
         cache_key = self._get_cache_key(key)
         cached_data = self.cache.get(cache_key)
 
@@ -35,7 +34,7 @@ class ArticleCache:
         logging.info(f"[CACHE HIT] Returning cached data for key: {cache_key}")
         return cached_data["content"], cached_data["languages"]
 
-    def set(self, key: str, content: str, languages: List[str]) -> None:
+    def set(self, key: str, content: str, languages: list[str]) -> None:
         cache_key = self._get_cache_key(key)
         item = {
             "content": content,
@@ -68,9 +67,9 @@ class ArticleCache:
 _article_cache = ArticleCache()
 
 
-def get_cached_article(title: str) -> Tuple[Optional[str], Optional[List[str]]]:
+def get_cached_article(title: str) -> tuple[str | None, list[str] | None]:
     return _article_cache.get(title)
 
 
-def set_cached_article(key: str, content: str, languages: List[str]) -> None:
+def set_cached_article(key: str, content: str, languages: list[str]) -> None:
     _article_cache.set(key, content, languages)

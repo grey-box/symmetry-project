@@ -1,9 +1,9 @@
 from datetime import datetime
-from typing import Dict, List, Optional
-from urllib.parse import urlparse, unquote
-from app.models.revision import LagReport
+from urllib.parse import unquote, urlparse
 
 import httpx
+
+from app.models.revision import LagReport
 
 try:
     import pycountry
@@ -65,7 +65,7 @@ def resolve_title_and_lang(query: str, default_lang: str) -> tuple[str, str]:
 
 
 # Language validation cache
-_language_cache: Dict[str, bool] = {}
+_language_cache: dict[str, bool] = {}
 
 
 def validate_language_code(language_code: str) -> bool:
@@ -96,7 +96,7 @@ async def page_exists(title: str, source_language: str = "en") -> bool:
 
 async def get_translation(
     source_title: str, source_language: str, target_language: str
-) -> Optional[str]:
+) -> str | None:
     url = f"https://{source_language}.wikipedia.org/w/api.php"
     params = {
         "action": "query",
@@ -121,7 +121,7 @@ async def get_translation(
     return None
 
 
-async def get_latest_revision_timestamp(title: str, lang: str) -> Optional[datetime]:
+async def get_latest_revision_timestamp(title: str, lang: str) -> datetime | None:
     url = f"https://{lang}.wikipedia.org/w/api.php"
     params = {
         "action": "query",
@@ -145,15 +145,15 @@ async def get_latest_revision_timestamp(title: str, lang: str) -> Optional[datet
     if not revisions:
         return None
     ts = revisions[0].get("timestamp", "")
-    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    return datetime.fromisoformat(ts)
 
 
 async def detect_language_lag(
-    title: str, source_lang: str, target_langs: List[str]
-) -> "List[LagReport]":
+    title: str, source_lang: str, target_langs: list[str]
+) -> "list[LagReport]":
 
     source_ts = await get_latest_revision_timestamp(title, source_lang)
-    reports: List[LagReport] = []
+    reports: list[LagReport] = []
 
     for lang in target_langs:
         translated_title = await get_translation(title, source_lang, lang)

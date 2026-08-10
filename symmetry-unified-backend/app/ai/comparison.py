@@ -3,14 +3,13 @@
 import logging
 import os
 import sys
-from typing import List, Optional, Tuple
 
 import spacy
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from app.models.comparison.registry import DEFAULT_MODEL
 from app.core.settings import SIMILARITY_THRESHOLD as _DEFAULT_SIMILARITY_THRESHOLD
+from app.models.comparison.registry import DEFAULT_MODEL
 from app.services.chunking import chunk_text
 
 logger = logging.getLogger(__name__)
@@ -51,7 +50,7 @@ def _get_model(model_name: str) -> SentenceTransformer:
     return _model_cache[model_name]
 
 
-def universal_sentences_split(text: str) -> List[str]:
+def universal_sentences_split(text: str) -> list[str]:
     sentences = []
     for sentence in text.replace("!", ".").replace("?", ".").split("."):
         if sentence.strip():
@@ -59,7 +58,7 @@ def universal_sentences_split(text: str) -> List[str]:
     return sentences
 
 
-def preprocess_input(article: str, language: str) -> List[str]:
+def preprocess_input(article: str, language: str) -> list[str]:
     if not article:
         return []
 
@@ -85,13 +84,13 @@ def preprocess_input(article: str, language: str) -> List[str]:
 
 
 def sentences_diff(
-    article_sentences: List[str],
+    article_sentences: list[str],
     source_embeddings,
     reference_embeddings,
     similarity_threshold: float,
-) -> Tuple[List[str], List[int]]:
-    unmatched_sentences: List[str] = []
-    unmatched_indices: List[int] = []
+) -> tuple[list[str], list[int]]:
+    unmatched_sentences: list[str] = []
+    unmatched_indices: list[int] = []
     sim_matrix = cosine_similarity(source_embeddings, reference_embeddings)
     for i, similarities in enumerate(sim_matrix):
         if max(similarities) < similarity_threshold:
@@ -105,7 +104,7 @@ def semantic_compare(
     translated_blob: str,
     source_language: str,
     target_language: str,
-    sim_threshold: Optional[float],
+    sim_threshold: float | None,
     model_name: str,
 ) -> dict:
     if not model_name:
@@ -263,8 +262,8 @@ def perform_semantic_comparison(request_data: dict) -> dict:
                 }
             ]
         }
-    except Exception as exc:
-        logger.exception("Transformer comparison failed: %s", exc)
+    except Exception:
+        logger.exception("Transformer comparison failed")
         return {"comparisons": []}
 
 
@@ -353,6 +352,6 @@ def _run_prototype_comparison(
                 }
             ]
         }
-    except Exception as exc:
-        logger.exception("similarity_prototype comparison failed: %s", exc)
+    except Exception:
+        logger.exception("similarity_prototype comparison failed")
         return {"comparisons": []}

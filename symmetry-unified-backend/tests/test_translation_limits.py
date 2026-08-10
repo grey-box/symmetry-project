@@ -3,7 +3,6 @@ import pytest
 from app.ai import translation as translation_module
 from app.ai.translation import TRANSLATION_CHUNK_CHAR_THRESHOLD, translate
 
-
 pytestmark = pytest.mark.unit
 
 

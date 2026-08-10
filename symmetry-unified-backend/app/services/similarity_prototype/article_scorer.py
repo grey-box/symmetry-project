@@ -1,10 +1,11 @@
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from typing import Optional, List, Dict
-from wikipedia_parser import get_flat_sentences
+
 from article_comparator import ArticleComparator
+from wikipedia_parser import get_flat_sentences
 
 
 class ArticleScorer:
@@ -20,7 +21,7 @@ class ArticleScorer:
     detail = scorer.score_with_details(url_a, url_b)
     """
 
-    def __init__(self, max_paragraphs: Optional[int] = None):
+    def __init__(self, max_paragraphs: int | None = None):
         # max_paragraphs=None uses the full article; set a limit to trade
         # accuracy for speed during development / testing.
         self.max_paragraphs = max_paragraphs
@@ -30,7 +31,7 @@ class ArticleScorer:
     # INTERNAL HELPERS
     # ─────────────────────────────────────────────
 
-    def _fetch_sentences(self, url: str) -> List[str]:
+    def _fetch_sentences(self, url: str) -> list[str]:
         """Fetch and clean sentences from a Wikipedia URL."""
         raw_sentences = get_flat_sentences(url, self.max_paragraphs)
         # Apply ArticleComparator's cleaning/filtering on top of the parser's
@@ -43,11 +44,11 @@ class ArticleScorer:
 
     def _top_matches(
         self,
-        sentences_a: List[str],
-        sentences_b: List[str],
-        matrix:      List[List[float]],
+        sentences_a: list[str],
+        sentences_b: list[str],
+        matrix:      list[list[float]],
         top_n:       int = 5,
-    ) -> List[Dict]:
+    ) -> list[dict]:
         """Return the top_n highest-scoring sentence pairs from the matrix."""
         pairs = [
             (matrix[i][j], sentences_a[i], sentences_b[j])
@@ -75,7 +76,7 @@ class ArticleScorer:
         sentences_b = self._fetch_sentences(url_b)
         return self.comparator.compare(sentences_a, sentences_b, verbose=False)
 
-    def score_with_details(self, url_a: str, url_b: str, top_n: int = 5) -> Dict:
+    def score_with_details(self, url_a: str, url_b: str, top_n: int = 5) -> dict:
         """Fetch both articles and return a score plus a full breakdown.
 
         Returns

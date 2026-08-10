@@ -1,4 +1,4 @@
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
 
 
 class TestComparisonRouter:
@@ -158,21 +158,20 @@ class TestComparisonRouter:
         mock_page.title.return_value = "Test Article"
         mock_wiki.page.return_value = mock_page
 
-        with patch("wikipediaapi.Wikipedia", return_value=mock_wiki):
-            with patch(
-                "app.services.wiki_utils.get_translation", return_value="Article_Test"
-            ):
-                response = client.get(
-                    "/symmetry/v1/wiki_translate/source_article",
-                    params={
-                        "url": "https://en.wikipedia.org/wiki/Test_Article",
-                        "language": "fr",
-                    },
-                )
+        with patch("wikipediaapi.Wikipedia", return_value=mock_wiki), patch(
+            "app.services.wiki_utils.get_translation", return_value="Article_Test"
+        ):
+            response = client.get(
+                "/symmetry/v1/wiki_translate/source_article",
+                params={
+                    "url": "https://en.wikipedia.org/wiki/Test_Article",
+                    "language": "fr",
+                },
+            )
 
-                assert response.status_code == 200
-                data = response.json()
-                assert "translatedArticle" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert "translatedArticle" in data
 
     def test_wiki_translate_with_title(self, client):
         """Test wiki translation with title"""
@@ -184,18 +183,17 @@ class TestComparisonRouter:
         mock_page.title.return_value = "Test Article"
         mock_wiki.page.return_value = mock_page
 
-        with patch("wikipediaapi.Wikipedia", return_value=mock_wiki):
-            with patch(
-                "app.services.wiki_utils.get_translation", return_value="Article_Test"
-            ):
-                response = client.get(
-                    "/symmetry/v1/wiki_translate/source_article",
-                    params={"title": "Test_Article", "language": "fr"},
-                )
+        with patch("wikipediaapi.Wikipedia", return_value=mock_wiki), patch(
+            "app.services.wiki_utils.get_translation", return_value="Article_Test"
+        ):
+            response = client.get(
+                "/symmetry/v1/wiki_translate/source_article",
+                params={"title": "Test_Article", "language": "fr"},
+            )
 
-                assert response.status_code == 200
-                data = response.json()
-                assert "translatedArticle" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert "translatedArticle" in data
 
     def test_wiki_translate_missing_params(self, client):
         """Test wiki translation without required parameters"""

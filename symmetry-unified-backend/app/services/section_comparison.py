@@ -15,21 +15,21 @@ import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from app.core.settings import LEVENSHTEIN_DISAMBIGUATION_MARGIN, SIMILARITY_THRESHOLD
-from app.models.wiki.structure import Article, Section
 from app.models.comparison.models import (
     ParagraphDiff,
-    SectionDiff,
     SectionCompareResponse,
+    SectionDiff,
 )
-from app.services.similarity_scoring import normalized_levenshtein_distance
+from app.models.wiki.structure import Article, Section
 from app.services.keyword_proximity import extract_exclusive_keywords
+from app.services.similarity_scoring import normalized_levenshtein_distance
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +54,10 @@ try:
 except Exception:
     _ArticleComparator = None  # type: ignore[assignment,misc]
 
-_comparator_instance: Optional[Any] = None
+_comparator_instance: Any | None = None
 
 
-def _get_comparator() -> Optional[Any]:
+def _get_comparator() -> Any | None:
     """Get or create a cached ArticleComparator instance."""
     global _comparator_instance
     if _ArticleComparator is None:
@@ -75,7 +75,7 @@ def _get_model(model_name: str) -> SentenceTransformer:
     return _model_cache[model_name]
 
 
-def _split_into_paragraphs(section: Section) -> List[str]:
+def _split_into_paragraphs(section: Section) -> list[str]:
     """
     Split a section's clean_content into paragraph-sized chunks.
 
@@ -94,8 +94,8 @@ def _split_into_paragraphs(section: Section) -> List[str]:
         # Fallback: split on sentence boundaries for long single-paragraph sections
         sentences = re.split(r"(?<=[.!?])\s+", text)
         # Group sentences into ~150-word chunks
-        chunks: List[str] = []
-        current: List[str] = []
+        chunks: list[str] = []
+        current: list[str] = []
         word_count = 0
         for sentence in sentences:
             words = len(sentence.split())
@@ -114,14 +114,14 @@ def _split_into_paragraphs(section: Section) -> List[str]:
 
 
 def _match_sections(
-    source_sections: List[Section],
-    target_sections: List[Section],
+    source_sections: list[Section],
+    target_sections: list[Section],
     model: SentenceTransformer,
     threshold: float,
-) -> Tuple[
-    List[Tuple[int, int, float]],  # matched pairs (source_idx, target_idx, score)
-    List[int],  # unmatched source indices
-    List[int],  # unmatched target indices
+) -> tuple[
+    list[tuple[int, int, float]],  # matched pairs (source_idx, target_idx, score)
+    list[int],  # unmatched source indices
+    list[int],  # unmatched target indices
 ]:
     """
     Match sections between source and target articles using title + content embeddings.
@@ -149,7 +149,7 @@ def _match_sections(
 
     sim_matrix = cosine_similarity(source_embeddings, target_embeddings)
 
-    matched_pairs: List[Tuple[int, int, float]] = []
+    matched_pairs: list[tuple[int, int, float]] = []
     used_source: set = set()
     used_target: set = set()
 
@@ -176,13 +176,13 @@ def _match_sections(
 
 
 def _compare_paragraphs(
-    source_paragraphs: List[str],
-    target_paragraphs: List[str],
+    source_paragraphs: list[str],
+    target_paragraphs: list[str],
     model: SentenceTransformer,
     threshold: float,
     source_lang: str = "en",
     target_lang: str = "en",
-) -> List[ParagraphDiff]:
+) -> list[ParagraphDiff]:
     """
     Compare paragraphs within a matched section pair.
 
@@ -217,7 +217,7 @@ def _compare_paragraphs(
 
     sim_matrix = cosine_similarity(source_embeddings, target_embeddings)
 
-    diffs: List[ParagraphDiff] = []
+    diffs: list[ParagraphDiff] = []
     used_target: set = set()
 
     # For each source paragraph, find best matching target paragraph
@@ -316,13 +316,13 @@ def _compare_paragraphs(
 
 
 def _compare_paragraphs_prototype(
-    source_paragraphs: List[str],
-    target_paragraphs: List[str],
+    source_paragraphs: list[str],
+    target_paragraphs: list[str],
     source_lang: str,
     target_lang: str,
     comparator: Any,
-    threshold: float = None,
-) -> List[ParagraphDiff]:
+    threshold: float | None = None,
+) -> list[ParagraphDiff]:
     """
     Compare paragraphs using the similarity prototype (Phase 1+2+3 pipeline).
 
@@ -354,7 +354,7 @@ def _compare_paragraphs_prototype(
 
     # Translate to English for prototype's English-only NLP tools.
     # Run both sides concurrently to avoid serialising two slow MarianMT passes.
-    def _translate_batch(paragraphs: List[str], src: str) -> List[str]:
+    def _translate_batch(paragraphs: list[str], src: str) -> list[str]:
         if src == "en":
             return list(paragraphs)
         with ThreadPoolExecutor() as executor:
@@ -379,7 +379,7 @@ def _compare_paragraphs_prototype(
 
     # If nothing passes validation fall back to all-missing / all-added
     if not valid_left or not valid_right:
-        diffs: List[ParagraphDiff] = [
+        diffs: list[ParagraphDiff] = [
             ParagraphDiff(
                 source_text=source_paragraphs[i],
                 similarity_score=0.0,
@@ -520,7 +520,7 @@ def compare_article_sections(
         similarity_threshold,
     )
 
-    section_diffs: List[SectionDiff] = []
+    section_diffs: list[SectionDiff] = []
     similarity_sum = 0.0
 
     # 2. For matched section pairs, compare paragraphs

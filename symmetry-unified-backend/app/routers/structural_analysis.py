@@ -1,15 +1,16 @@
 from fastapi import APIRouter, HTTPException, Path
 from starlette import status
+
 from app.models.wiki.analysis import (
-    FinalAnalysisResponse,
     AnalysisResultsResponse,
+    FinalAnalysisResponse,
 )
 from app.services import (
-    table_analysis,
-    header_analysis,
-    infobox_analysis,
     citation_analysis,
+    header_analysis,
     image_analysis,
+    infobox_analysis,
+    table_analysis,
     wiki_utils,
 )
 
@@ -64,12 +65,12 @@ def analyze_single_article(title: str, language: str) -> FinalAnalysisResponse:
             total_images=image_count,
         )
 
-    except HTTPException as e:
-        raise e
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Structural analysis error for {title} ({language}): {str(e)}",
+            detail=f"Structural analysis error for {title} ({language}): {e!s}",
         )
 
 
@@ -154,7 +155,7 @@ async def get_results(
                     "score": -1,
                     "is_user_language": lang_code == source_language,
                     "is_authority_article": False,
-                    "error": f"Internal Error during analysis: {str(e)}",
+                    "error": f"Internal Error during analysis: {e!s}",
                 }
             )
     valid_scores = [d["score"] for d in all_scores if d.get("score", -1) >= 0]

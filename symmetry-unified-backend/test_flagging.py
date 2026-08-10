@@ -5,14 +5,14 @@ Usage (from symmetry-unified-backend/ with venv active):
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+from app.models.revision import DiffResponse, SectionDiff
 from app.routers.structured_wiki import _fetch_revisions, get_diff
 from app.services.article_parser import revision_fetcher
-from app.models.revision import DiffResponse, SectionDiff
 from app.services.revision_flagging import flag_revision
 
 # ------------------------------------------------------------------ #

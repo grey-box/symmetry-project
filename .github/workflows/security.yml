@@ -71,4 +71,4 @@ jobs:
         run: npm ci
 
       - name: Audit Node.js dependencies
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=critical

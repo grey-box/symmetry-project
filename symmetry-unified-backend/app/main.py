@@ -1,19 +1,21 @@
 import logging
 from traceback import format_exc
 
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.config import Config
 from starlette.requests import Request
 from starlette.responses import JSONResponse
-import uvicorn
 
 from app.routers import (
-    wiki_articles,
     comparison,
-    structured_wiki,
-    structural_analysis,
     models,
+    structural_analysis,
+    structured_wiki,
+    wiki_articles,
+)
+from app.routers import (
     config as config_router,
 )
 

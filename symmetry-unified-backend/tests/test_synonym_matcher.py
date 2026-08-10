@@ -1,6 +1,6 @@
 import pytest
-
 from nltk.corpus import wordnet
+
 from app.services.similarity_prototype.Phase_2.synonym_matcher import SynonymMatcher
 
 

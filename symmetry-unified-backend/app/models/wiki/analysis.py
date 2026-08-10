@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel, Field, computed_field
-from typing import List, Optional
 
 
 class TableInfo(BaseModel):
@@ -10,7 +10,7 @@ class TableInfo(BaseModel):
 
 class TableResponse(BaseModel):
     number_of_tables: int = Field(description="Number of tables in the article", ge=0)
-    individual_table_information: List[TableInfo] = Field(
+    individual_table_information: list[TableInfo] = Field(
         description="Individual table information"
     )
     language: str = Field(description="Article language", min_length=1)
@@ -46,7 +46,7 @@ class InfoBoxResponse(BaseModel):
     total_attributes: int = Field(
         ge=0, description="Total number of attributes in the infobox"
     )
-    individual_infobox_data: List[InfoBoxAttribute] = Field(
+    individual_infobox_data: list[InfoBoxAttribute] = Field(
         description="Individual infobox data"
     )
 
@@ -77,14 +77,14 @@ class FinalAnalysisResponse(BaseModel):
 class MultiLanguageScoreResponse(BaseModel):
     lang_code: str = Field()
     lang_name: str = Field()
-    title: Optional[str] = Field(default=None)
+    title: str | None = Field(default=None)
     score: float = Field(ge=-1.0)
     is_user_language: bool
     is_authority_article: bool
-    error: Optional[str] = Field(default=None)
+    error: str | None = Field(default=None)
 
 
 class AnalysisResultsResponse(BaseModel):
     article: str = Field(min_length=1)
     source_language_code: str = Field(min_length=1)
-    scores_by_language: List[MultiLanguageScoreResponse]
+    scores_by_language: list[MultiLanguageScoreResponse]

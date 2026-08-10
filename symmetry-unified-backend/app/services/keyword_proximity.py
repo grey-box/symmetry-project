@@ -20,7 +20,6 @@ than distinct.  This makes the extraction meaningful even when source_lang
 
 import logging
 import re
-from typing import List, Set
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +79,7 @@ def _load_nlp(language: str):
         return None
 
     try:
-        import spacy  # noqa: PLC0415
+        import spacy
 
         nlp = spacy.load(model_name)
         _nlp_cache[language] = nlp
@@ -104,7 +103,7 @@ def _normalise(text: str) -> str:
     return re.sub(r"[^\w]", "", text.lower().strip())
 
 
-def _extract_concepts(text: str, language: str) -> Set[str]:
+def _extract_concepts(text: str, language: str) -> set[str]:
     """
     Extract a set of meaningful concepts from *text* written in *language*.
 
@@ -123,7 +122,7 @@ def _extract_concepts(text: str, language: str) -> Set[str]:
 
     doc = nlp(text)
 
-    concepts: Set[str] = set()
+    concepts: set[str] = set()
 
     # Named entities (highest priority)
     target_ent_types = {
@@ -193,7 +192,7 @@ def _levenshtein_similarity(a: str, b: str) -> float:
 
 def _is_matched_cross_lang(
     keyword: str,
-    other_concepts: Set[str],
+    other_concepts: set[str],
     threshold: float = _CROSS_LANG_MATCH_THRESHOLD,
 ) -> bool:
     """
@@ -215,7 +214,7 @@ def extract_exclusive_keywords(
     target_text: str,
     source_lang: str,
     target_lang: str,
-) -> tuple[List[str], List[str]]:
+) -> tuple[list[str], list[str]]:
     """
     For a matched paragraph pair, return the concepts that are distinctive
     to each side.
@@ -248,8 +247,8 @@ def extract_exclusive_keywords(
         logger.error("Keyword extraction failed: %s", exc)
         return [], []
 
-    source_exclusive: List[str] = []
-    target_exclusive: List[str] = []
+    source_exclusive: list[str] = []
+    target_exclusive: list[str] = []
 
     same_language = source_lang == target_lang
 

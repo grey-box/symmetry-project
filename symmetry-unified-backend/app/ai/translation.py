@@ -7,7 +7,7 @@ from functools import lru_cache
 from transformers import MarianMTModel, MarianTokenizer
 
 from app.config import get_translation_config
-from app.models.translation.registry import get_translation_model_name, ROMANCE_LANGS
+from app.models.translation.registry import ROMANCE_LANGS, get_translation_model_name
 from app.services.chunking import chunk_text
 
 logger = logging.getLogger(__name__)

@@ -1,25 +1,23 @@
-import logging
-import re
-import json
-from collections import OrderedDict
-from typing import List, Dict, Any, Tuple
 import asyncio
+import json
+import logging
 import os
+import re
+from collections import OrderedDict
+from typing import Any
 
 import httpx
-
-from starlette.config import Config
-
 import spacy
-from spacy.language import Language
 import torch
-from transformers import (
-    AutoTokenizer,
-    AutoModelForSeq2SeqLM,
-    AutoModelForCausalLM,
-    AutoConfig,
-)
 from huggingface_hub import model_info
+from spacy.language import Language
+from starlette.config import Config
+from transformers import (
+    AutoConfig,
+    AutoModelForCausalLM,
+    AutoModelForSeq2SeqLM,
+    AutoTokenizer,
+)
 
 from app.core.config import load_config
 
@@ -31,7 +29,7 @@ _env_config = Config(".env")
 # ---------------------------------------------------------------------
 
 
-def _load_fact_extraction_config() -> Dict[str, Any]:
+def _load_fact_extraction_config() -> dict[str, Any]:
     config = load_config()
     models = config.get("fact_extraction_models")
     if not isinstance(models, list):
@@ -47,7 +45,7 @@ MODEL_CONFIG = _load_fact_extraction_config()
 
 # Cache: model_name -> (model, tokenizer)
 MODEL_CACHE_MAX_SIZE = int(os.getenv("FACT_EXTRACTION_MODEL_CACHE_SIZE", "3"))
-_model_cache: "OrderedDict[str, Tuple[Any, Any]]" = OrderedDict()
+_model_cache: "OrderedDict[str, tuple[Any, Any]]" = OrderedDict()
 
 _spacy_sentence_segmenter: Language | None = None
 
@@ -78,7 +76,7 @@ def _evict_lru_model() -> None:
         try:
             torch.cuda.empty_cache()
         except Exception:
-            pass
+            logging.debug("Ignoring torch.cuda.empty_cache() error")
 
     logging.info(f"Evicted least recently used model from cache: {evicted_name}")
 
@@ -102,7 +100,7 @@ def model_exists_on_hf(model_name: str) -> bool:
         return False
 
 
-def _split_into_sentences(text: str) -> List[str]:
+def _split_into_sentences(text: str) -> list[str]:
     """
     Split text into sentences using spaCy sentence segmentation for improved
     accuracy. Falls back to regex-based splitting if spaCy segmentation fails.
@@ -127,7 +125,7 @@ def _split_into_sentences(text: str) -> List[str]:
     return [s.strip() for s in sentences if s.strip()]
 
 
-def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str]]:
+def _chunk_by_word_count(sentences: list[str], num_chunks: int) -> list[list[str]]:
     """
     Divide sentences into chunks based on sentence count.
 
@@ -157,7 +155,7 @@ def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str
     if sentences_per_chunk == 0:
         return [[s] for s in sentences[:num_chunks]]
 
-    chunks: List[List[str]] = []
+    chunks: list[list[str]] = []
 
     for i in range(num_chunks):
         start_idx = i * sentences_per_chunk
@@ -174,7 +172,7 @@ def _chunk_by_word_count(sentences: List[str], num_chunks: int) -> List[List[str
     return chunks
 
 
-def get_model_config(model_id: str) -> Dict[str, Any]:
+def get_model_config(model_id: str) -> dict[str, Any]:
     """
     Get model configuration. First checks predefined configs, then treats
     the model_id as a HuggingFace model name if it's not in the config.
@@ -209,7 +207,7 @@ def get_model_config(model_id: str) -> Dict[str, Any]:
     )
 
 
-def get_available_models() -> List[Dict[str, Any]]:
+def get_available_models() -> list[dict[str, Any]]:
     """
     Get list of all available fact extraction models.
     Returns predefined models from config file.
@@ -221,7 +219,7 @@ def get_available_models() -> List[Dict[str, Any]]:
     return list(MODEL_CONFIG.values())
 
 
-def validate_model(model_id: str) -> Dict[str, Any]:
+def validate_model(model_id: str) -> dict[str, Any]:
     """
     Validate that a model exists on HuggingFace Hub and return its config.
     This supports both predefined models and custom HuggingFace models.
@@ -238,10 +236,10 @@ def validate_model(model_id: str) -> Dict[str, Any]:
     try:
         config = get_model_config(model_id)
         return config
-    except ValueError as e:
-        raise e
+    except ValueError:
+        raise
     except Exception as e:
-        raise ValueError(f"Failed to validate model '{model_id}': {str(e)}")
+        raise ValueError(f"Failed to validate model '{model_id}': {e!s}")
 
 
 # ---------------------------------------------------------------------
@@ -249,7 +247,7 @@ def validate_model(model_id: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------
 
 
-def _build_chat_messages(prompt: str) -> List[Dict[str, str]]:
+def _build_chat_messages(prompt: str) -> list[dict[str, str]]:
     """
     Convert a prompt string into OpenRouter chat format.
 
@@ -330,13 +328,13 @@ async def _call_openrouter_api(
                 f"OpenRouter API error: {error_detail.get('error', str(e))}"
             )
         except (json.JSONDecodeError, KeyError):
-            raise ValueError(f"OpenRouter API request failed: {str(e)}")
+            raise ValueError(f"OpenRouter API request failed: {e!s}")
     except httpx.RequestError as e:
         logging.error(f"OpenRouter API request failed: {e}")
-        raise ValueError(f"OpenRouter API request failed: {str(e)}")
+        raise ValueError(f"OpenRouter API request failed: {e!s}")
     except (KeyError, IndexError, json.JSONDecodeError) as e:
         logging.error(f"Failed to parse OpenRouter response: {e}")
-        raise ValueError(f"Invalid response from OpenRouter: {str(e)}")
+        raise ValueError(f"Invalid response from OpenRouter: {e!s}")
 
 
 # ---------------------------------------------------------------------
@@ -377,7 +375,7 @@ def _hf_inference(
 
 async def extract_facts(
     text: str, model_id: str, num_facts: int = 1
-) -> Tuple[List[str], List[str]]:
+) -> tuple[list[str], list[str]]:
     """
     Extract facts from text using the specified model.
 
@@ -447,8 +445,8 @@ async def extract_facts(
             _model_cache.move_to_end(model_name)
             hf_model, hf_tokenizer = _model_cache[model_name]
 
-    all_facts: List[str] = []
-    processed_chunks: List[str] = []
+    all_facts: list[str] = []
+    processed_chunks: list[str] = []
 
     for chunk in chunks:
         if not chunk.strip():
@@ -489,7 +487,7 @@ async def extract_facts(
     return all_facts, processed_chunks
 
 
-def _parse_facts(raw_output: str) -> List[str]:
+def _parse_facts(raw_output: str) -> list[str]:
     """
     Parse raw model output into a list of individual facts.
     Handles bullet points, numbered lists, and newline-separated facts.

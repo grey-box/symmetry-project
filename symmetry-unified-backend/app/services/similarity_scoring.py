@@ -6,23 +6,21 @@ applies threshold bands, and detects loanword borrowing to reduce false positive
 Supports cross-language comparison with language family awareness and script normalization.
 """
 
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import List, Tuple, Optional, Dict
 from enum import Enum
-import re
 
 from app.core.settings import (
-    FAMILY_THRESHOLD_SAME,
-    FAMILY_THRESHOLD_IE_BRANCHES,
-    FAMILY_THRESHOLD_UNRELATED,
-    FAMILY_THRESHOLD_UNKNOWN,
-    BAND_SAME_FAMILY,
-    BAND_IE_BRANCHES,
     BAND_DIFFERENT_FAMILIES,
+    BAND_IE_BRANCHES,
+    BAND_SAME_FAMILY,
     BAND_UNKNOWN,
+    FAMILY_THRESHOLD_IE_BRANCHES,
+    FAMILY_THRESHOLD_SAME,
+    FAMILY_THRESHOLD_UNKNOWN,
+    FAMILY_THRESHOLD_UNRELATED,
 )
-
 
 # Latinate suffixes for loanword detection (no leading hyphens)
 LOANWORD_SUFFIXES = {
@@ -73,7 +71,7 @@ class LanguageFamily(Enum):
 
 
 # Language to family mapping
-LANGUAGE_FAMILIES: Dict[str, LanguageFamily] = {
+LANGUAGE_FAMILIES: dict[str, LanguageFamily] = {
     # Germanic
     "english": LanguageFamily.GERMANIC,
     "german": LanguageFamily.GERMANIC,
@@ -131,7 +129,7 @@ LANGUAGE_FAMILIES: Dict[str, LanguageFamily] = {
 
 
 # Cyrillic to Latin transliteration mapping
-CYRILLIC_TO_LATIN: Dict[str, str] = {
+CYRILLIC_TO_LATIN: dict[str, str] = {
     "а": "a",
     "б": "b",
     "в": "v",
@@ -288,9 +286,6 @@ SWADESH_100 = {
     "green",
     "yellow",
     "blue",
-    "black",
-    "white",
-    "red",
     "many",
     "few",
     "other",
@@ -314,14 +309,14 @@ class SimilarityScore:
 
     similarity_percent: float
     band_label: str
-    confidence_flags: List[str]
+    confidence_flags: list[str]
     word_match_count: int
     total_words: int
     loanword_risk: str
-    original_language: Optional[str] = None
-    translated_language: Optional[str] = None
-    original_language_family: Optional[str] = None
-    translated_language_family: Optional[str] = None
+    original_language: str | None = None
+    translated_language: str | None = None
+    original_language_family: str | None = None
+    translated_language_family: str | None = None
 
 
 def normalized_levenshtein_distance(s1: str, s2: str) -> float:
@@ -384,7 +379,7 @@ def transliterate_cyrillic(text: str) -> str:
     return result
 
 
-def normalize_script(text: str, source_language: Optional[str] = None) -> str:
+def normalize_script(text: str, source_language: str | None = None) -> str:
     """
     Normalize text script for comparison.
     Detects Cyrillic and converts to Latin transliteration.
@@ -437,7 +432,7 @@ def get_family_threshold(family_a: LanguageFamily, family_b: LanguageFamily) -> 
 
 def get_family_threshold_bands(
     family_a: LanguageFamily, family_b: LanguageFamily
-) -> Tuple[float, float, float, float]:
+) -> tuple[float, float, float, float]:
     """
     Get adjusted similarity threshold bands for language families.
 
@@ -463,9 +458,9 @@ def get_family_threshold_bands(
 
 def classify_band(
     similarity_percent: float,
-    family_a: Optional[LanguageFamily] = None,
-    family_b: Optional[LanguageFamily] = None,
-) -> Tuple[str, str]:
+    family_a: LanguageFamily | None = None,
+    family_b: LanguageFamily | None = None,
+) -> tuple[str, str]:
     """
     Classify similarity percentage into linguistic bands.
     Optionally adjusts thresholds based on language families.
@@ -495,11 +490,11 @@ def classify_band(
 def score_article_pair(
     original_text: str,
     translated_text: str,
-    word_match_threshold: Optional[float] = None,
+    word_match_threshold: float | None = None,
     use_swadesh_filter: bool = False,
     downweight_loanwords: bool = True,
-    original_language: Optional[str] = None,
-    translated_language: Optional[str] = None,
+    original_language: str | None = None,
+    translated_language: str | None = None,
 ) -> SimilarityScore:
     """
     Compute lexical similarity between two articles.
@@ -556,14 +551,14 @@ def score_article_pair(
 
     # Deduplicate: compute each unique word's best match once, then scale by
     # token frequency.  This cuts comparisons from O(N×M) to O(U_orig×U_trans).
-    freq_original: Dict[str, int] = Counter(words_original)
+    freq_original: dict[str, int] = Counter(words_original)
 
     # Group unique translated words by length.  The upper bound on
     # normalized Levenshtein similarity between words of lengths l1 and l2 is
     # min(l1, l2) / max(l1, l2).  Iterating length groups in order of
     # |l2 - l1| (ascending) means this bound decreases monotonically, so we
     # can break as soon as it falls below the running best similarity.
-    translated_by_length: Dict[int, List[str]] = defaultdict(list)
+    translated_by_length: dict[int, list[str]] = defaultdict(list)
     for w in set(words_translated):
         translated_by_length[len(w)].append(w)
     sorted_lengths = sorted(translated_by_length.keys())
@@ -603,7 +598,7 @@ def score_article_pair(
     )
 
     # Classify band with family awareness
-    band_label, band_desc = classify_band(
+    band_label, _band_desc = classify_band(
         lexical_similarity_percent, family_a, family_b
     )
 
@@ -640,11 +635,11 @@ def score_article_pair(
 
 
 def score_articles_batch(
-    article_pairs: List[Tuple[str, str]],
-    word_match_threshold: Optional[float] = None,
+    article_pairs: list[tuple[str, str]],
+    word_match_threshold: float | None = None,
     use_swadesh_filter: bool = False,
-    language_pairs: Optional[List[Tuple[str, str]]] = None,
-) -> List[SimilarityScore]:
+    language_pairs: list[tuple[str, str]] | None = None,
+) -> list[SimilarityScore]:
     """
     Score multiple article pairs in batch.
 

@@ -1,8 +1,7 @@
-from typing import List
 
-from app.models.wiki.structure import Article, Section
-from app.models.wiki.responses import StructuredArticleResponse
 from app.ai.translation import translate
+from app.models.wiki.responses import StructuredArticleResponse
+from app.models.wiki.structure import Article, Section
 
 
 def translate_article(
@@ -12,7 +11,7 @@ def translate_article(
     Translates an Article object and builds a StructuredArticleResponse.
     """
 
-    translated_sections: List[Section] = []
+    translated_sections: list[Section] = []
 
     for section in article.sections:
         translated_sections.append(

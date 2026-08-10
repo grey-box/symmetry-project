@@ -1,6 +1,7 @@
 from unittest.mock import patch
-from fastapi import HTTPException
+
 import pytest
+from fastapi import HTTPException
 
 
 class TestWikiArticlesRouter:
@@ -11,21 +12,19 @@ class TestWikiArticlesRouter:
         with patch(
             "app.routers.wiki_articles.wikipediaapi.Wikipedia",
             return_value=mock_wikipediaapi,
+        ), patch("app.routers.wiki_articles.validate_language_code"), patch(
+            "app.routers.wiki_articles.validate_url",
+            return_value=("en", "Test_Article"),
         ):
-            with patch("app.routers.wiki_articles.validate_language_code"):
-                with patch(
-                    "app.routers.wiki_articles.validate_url",
-                    return_value=("en", "Test_Article"),
-                ):
-                    response = client.get(
-                        "/symmetry/v1/wiki/articles?query=Test_Article&lang=en"
-                    )
+            response = client.get(
+                "/symmetry/v1/wiki/articles?query=Test_Article&lang=en"
+            )
 
-                    assert response.status_code == 200
-                    data = response.json()
-                    assert "sourceArticle" in data
-                    assert "articleLanguages" in data
-                    assert isinstance(data["articleLanguages"], list)
+            assert response.status_code == 200
+            data = response.json()
+            assert "sourceArticle" in data
+            assert "articleLanguages" in data
+            assert isinstance(data["articleLanguages"], list)
 
     def test_get_article_with_url(self, client, mock_wikipediaapi):
         """Test fetching an article by URL"""
@@ -34,19 +33,17 @@ class TestWikiArticlesRouter:
         with patch(
             "app.routers.wiki_articles.wikipediaapi.Wikipedia",
             return_value=mock_wikipediaapi,
-        ):
-            with patch(
-                "app.routers.wiki_articles.validate_url",
-                new=AsyncMock(return_value=("en", "Test_Article")),
-            ):
-                with patch("app.routers.wiki_articles.validate_language_code"):
-                    response = client.get(
-                        "/symmetry/v1/wiki/articles?query=https://en.wikipedia.org/wiki/Test_Article"
-                    )
+        ), patch(
+            "app.routers.wiki_articles.validate_url",
+            new=AsyncMock(return_value=("en", "Test_Article")),
+        ), patch("app.routers.wiki_articles.validate_language_code"):
+            response = client.get(
+                "/symmetry/v1/wiki/articles?query=https://en.wikipedia.org/wiki/Test_Article"
+            )
 
-                    assert response.status_code == 200
-                    data = response.json()
-                    assert "sourceArticle" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert "sourceArticle" in data
 
     def test_get_article_no_query(self, client):
         """Test fetching article without query parameter returns 400"""
@@ -62,47 +59,44 @@ class TestWikiArticlesRouter:
         with patch(
             "app.routers.wiki_articles.wikipediaapi.Wikipedia",
             return_value=mock_wikipediaapi,
-        ):
-            with patch(
-                "app.routers.wiki_articles.validate_url",
-                return_value=("en", "NonExistent"),
-            ):
-                with patch("app.routers.wiki_articles.validate_language_code"):
-                    response = client.get(
-                        "/symmetry/v1/wiki/articles?query=NonExistent&lang=en"
-                    )
+        ), patch(
+            "app.routers.wiki_articles.validate_url",
+            return_value=("en", "NonExistent"),
+        ), patch("app.routers.wiki_articles.validate_language_code"):
+            response = client.get(
+                "/symmetry/v1/wiki/articles?query=NonExistent&lang=en"
+            )
 
-                    assert response.status_code == 404
-                    assert "not found" in response.json()["detail"].lower()
+            assert response.status_code == 404
+            assert "not found" in response.json()["detail"].lower()
 
     def test_get_article_with_cache(self, client, mock_cache):
         """Test that cached articles are returned"""
         with patch(
             "app.routers.wiki_articles.get_cached_article",
             side_effect=mock_cache.get_cached_article,
-        ):
-            with patch(
-                "app.routers.wiki_articles.set_cached_article",
-                side_effect=mock_cache.set_cached_article,
-            ):
-                with patch("app.routers.wiki_articles.validate_language_code"):
-                    mock_cache.cache["en.Test_Article"] = (
-                        "Cached content",
-                        ["fr", "es"],
-                    )
+        ), patch(
+            "app.routers.wiki_articles.set_cached_article",
+            side_effect=mock_cache.set_cached_article,
+        ), patch("app.routers.wiki_articles.validate_language_code"):
+            mock_cache.cache["en.Test_Article"] = (
+                "Cached content",
+                ["fr", "es"],
+            )
 
-                    response = client.get(
-                        "/symmetry/v1/wiki/articles?query=Test_Article&lang=en"
-                    )
+            response = client.get(
+                "/symmetry/v1/wiki/articles?query=Test_Article&lang=en"
+            )
 
-                    assert response.status_code == 200
-                    data = response.json()
-                    assert data["sourceArticle"] == "Cached content"
+            assert response.status_code == 200
+            data = response.json()
+            assert data["sourceArticle"] == "Cached content"
 
     def test_validate_url_invalid_domain(self):
         """Test URL validation rejects non-Wikipedia domains"""
-        from app.routers.wiki_articles import validate_url
         import asyncio
+
+        from app.routers.wiki_articles import validate_url
 
         async def test_invalid_domain():
             with pytest.raises(HTTPException) as exc_info:
@@ -113,8 +107,9 @@ class TestWikiArticlesRouter:
 
     def test_validate_url_invalid_language_code(self):
         """Test URL validation rejects invalid language codes"""
-        from app.routers.wiki_articles import validate_url
         import asyncio
+
+        from app.routers.wiki_articles import validate_url
 
         async def test_invalid_lang():
             with pytest.raises(HTTPException) as exc_info:
@@ -125,8 +120,9 @@ class TestWikiArticlesRouter:
 
     def test_validate_url_success(self):
         """Test successful URL validation"""
-        from app.routers.wiki_articles import validate_url
         import asyncio
+
+        from app.routers.wiki_articles import validate_url
 
         async def test_valid():
             with patch("app.routers.wiki_articles.validate_language_code"):
@@ -156,16 +152,16 @@ class TestWikiArticlesRouter:
 
     def test_get_article_default_language(self, client, mock_wikipediaapi_fresh):
         """Test that English is default language when not specified"""
-        with patch("app.routers.wiki_articles.validate_language_code"):
-            with patch("wikipediaapi.Wikipedia", return_value=mock_wikipediaapi_fresh):
-                with patch(
+        with patch("app.routers.wiki_articles.validate_language_code"), \
+                patch("wikipediaapi.Wikipedia", return_value=mock_wikipediaapi_fresh), \
+                patch(
                     "app.routers.wiki_articles.get_cached_article",
                     return_value=(None, None),
-                ):
-                    with patch("app.routers.wiki_articles.set_cached_article"):
-                        response = client.get(
-                            "/symmetry/v1/wiki/articles?query=Test_Article"
-                        )
+                ), \
+                patch("app.routers.wiki_articles.set_cached_article"):
+            response = client.get(
+                "/symmetry/v1/wiki/articles?query=Test_Article"
+            )
 
-                        assert response.status_code == 200
-                        mock_wikipediaapi_fresh.page.assert_called_once()
+            assert response.status_code == 200
+            mock_wikipediaapi_fresh.page.assert_called_once()

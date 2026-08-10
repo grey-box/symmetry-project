@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Query
 
 from app.models.api import (
-    ModelSelectionResponse,
     ListResponse,
+    ModelSelectionResponse,
 )
 from app.models.server import ServerModel
 

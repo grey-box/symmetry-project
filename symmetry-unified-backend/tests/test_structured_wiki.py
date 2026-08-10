@@ -1,10 +1,12 @@
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
+import pytest
+
 from app.models import (
     Citation,
     Reference,
     Section,
 )
-import pytest
 
 
 class TestStructuredWikiRouter:
@@ -35,18 +37,17 @@ class TestStructuredWikiRouter:
         with patch(
             "app.routers.structured_wiki.parse_wikipedia_url",
             return_value=("en", "Test"),
+        ), patch(
+            "app.routers.structured_wiki.article_fetcher",
+            side_effect=mock_article_parser,
         ):
-            with patch(
-                "app.routers.structured_wiki.article_fetcher",
-                side_effect=mock_article_parser,
-            ):
-                response = client.get(
-                    "/symmetry/v1/wiki/structured-article?query=https://en.wikipedia.org/wiki/Test"
-                )
+            response = client.get(
+                "/symmetry/v1/wiki/structured-article?query=https://en.wikipedia.org/wiki/Test"
+            )
 
-                assert response.status_code == 200
-                data = response.json()
-                assert data["title"] == "Test Article"
+            assert response.status_code == 200
+            data = response.json()
+            assert data["title"] == "Test Article"
 
     def test_get_structured_article_missing_query(self, client):
         """Test structured article without query parameter"""
@@ -91,17 +92,16 @@ class TestStructuredWikiRouter:
             ]
             return article
 
-        with patch("app.routers.structured_wiki.structured_cache", {}):
-            with patch(
-                "app.routers.structured_wiki.article_fetcher",
-                side_effect=mock_citations_fetcher,
-            ):
-                response = client.get("/symmetry/v1/wiki/structured-article?query=Test")
+        with patch("app.routers.structured_wiki.structured_cache", {}), patch(
+            "app.routers.structured_wiki.article_fetcher",
+            side_effect=mock_citations_fetcher,
+        ):
+            response = client.get("/symmetry/v1/wiki/structured-article?query=Test")
 
-                assert response.status_code == 200
-                data = response.json()
-                assert data["total_citations"] == 1
-                assert data["total_references"] == 1
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total_citations"] == 1
+            assert data["total_references"] == 1
 
     def test_get_structured_article_default_language(self, client, mock_article_parser):
         """Test that English is default language for structured articles"""
@@ -149,16 +149,15 @@ class TestStructuredWikiRouter:
         with patch(
             "app.routers.structured_wiki.parse_wikipedia_url",
             return_value=("en", "Test"),
+        ), patch(
+            "app.routers.structured_wiki.article_fetcher",
+            return_value=mock_article_parser(),
         ):
-            with patch(
-                "app.routers.structured_wiki.article_fetcher",
-                return_value=mock_article_parser(),
-            ):
-                response = client.get(
-                    "/symmetry/v1/wiki/structured-section?query=https://en.wikipedia.org/wiki/Test&section_title=Introduction"
-                )
+            response = client.get(
+                "/symmetry/v1/wiki/structured-section?query=https://en.wikipedia.org/wiki/Test&section_title=Introduction"
+            )
 
-                assert response.status_code == 200
+            assert response.status_code == 200
 
     def test_get_structured_section_missing_section_title(self, client):
         """Test structured section without section_title parameter"""

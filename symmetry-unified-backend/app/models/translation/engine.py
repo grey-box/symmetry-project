@@ -1,9 +1,9 @@
-from functools import lru_cache
 import logging
+from functools import lru_cache
 
 from transformers import MarianMTModel, MarianTokenizer
 
-from app.models.translation.registry import get_translation_model_name, ROMANCE_LANGS
+from app.models.translation.registry import ROMANCE_LANGS, get_translation_model_name
 from app.services.chunking import chunk_text
 
 TRANSLATION_CHUNK_CHAR_THRESHOLD = 1500

@@ -1,0 +1,9 @@
+# ruff configuration for symmetry-unified-backend
+target-version = "py311"
+
+[lint]
+ignore = [
+    "BLE001",   # blind except Exception — intentional fallback patterns
+    "LOG015",   # root logger calls — intentional in routers/services
+    "N999",     # legacy module names (Phase_1, Phase_2, Phase_3)
+]

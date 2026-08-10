@@ -3,17 +3,18 @@ Test suite for similarity_scoring module.
 """
 
 import pytest
+
 from app.services.similarity_scoring import (
-    normalized_levenshtein_distance,
-    has_loanword_suffix,
+    LanguageFamily,
     classify_band,
+    get_family_threshold,
+    get_language_family,
+    has_loanword_suffix,
+    normalize_script,
+    normalized_levenshtein_distance,
     score_article_pair,
     score_articles_batch,
-    get_language_family,
-    LanguageFamily,
     transliterate_cyrillic,
-    normalize_script,
-    get_family_threshold,
 )
 
 
@@ -64,22 +65,22 @@ class TestBandClassification:
     
     def test_very_close(self):
         """Score >= 85 should be very_close."""
-        label, desc = classify_band(90)
+        label, _desc = classify_band(90)
         assert label == "very_close"
     
     def test_same_branch(self):
         """Score 60-85 should be same_branch."""
-        label, desc = classify_band(72)
+        label, _desc = classify_band(72)
         assert label == "same_branch"
     
     def test_same_family_distant(self):
         """Score 25-60 should be same_family_distant."""
-        label, desc = classify_band(42)
+        label, _desc = classify_band(42)
         assert label == "same_family_distant"
     
     def test_unrelated(self):
         """Score < 25 should be unrelated."""
-        label, desc = classify_band(15)
+        label, _desc = classify_band(15)
         assert label == "unrelated"
 
 

@@ -1,4 +1,5 @@
 from Phase_2.synonym_matcher import SynonymMatcher
+
 from Phase_3.syntax_parser import SyntaxParser
 
 # Pronouns carry no topic information — matching "it" == "it" across two
@@ -61,8 +62,9 @@ class RoleComparator:
 
         # Pronoun subjects carry no topic information — skip so they don't
         # inflate the score when two unrelated sentences both open with "it"
-        if role_name == "subject":
-            if value_a.lower() in _GENERIC_PRONOUNS or value_b.lower() in _GENERIC_PRONOUNS:
+        if role_name == "subject" and (
+            value_a.lower() in _GENERIC_PRONOUNS or value_b.lower() in _GENERIC_PRONOUNS
+        ):
                 return None
 
         #exact match
@@ -74,8 +76,9 @@ class RoleComparator:
 
         # Strict synset check for SUBJECT
         # Subjects are actors - unrelated subjects = unrelated sentences
-        if role_name == "subject":
-            if not self.matcher.share_synset(value_a, value_b) and score < 0.9:
+        if role_name == "subject" and (
+            not self.matcher.share_synset(value_a, value_b) and score < 0.9
+        ):
                 score = 0.0
 
         # Strict threshold for VERB — only count clear synonym/antonym pairs.
@@ -88,8 +91,9 @@ class RoleComparator:
                 score = 0.0
 
         # Strict threshold for OBJECT — same reasoning as verb
-        if role_name == "object":
-            if not self.matcher.share_synset(value_a, value_b) and score < 0.75:
+        if role_name == "object" and (
+            not self.matcher.share_synset(value_a, value_b) and score < 0.75
+        ):
                 score = 0.0
 
         return score
