@@ -33,19 +33,17 @@ class TestWikiArticlesRouter:
         with patch(
             "app.routers.wiki_articles.wikipediaapi.Wikipedia",
             return_value=mock_wikipediaapi,
-        ):
-            with patch(
-                "app.routers.wiki_articles.validate_url",
-                new=AsyncMock(return_value=("en", "Test_Article")),
-            ):
-                with patch("app.routers.wiki_articles.validate_language_code"):
-                    response = client.get(
-                        "/symmetry/v1/wiki/articles?query=https://en.wikipedia.org/wiki/Test_Article"
-                    )
+        ), patch(
+            "app.routers.wiki_articles.validate_url",
+            new=AsyncMock(return_value=("en", "Test_Article")),
+        ), patch("app.routers.wiki_articles.validate_language_code"):
+            response = client.get(
+                "/symmetry/v1/wiki/articles?query=https://en.wikipedia.org/wiki/Test_Article"
+            )
 
-                    assert response.status_code == 200
-                    data = response.json()
-                    assert "sourceArticle" in data
+            assert response.status_code == 200
+            data = response.json()
+            assert "sourceArticle" in data
 
     def test_get_article_no_query(self, client):
         """Test fetching article without query parameter returns 400"""
@@ -154,16 +152,16 @@ class TestWikiArticlesRouter:
 
     def test_get_article_default_language(self, client, mock_wikipediaapi_fresh):
         """Test that English is default language when not specified"""
-        with patch("app.routers.wiki_articles.validate_language_code"):
-            with patch("wikipediaapi.Wikipedia", return_value=mock_wikipediaapi_fresh):
-                with patch(
+        with patch("app.routers.wiki_articles.validate_language_code"), \
+                patch("wikipediaapi.Wikipedia", return_value=mock_wikipediaapi_fresh), \
+                patch(
                     "app.routers.wiki_articles.get_cached_article",
                     return_value=(None, None),
-                ):
-                    with patch("app.routers.wiki_articles.set_cached_article"):
-                        response = client.get(
-                            "/symmetry/v1/wiki/articles?query=Test_Article"
-                        )
+                ), \
+                patch("app.routers.wiki_articles.set_cached_article"):
+            response = client.get(
+                "/symmetry/v1/wiki/articles?query=Test_Article"
+            )
 
-                        assert response.status_code == 200
-                        mock_wikipediaapi_fresh.page.assert_called_once()
+            assert response.status_code == 200
+            mock_wikipediaapi_fresh.page.assert_called_once()

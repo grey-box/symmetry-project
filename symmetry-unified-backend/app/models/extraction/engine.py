@@ -76,7 +76,7 @@ def _evict_lru_model() -> None:
         try:
             torch.cuda.empty_cache()
         except Exception:
-            pass
+            logging.debug("Ignoring torch.cuda.empty_cache() error")
 
     logging.info(f"Evicted least recently used model from cache: {evicted_name}")
 
@@ -236,8 +236,8 @@ def validate_model(model_id: str) -> dict[str, Any]:
     try:
         config = get_model_config(model_id)
         return config
-    except ValueError as e:
-        raise e
+    except ValueError:
+        raise
     except Exception as e:
         raise ValueError(f"Failed to validate model '{model_id}': {e!s}")
 

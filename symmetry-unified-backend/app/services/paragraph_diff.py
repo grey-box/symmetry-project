@@ -67,9 +67,8 @@ def word_diff(text_a: str, text_b: str) -> list[WordToken]:
         elif tag == "delete":
             if chunk_a.strip():
                 result.append(WordToken(type="delete", text=chunk_a.strip()))
-        elif tag == "insert":
-            if chunk_b.strip():
-                result.append(WordToken(type="insert", text=chunk_b.strip()))
+        elif tag == "insert" and chunk_b.strip():
+            result.append(WordToken(type="insert", text=chunk_b.strip()))
 
     return result
 

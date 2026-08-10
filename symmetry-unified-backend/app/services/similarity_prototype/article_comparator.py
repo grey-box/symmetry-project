@@ -121,8 +121,7 @@ def _compare_roles_worker(
             score = 1.0
         else:
             score = matcher.wu_palmer_similarity(val_a, val_b)
-            if role == "subject":
-                if not matcher.share_synset(val_a, val_b) and score < 0.9:
+            if role == "subject" and not matcher.share_synset(val_a, val_b) and score < 0.9:
                     score = 0.0
             if role == "verb":
                 is_antonym = (
@@ -134,8 +133,7 @@ def _compare_roles_worker(
                     score -= antonym_verb_penalty
                 elif not matcher.share_synset(val_a, val_b) and score < 0.85:
                     score = 0.0
-            if role == "object":
-                if not matcher.share_synset(val_a, val_b) and score < 0.75:
+            if role == "object" and not matcher.share_synset(val_a, val_b) and score < 0.75:
                     score = 0.0
 
         w = role_weights[role]
@@ -373,10 +371,7 @@ class ArticleComparator:
             "retrieved from",
         ]
         lower = sentence.lower()
-        if any(bp in lower for bp in boilerplate):
-            return False
-
-        return True
+        return not any(bp in lower for bp in boilerplate)
 
     # Extract a flat list of clean sentences from parsed article
     def get_flat_sentences(self, parsed: list[dict]) -> list[str]:

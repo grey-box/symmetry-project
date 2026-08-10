@@ -19,14 +19,14 @@ def load_config() -> dict:
     try:
         with open(_DEFAULT_PATH) as f:
             defaults = json.load(f)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.warning("Failed to load config.default.json: %s", exc)
         defaults = {}
 
     try:
         with open(_OVERRIDE_PATH) as f:
             overrides = json.load(f)
-    except Exception:  # noqa: BLE001
+    except Exception:
         overrides = {}
 
     _config = _deep_merge(defaults, overrides)

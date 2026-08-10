@@ -65,8 +65,8 @@ def analyze_single_article(title: str, language: str) -> FinalAnalysisResponse:
             total_images=image_count,
         )
 
-    except HTTPException as e:
-        raise e
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

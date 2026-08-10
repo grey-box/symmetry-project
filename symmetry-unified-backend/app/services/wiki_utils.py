@@ -145,7 +145,7 @@ async def get_latest_revision_timestamp(title: str, lang: str) -> datetime | Non
     if not revisions:
         return None
     ts = revisions[0].get("timestamp", "")
-    return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    return datetime.fromisoformat(ts)
 
 
 async def detect_language_lag(

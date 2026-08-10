@@ -37,18 +37,17 @@ class TestStructuredWikiRouter:
         with patch(
             "app.routers.structured_wiki.parse_wikipedia_url",
             return_value=("en", "Test"),
+        ), patch(
+            "app.routers.structured_wiki.article_fetcher",
+            side_effect=mock_article_parser,
         ):
-            with patch(
-                "app.routers.structured_wiki.article_fetcher",
-                side_effect=mock_article_parser,
-            ):
-                response = client.get(
-                    "/symmetry/v1/wiki/structured-article?query=https://en.wikipedia.org/wiki/Test"
-                )
+            response = client.get(
+                "/symmetry/v1/wiki/structured-article?query=https://en.wikipedia.org/wiki/Test"
+            )
 
-                assert response.status_code == 200
-                data = response.json()
-                assert data["title"] == "Test Article"
+            assert response.status_code == 200
+            data = response.json()
+            assert data["title"] == "Test Article"
 
     def test_get_structured_article_missing_query(self, client):
         """Test structured article without query parameter"""
@@ -150,16 +149,15 @@ class TestStructuredWikiRouter:
         with patch(
             "app.routers.structured_wiki.parse_wikipedia_url",
             return_value=("en", "Test"),
+        ), patch(
+            "app.routers.structured_wiki.article_fetcher",
+            return_value=mock_article_parser(),
         ):
-            with patch(
-                "app.routers.structured_wiki.article_fetcher",
-                return_value=mock_article_parser(),
-            ):
-                response = client.get(
-                    "/symmetry/v1/wiki/structured-section?query=https://en.wikipedia.org/wiki/Test&section_title=Introduction"
-                )
+            response = client.get(
+                "/symmetry/v1/wiki/structured-section?query=https://en.wikipedia.org/wiki/Test&section_title=Introduction"
+            )
 
-                assert response.status_code == 200
+            assert response.status_code == 200
 
     def test_get_structured_section_missing_section_title(self, client):
         """Test structured section without section_title parameter"""

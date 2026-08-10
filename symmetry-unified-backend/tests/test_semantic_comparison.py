@@ -1,10 +1,12 @@
+from typing import ClassVar
+
 from app.ai.comparison import preprocess_input, semantic_compare
 
 
 class TestSemanticComparison:
     """Tests for semantic comparison functionality"""
 
-    testset = {
+    testset: ClassVar = {
         "complete_text": [
             "The Eiffel Tower was completed in 1889. Stands 330 meters tall, and was designed by Gustave Eiffel for the World's Fair.",
             "The iPhone 15 Pro features a titanium frame, weighs 187 grams, and includes a 48-megapixel main camera.",

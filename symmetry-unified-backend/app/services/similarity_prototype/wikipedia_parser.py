@@ -4,11 +4,8 @@ Kept at project root for easier import by other teams/tools.
 """
 import re
 
-try:
-    import requests
-    from bs4 import BeautifulSoup
-except Exception:
-    raise
+import requests
+from bs4 import BeautifulSoup
 
 # nltk's sent_tokenize if available; otherwise use a regex fallback
 try:

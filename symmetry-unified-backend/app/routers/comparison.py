@@ -282,8 +282,8 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
             payload.target_language,
         )
         return {"translatedArticle": translated}
-    except ImportError as e:
-        logging.exception("Chunked translation dependency error: %s", str(e))
+    except ImportError:
+        logging.exception("Chunked translation dependency error")
         raise HTTPException(
             status_code=500,
             detail=(
@@ -292,13 +292,13 @@ def translate_chunked_text_endpoint(payload: ChunkedTranslateRequest):
             ),
         )
     except TimeoutError as e:
-        logging.exception("Chunked translation timed out: %s", str(e))
+        logging.exception("Chunked translation timed out")
         raise HTTPException(status_code=504, detail=str(e))
     except ValueError as e:
-        logging.exception("Chunked translation validation error: %s", str(e))
+        logging.exception("Chunked translation validation error")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logging.exception("Chunked translation failed: %s", str(e))
+        logging.exception("Chunked translation failed")
         raise HTTPException(status_code=500, detail=f"Translation failed: {e!s}")
 
 

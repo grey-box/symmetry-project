@@ -29,7 +29,7 @@ try:
     from app.services.similarity_prototype.article_comparator import (
         ArticleComparator as _ArticleComparator,
     )
-except Exception:  # noqa: BLE001
+except Exception:
     _ArticleComparator = None  # type: ignore[assignment,misc]
 
 _SPACY_MODEL_MAP = {
@@ -75,7 +75,7 @@ def preprocess_input(article: str, language: str) -> list[str]:
             sentences = [s.text.strip() for s in doc.sents if s.text.strip()]
             if sentences:
                 return sentences
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             logger.warning(
                 "spaCy model unavailable for %s: %s — falling back", language, exc
             )
@@ -112,7 +112,7 @@ def semantic_compare(
 
     try:
         model = _get_model(model_name)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("Error loading model %s: %s", model_name, exc)
         return {
             "original_sentences": [original_blob],
@@ -127,7 +127,7 @@ def semantic_compare(
     try:
         original_sentences = preprocess_input(original_blob, source_language) or []
         translated_sentences = preprocess_input(translated_blob, target_language) or []
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("Error preprocessing input: %s", exc)
         original_sentences = [original_blob]
         translated_sentences = [translated_blob]
@@ -162,7 +162,7 @@ def semantic_compare(
             sim_threshold,
         )
         success = True
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("Error during semantic comparison: %s", exc)
         missing_info, extra_info = [], []
         missing_info_indices, extra_info_indices = [], []

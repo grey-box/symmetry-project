@@ -191,8 +191,8 @@ class SynonymMatcher:
         word_a = self.lemmatize(word_a)
         word_b = self.lemmatize(word_b)
 
-        synsets_a = set(s.name() for s in wordnet.synsets(word_a))
-        synsets_b = set(s.name() for s in wordnet.synsets(word_b))
+        synsets_a = {s.name() for s in wordnet.synsets(word_a)}
+        synsets_b = {s.name() for s in wordnet.synsets(word_b)}
 
         # Direct synset overlap
         if synsets_a & synsets_b:

@@ -275,7 +275,7 @@ async def get_citation_analysis(
                 all_citations.extend(section.citations)
 
         total_citations = len(all_citations)
-        unique_targets = len(set(cit.url for cit in all_citations if cit.url))
+        unique_targets = len({cit.url for cit in all_citations if cit.url})
 
         citation_counts = {}
         for citation in all_citations:
@@ -506,7 +506,7 @@ async def get_revision_history(
 async def get_language_lag(
     title: str = Query(..., description="Wikipedia article title (e.g. 'Python')"),
     source_lang: str = Query("en", description="Source language code (default 'en')"),
-    target_langs: list[str] = Query(
+    target_langs: list[str] = Query(  # noqa: B008
         ..., description="Target language codes to compare (e.g. 'fr', 'es')"
     ),
 ):

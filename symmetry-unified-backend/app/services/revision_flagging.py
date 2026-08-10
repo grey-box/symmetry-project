@@ -173,7 +173,7 @@ def _check_rapid_edits(diff: DiffResponse, prev_revisions: list[Revision]) -> li
     # Parse timestamps; skip any that are malformed.
     def _parse(ts: str) -> datetime | None:
         try:
-            return datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            return datetime.fromisoformat(ts)
         except (ValueError, AttributeError):
             return None
 

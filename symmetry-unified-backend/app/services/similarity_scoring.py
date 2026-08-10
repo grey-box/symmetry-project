@@ -598,7 +598,7 @@ def score_article_pair(
     )
 
     # Classify band with family awareness
-    band_label, band_desc = classify_band(
+    band_label, _band_desc = classify_band(
         lexical_similarity_percent, family_a, family_b
     )
 

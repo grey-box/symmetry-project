@@ -22,8 +22,8 @@ async def resolve_and_fetch_article(query: str, default_lang: str = "en"):
     try:
         article = await article_fetcher(title, lang)
         return article
-    except Exception as e:
-        logging.exception("Failed to fetch article '%s' (%s): %s", title, lang, str(e))
+    except Exception:
+        logging.exception("Failed to fetch article '%s' (%s)", title, lang)
         raise HTTPException(
             status_code=404,
             detail=f"Failed to fetch article '{title}' ({lang}).",

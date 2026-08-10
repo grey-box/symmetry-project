@@ -321,7 +321,7 @@ def _compare_paragraphs_prototype(
     source_lang: str,
     target_lang: str,
     comparator: Any,
-    threshold: float = None,
+    threshold: float | None = None,
 ) -> list[ParagraphDiff]:
     """
     Compare paragraphs using the similarity prototype (Phase 1+2+3 pipeline).
