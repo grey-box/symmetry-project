@@ -1,8 +1,8 @@
 import { readFileSync } from 'fs';
-import { dirname, resolve } from 'path';
-import { fileURLToPath } from 'url';
+import { resolve } from 'path';
 
-const _dir = dirname(fileURLToPath(import.meta.url));
+// ponytail: __dirname over import.meta.url — this file loads as CJS and import.meta.url breaks
+const _dir = __dirname;
 
 let _cfg: Record<string, string>;
 
