@@ -10,7 +10,6 @@ from app.services.revision_flagging import (
     flag_revision,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -27,7 +26,7 @@ def make_diff(section_diffs, total_chars_old=1000, total_chars_new=1000, new_rev
 
 
 def make_revision(revid, user, minutes_ago, size=1000):
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
     ts = (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)).isoformat()
     return Revision(revid=revid, parentid=revid - 1, timestamp=ts, user=user, comment="", size=size)
 

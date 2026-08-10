@@ -3,14 +3,13 @@
 import logging
 import os
 import sys
-from typing import List, Optional, Tuple
 
 import spacy
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from app.models.comparison.registry import DEFAULT_MODEL
 from app.core.settings import SIMILARITY_THRESHOLD as _DEFAULT_SIMILARITY_THRESHOLD
+from app.models.comparison.registry import DEFAULT_MODEL
 from app.services.chunking import chunk_text
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,7 @@ try:
     from app.services.similarity_prototype.article_comparator import (
         ArticleComparator as _ArticleComparator,
     )
-except Exception:
+except Exception:  # noqa: BLE001
     _ArticleComparator = None  # type: ignore[assignment,misc]
 
 _SPACY_MODEL_MAP = {
@@ -51,7 +50,7 @@ def _get_model(model_name: str) -> SentenceTransformer:
     return _model_cache[model_name]
 
 
-def universal_sentences_split(text: str) -> List[str]:
+def universal_sentences_split(text: str) -> list[str]:
     sentences = []
     for sentence in text.replace("!", ".").replace("?", ".").split("."):
         if sentence.strip():
@@ -59,7 +58,7 @@ def universal_sentences_split(text: str) -> List[str]:
     return sentences
 
 
-def preprocess_input(article: str, language: str) -> List[str]:
+def preprocess_input(article: str, language: str) -> list[str]:
     if not article:
         return []
 
@@ -76,7 +75,7 @@ def preprocess_input(article: str, language: str) -> List[str]:
             sentences = [s.text.strip() for s in doc.sents if s.text.strip()]
             if sentences:
                 return sentences
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning(
                 "spaCy model unavailable for %s: %s — falling back", language, exc
             )
@@ -85,13 +84,13 @@ def preprocess_input(article: str, language: str) -> List[str]:
 
 
 def sentences_diff(
-    article_sentences: List[str],
+    article_sentences: list[str],
     source_embeddings,
     reference_embeddings,
     similarity_threshold: float,
-) -> Tuple[List[str], List[int]]:
-    unmatched_sentences: List[str] = []
-    unmatched_indices: List[int] = []
+) -> tuple[list[str], list[int]]:
+    unmatched_sentences: list[str] = []
+    unmatched_indices: list[int] = []
     sim_matrix = cosine_similarity(source_embeddings, reference_embeddings)
     for i, similarities in enumerate(sim_matrix):
         if max(similarities) < similarity_threshold:
@@ -105,7 +104,7 @@ def semantic_compare(
     translated_blob: str,
     source_language: str,
     target_language: str,
-    sim_threshold: Optional[float],
+    sim_threshold: float | None,
     model_name: str,
 ) -> dict:
     if not model_name:
@@ -113,7 +112,7 @@ def semantic_compare(
 
     try:
         model = _get_model(model_name)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.error("Error loading model %s: %s", model_name, exc)
         return {
             "original_sentences": [original_blob],
@@ -128,7 +127,7 @@ def semantic_compare(
     try:
         original_sentences = preprocess_input(original_blob, source_language) or []
         translated_sentences = preprocess_input(translated_blob, target_language) or []
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.error("Error preprocessing input: %s", exc)
         original_sentences = [original_blob]
         translated_sentences = [translated_blob]
@@ -163,7 +162,7 @@ def semantic_compare(
             sim_threshold,
         )
         success = True
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         logger.error("Error during semantic comparison: %s", exc)
         missing_info, extra_info = [], []
         missing_info_indices, extra_info_indices = [], []
@@ -263,8 +262,8 @@ def perform_semantic_comparison(request_data: dict) -> dict:
                 }
             ]
         }
-    except Exception as exc:
-        logger.exception("Transformer comparison failed: %s", exc)
+    except Exception:
+        logger.exception("Transformer comparison failed")
         return {"comparisons": []}
 
 
@@ -353,6 +352,6 @@ def _run_prototype_comparison(
                 }
             ]
         }
-    except Exception as exc:
-        logger.exception("similarity_prototype comparison failed: %s", exc)
+    except Exception:
+        logger.exception("similarity_prototype comparison failed")
         return {"comparisons": []}

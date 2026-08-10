@@ -1,10 +1,12 @@
 import re
-from bs4 import BeautifulSoup
-from app.models.wiki.analysis import CitationAnalysisResponse
-from fastapi import HTTPException
+
 import requests
+from bs4 import BeautifulSoup
+from fastapi import HTTPException
 from requests import RequestException
 from starlette import status
+
+from app.models.wiki.analysis import CitationAnalysisResponse
 
 
 def count_links_in_section(html_content: str, section_name: str) -> int:

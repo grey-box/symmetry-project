@@ -3,17 +3,18 @@ Test suite for similarity_scoring module.
 """
 
 import pytest
+
 from app.services.similarity_scoring import (
-    normalized_levenshtein_distance,
-    has_loanword_suffix,
+    LanguageFamily,
     classify_band,
+    get_family_threshold,
+    get_language_family,
+    has_loanword_suffix,
+    normalize_script,
+    normalized_levenshtein_distance,
     score_article_pair,
     score_articles_batch,
-    get_language_family,
-    LanguageFamily,
     transliterate_cyrillic,
-    normalize_script,
-    get_family_threshold,
 )
 
 

@@ -1,6 +1,7 @@
+from types import SimpleNamespace
+
 import pytest
 import torch
-from types import SimpleNamespace
 
 from app.models.extraction import engine as fact_extraction
 

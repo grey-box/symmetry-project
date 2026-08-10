@@ -10,7 +10,6 @@ from __future__ import annotations
 import difflib
 import logging
 import re
-from typing import List, Tuple
 
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
@@ -29,12 +28,12 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def _tokenize(text: str) -> List[str]:
+def _tokenize(text: str) -> list[str]:
     """Split text into word + punctuation tokens preserving whitespace markers."""
     return re.findall(r"\S+|\s+", text)
 
 
-def word_diff(text_a: str, text_b: str) -> List[WordToken]:
+def word_diff(text_a: str, text_b: str) -> list[WordToken]:
     """Return a list of :class:`WordToken` objects describing the diff.
 
     Each token has:
@@ -46,7 +45,7 @@ def word_diff(text_a: str, text_b: str) -> List[WordToken]:
     tokens_b = _tokenize(text_b)
 
     matcher = difflib.SequenceMatcher(None, tokens_a, tokens_b, autojunk=False)
-    result: List[WordToken] = []
+    result: list[WordToken] = []
 
     for tag, i1, i2, j1, j2 in matcher.get_opcodes():
         chunk_a = "".join(tokens_a[i1:i2])
@@ -80,7 +79,7 @@ def word_diff(text_a: str, text_b: str) -> List[WordToken]:
 # ---------------------------------------------------------------------------
 
 
-def _split_sentences(text: str) -> List[str]:
+def _split_sentences(text: str) -> list[str]:
     """Lightweight sentence splitter — avoids spaCy dependency in this module."""
     # Normalize newlines then split on terminal punctuation
     text = text.replace("\n", " ").strip()
@@ -107,11 +106,11 @@ def _section_match_text(title: str, clean_content: str) -> str:
 
 
 def align_paragraphs(
-    source_sentences: List[str],
-    target_sentences: List[str],
+    source_sentences: list[str],
+    target_sentences: list[str],
     model,  # SentenceTransformer instance
     threshold: float = 0.5,
-) -> List[AlignedSentencePair]:
+) -> list[AlignedSentencePair]:
     """Align source sentences to the best-matching target sentence.
 
     Uses greedy one-to-one matching: each target sentence is consumed at most
@@ -132,7 +131,7 @@ def align_paragraphs(
     sim_matrix: np.ndarray = cosine_similarity(src_emb, tgt_emb)
 
     used_target: set = set()
-    pairs: List[AlignedSentencePair] = []
+    pairs: list[AlignedSentencePair] = []
 
     for src_idx, src_sent in enumerate(source_sentences):
         row = sim_matrix[src_idx].copy()
@@ -168,11 +167,11 @@ def align_paragraphs(
 
 
 def diff_sections(
-    source_sections: List[Tuple[str, str]],  # (title, clean_content)
-    target_sections: List[Tuple[str, str]],
+    source_sections: list[tuple[str, str]],  # (title, clean_content)
+    target_sections: list[tuple[str, str]],
     model,
     threshold: float = 0.5,
-) -> List[ParagraphDiffSection]:
+) -> list[ParagraphDiffSection]:
     """Match source sections to target sections and produce per-section diffs.
 
     Section matching is done semantically (greedy on section title + intro
@@ -205,7 +204,7 @@ def diff_sections(
     title_sim: np.ndarray = cosine_similarity(src_title_emb, tgt_title_emb)
 
     used_target: set = set()
-    result: List[ParagraphDiffSection] = []
+    result: list[ParagraphDiffSection] = []
 
     for src_idx, (src_title, src_content) in enumerate(source_sections):
         row = title_sim[src_idx].copy()

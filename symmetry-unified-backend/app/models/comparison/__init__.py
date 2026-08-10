@@ -1,3 +1,10 @@
+from app.ai.comparison import (
+    perform_semantic_comparison,
+    preprocess_input,
+    semantic_compare,
+    sentences_diff,
+    universal_sentences_split,
+)
 from app.models.comparison.models import (
     ArticleComparisonResponse,
     BaseCompareRequest,
@@ -14,15 +21,10 @@ from app.models.comparison.models import (
     SentenceDiff,
 )
 from app.models.comparison.registry import COMPARISON_MODELS, DEFAULT_MODEL
-from app.ai.comparison import (
-    perform_semantic_comparison,
-    preprocess_input,
-    semantic_compare,
-    sentences_diff,
-    universal_sentences_split,
-)
 
 __all__ = [
+    "COMPARISON_MODELS",
+    "DEFAULT_MODEL",
     "ArticleComparisonResponse",
     "BaseCompareRequest",
     "CompareRequest",
@@ -36,8 +38,6 @@ __all__ = [
     "SectionDiff",
     "SemanticCompareRequest",
     "SentenceDiff",
-    "COMPARISON_MODELS",
-    "DEFAULT_MODEL",
     "perform_semantic_comparison",
     "preprocess_input",
     "semantic_compare",

@@ -1,5 +1,6 @@
 from .vectorizer import Vectorizer
 
+
 class SimilarityCalculator:
     def __init__(self):
         self.vectorizer = Vectorizer()

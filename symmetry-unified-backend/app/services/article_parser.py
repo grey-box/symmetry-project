@@ -1,6 +1,7 @@
 import httpx
 from bs4 import BeautifulSoup
-from app.models.wiki.structure import Citation, Reference, Section, Article
+
+from app.models.wiki.structure import Article, Citation, Reference, Section
 
 
 async def _fetch_wikipedia_json(url: str, params: dict) -> dict:

@@ -6,13 +6,12 @@ repository root when available. Falls back to the original hardcoded
 defaults when the config file or keys are missing.
 """
 
-from pathlib import Path
 import json
-from typing import List
+from pathlib import Path
 
 from app.core.config import load_config
 
-_DEFAULT_MODELS: List[str] = [
+_DEFAULT_MODELS: list[str] = [
     "sentence-transformers/LaBSE",
     "xlm-roberta-base",
     "multi-qa-distilbert-cos-v1",
@@ -40,5 +39,5 @@ def _load_from_config() -> dict:
 
 _config = _load_from_config()
 
-COMPARISON_MODELS: List[str] = _config.get("COMPARISON_MODELS", _DEFAULT_MODELS)
+COMPARISON_MODELS: list[str] = _config.get("COMPARISON_MODELS", _DEFAULT_MODELS)
 DEFAULT_MODEL = _config.get("DEFAULT_MODEL", _DEFAULT_MODEL)

@@ -1,12 +1,13 @@
+import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
-import logging
+
 import wikipediaapi
-import re
+from huggingface_hub import model_info
+
 from app.ai.comparison import semantic_compare
 from app.ai.translation import translate as _translate_fn
-from huggingface_hub import model_info
 from app.core.config import load_config, save_config
 
 
@@ -83,17 +84,17 @@ def load_last_selected(for_: str):
 
 @dataclass
 class ServerModel:
-    hf_comparison_models: List[str] = field(
+    hf_comparison_models: list[str] = field(
         default_factory=lambda: load_saved_models("huggingface", "comparison")
     )
-    hf_translation_models: List[str] = field(
+    hf_translation_models: list[str] = field(
         default_factory=lambda: load_saved_models("huggingface", "translation")
     )
 
-    custom_comparison_models: List[str] = field(
+    custom_comparison_models: list[str] = field(
         default_factory=lambda: load_saved_models("custom", "comparison")
     )
-    custom_translation_models: List[str] = field(
+    custom_translation_models: list[str] = field(
         default_factory=lambda: load_saved_models("custom", "translation")
     )
 
@@ -104,7 +105,7 @@ class ServerModel:
         default_factory=lambda: load_last_selected("translation")
     )
 
-    wikipedia: Optional[wikipediaapi.Wikipedia] = field(default=None)
+    wikipedia: wikipediaapi.Wikipedia | None = field(default=None)
 
     def __post_init__(self):
         """Initialize default values after dataclass creation"""
@@ -201,10 +202,10 @@ class ServerModel:
             return True
         return False
 
-    def available_comparison_models_list(self) -> List[str]:
+    def available_comparison_models_list(self) -> list[str]:
         return list(self.hf_comparison_models + self.custom_comparison_models)
 
-    def available_translation_models_list(self) -> List[str]:
+    def available_translation_models_list(self) -> list[str]:
         return list(self.hf_translation_models + self.custom_translation_models)
 
     def extract_title_from_url(self, url: str) -> str:

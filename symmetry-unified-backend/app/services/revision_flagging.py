@@ -18,7 +18,6 @@ Flagging rules
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List
 
 from app.models.revision import DiffResponse, Flag, Revision
 
@@ -43,7 +42,7 @@ RAPID_EDIT_MIN_REVISIONS: int = 3
 # Public API
 # ---------------------------------------------------------------------------
 
-def flag_revision(diff: DiffResponse, prev_revisions: List[Revision]) -> List[Flag]:
+def flag_revision(diff: DiffResponse, prev_revisions: list[Revision]) -> list[Flag]:
     """
     Analyse *diff* (a comparison between two Wikipedia revisions) together
     with the recent *prev_revisions* history and return every Flag that
@@ -62,7 +61,7 @@ def flag_revision(diff: DiffResponse, prev_revisions: List[Revision]) -> List[Fl
     -------
     List of Flag objects (may be empty).
     """
-    flags: List[Flag] = []
+    flags: list[Flag] = []
 
     flags.extend(_check_volume(diff))
     flags.extend(_check_section_removed(diff))
@@ -76,7 +75,7 @@ def flag_revision(diff: DiffResponse, prev_revisions: List[Revision]) -> List[Fl
 # Individual rule implementations
 # ---------------------------------------------------------------------------
 
-def _check_volume(diff: DiffResponse) -> List[Flag]:
+def _check_volume(diff: DiffResponse) -> list[Flag]:
     """Flag when more than VOLUME_THRESHOLD of article content changed."""
     if diff.total_chars_old == 0:
         return []
@@ -106,7 +105,7 @@ def _check_volume(diff: DiffResponse) -> List[Flag]:
     ]
 
 
-def _check_section_removed(diff: DiffResponse) -> List[Flag]:
+def _check_section_removed(diff: DiffResponse) -> list[Flag]:
     """Flag when one or more entire sections were deleted."""
     removed = [sd for sd in diff.section_diffs if sd.status == "removed"]
     if not removed:
@@ -123,7 +122,7 @@ def _check_section_removed(diff: DiffResponse) -> List[Flag]:
     ]
 
 
-def _check_lead_section(diff: DiffResponse) -> List[Flag]:
+def _check_lead_section(diff: DiffResponse) -> list[Flag]:
     """Flag when the Lead section was significantly modified or removed."""
     lead = next(
         (sd for sd in diff.section_diffs if sd.section_title == "Lead section"),
@@ -161,7 +160,7 @@ def _check_lead_section(diff: DiffResponse) -> List[Flag]:
     ]
 
 
-def _check_rapid_edits(diff: DiffResponse, prev_revisions: List[Revision]) -> List[Flag]:
+def _check_rapid_edits(diff: DiffResponse, prev_revisions: list[Revision]) -> list[Flag]:
     """
     Flag when multiple different users made edits within RAPID_EDIT_WINDOW_HOURS.
 

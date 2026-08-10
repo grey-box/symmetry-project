@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from app.core.config import load_config
 
@@ -47,7 +47,7 @@ def _normalize_lang_code(language: str) -> str:
     return normalized
 
 
-def _load_config() -> List[Dict[str, Any]]:
+def _load_config() -> list[dict[str, Any]]:
     config = load_config()
     models = config.get("translation_models")
     if isinstance(models, list):
@@ -56,7 +56,7 @@ def _load_config() -> List[Dict[str, Any]]:
 
 
 _TRANSLATION_MODELS = _load_config()
-_TRANSLATION_MODEL_MAP: Dict[tuple[str, str], Dict[str, Any]] = {
+_TRANSLATION_MODEL_MAP: dict[tuple[str, str], dict[str, Any]] = {
     (
         _normalize_lang_code(item.get("source_lang", "")),
         _normalize_lang_code(item.get("target_lang", "")),
@@ -67,27 +67,27 @@ _TRANSLATION_MODEL_MAP: Dict[tuple[str, str], Dict[str, Any]] = {
 
 def get_translation_model(
     source_lang: str, target_lang: str
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     return _TRANSLATION_MODEL_MAP.get(
         (_normalize_lang_code(source_lang), _normalize_lang_code(target_lang))
     )
 
 
-def get_translation_model_name(source_lang: str, target_lang: str) -> Optional[str]:
+def get_translation_model_name(source_lang: str, target_lang: str) -> str | None:
     model = get_translation_model(source_lang, target_lang)
     return model.get("model_name") if model else None
 
 
 def get_translation_similarity_threshold(
     source_lang: str, target_lang: str
-) -> Optional[float]:
+) -> float | None:
     model = get_translation_model(source_lang, target_lang)
     if model is None:
         return None
     return float(model.get("similarity_threshold", 0.0))
 
 
-def get_supported_target_langs(source_lang: str = "en") -> List[str]:
+def get_supported_target_langs(source_lang: str = "en") -> list[str]:
     return [
         item["target_lang"]
         for item in _TRANSLATION_MODELS

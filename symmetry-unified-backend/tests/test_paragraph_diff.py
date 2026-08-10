@@ -9,13 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
+from app.models.wiki.paragraph_diff import WordToken
 from app.services.paragraph_diff import (
     align_paragraphs,
     diff_sections,
     word_diff,
 )
-from app.models.wiki.paragraph_diff import WordToken
-
 
 # ---------------------------------------------------------------------------
 # word_diff tests

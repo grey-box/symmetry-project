@@ -1,22 +1,22 @@
 import logging
-from urllib.parse import urlparse, unquote
-from typing import Dict, Optional, Annotated
+from typing import Annotated
+from urllib.parse import unquote, urlparse
 
-import wikipediaapi
 import pycountry
-from fastapi import APIRouter, Query, HTTPException, Request
+import wikipediaapi
+from fastapi import APIRouter, HTTPException, Query, Request
 
 from app.models.wiki.responses import (
-    SourceArticleResponse,
     ArticleLanguagesResponse,
     AvailableTargetLanguage,
+    SourceArticleResponse,
 )
 from app.services.cache import get_cached_article, set_cached_article
 from app.services.wiki_utils import validate_language_code
 
 router = APIRouter(prefix="/symmetry/v1/wiki", tags=["wiki"])
 
-language_cache: Dict[str, bool] = {}
+language_cache: dict[str, bool] = {}
 
 VALID_LANGUAGE_CODES = {
     lang.alpha_2
@@ -68,13 +68,13 @@ async def validate_url(url: str) -> tuple[str, str]:
 async def get_article(
     request: Request,
     query: Annotated[
-        Optional[str],
+        str | None,
         Query(
             description="Either a full Wikipedia URL (e.g., https://en.wikipedia.org/wiki/Python) or a keyword/title (e.g., 'Python')"
         ),
     ] = None,
     lang: Annotated[
-        Optional[str],
+        str | None,
         Query(
             description="Article language code (e.g., 'en', 'fr', 'es'). Defaults to 'en' if not provided"
         ),
@@ -85,7 +85,7 @@ async def get_article(
     if not query:
         raise HTTPException(status_code=400, detail="Invalid Wikipedia URL provided.")
 
-    title: Optional[str]
+    title: str | None
 
     if "://" in query:
         lang, title = await validate_url(query)

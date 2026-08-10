@@ -1,10 +1,12 @@
-from unittest.mock import patch, Mock
+from unittest.mock import Mock, patch
+
+import pytest
+
 from app.models import (
     Citation,
     Reference,
     Section,
 )
-import pytest
 
 
 class TestStructuredWikiRouter:
@@ -91,17 +93,16 @@ class TestStructuredWikiRouter:
             ]
             return article
 
-        with patch("app.routers.structured_wiki.structured_cache", {}):
-            with patch(
-                "app.routers.structured_wiki.article_fetcher",
-                side_effect=mock_citations_fetcher,
-            ):
-                response = client.get("/symmetry/v1/wiki/structured-article?query=Test")
+        with patch("app.routers.structured_wiki.structured_cache", {}), patch(
+            "app.routers.structured_wiki.article_fetcher",
+            side_effect=mock_citations_fetcher,
+        ):
+            response = client.get("/symmetry/v1/wiki/structured-article?query=Test")
 
-                assert response.status_code == 200
-                data = response.json()
-                assert data["total_citations"] == 1
-                assert data["total_references"] == 1
+            assert response.status_code == 200
+            data = response.json()
+            assert data["total_citations"] == 1
+            assert data["total_references"] == 1
 
     def test_get_structured_article_default_language(self, client, mock_article_parser):
         """Test that English is default language for structured articles"""

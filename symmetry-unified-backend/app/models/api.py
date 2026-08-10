@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel
-from typing import List
 
 
 class ModelSelectionResponse(BaseModel):
@@ -11,4 +11,4 @@ class ModelSelectionResponse(BaseModel):
 class ListResponse(BaseModel):
     """Generic list response used by model listing endpoints."""
 
-    response: List[str]
+    response: list[str]

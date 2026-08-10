@@ -1,17 +1,17 @@
-import sys
-import os
-import re
 import math
 import multiprocessing
+import os
+import re
+import sys
+
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from typing import List, Optional
+
 from Phase_1.vectorizer import Vectorizer
 from Phase_3.scorer import Scorer
 from wikipedia_parser import parse_url_to_paragraph_sentences
-
 
 # Pronouns to skip when comparing subject roles (mirrors role_comparator.py)
 _GENERIC_PRONOUNS = frozenset(
@@ -43,7 +43,7 @@ _worker_state: dict = {}
 # Previously the pool was recreated per section, paying the ~1 s-per-worker spaCy /
 # WordNet startup cost for every section.  With a persistent pool that cost is paid
 # only on the very first comparison request.
-_persistent_pool: Optional[multiprocessing.Pool] = None
+_persistent_pool: multiprocessing.Pool | None = None
 
 
 def _init_worker_persistent(
@@ -379,7 +379,7 @@ class ArticleComparator:
         return True
 
     # Extract a flat list of clean sentences from parsed article
-    def get_flat_sentences(self, parsed: List[dict]) -> List[str]:
+    def get_flat_sentences(self, parsed: list[dict]) -> list[str]:
         flat = []
         for item in parsed:
             for sentence in item["sentences"]:
@@ -443,10 +443,10 @@ class ArticleComparator:
     # spaCy is NOT loaded in workers (lazy-load in SyntaxParser ensures this).
     def build_score_matrix(
         self,
-        sentences_a: List[str],
-        sentences_b: List[str],
+        sentences_a: list[str],
+        sentences_b: list[str],
         top_k: int = 8,
-    ) -> List[List[float]]:
+    ) -> list[list[float]]:
         """Build the N×M score matrix.
 
         top_k controls the candidate-pruning pre-filter: for each sentence in A
@@ -473,7 +473,7 @@ class ArticleComparator:
         # Use numpy for a fast all-pairs cosine similarity matrix so we can
         # identify the best candidates without running Phase 2+3 on every pair.
         effective_k = min(top_k, len(sentences_b))
-        candidate_sets: List = []
+        candidate_sets: list = []
 
         print("  Selecting candidates via Phase-1 pre-filter...", end="\r")
         vecs_a = np.array([all_vectors[s] for s in sentences_a], dtype=np.float32)
@@ -528,7 +528,7 @@ class ArticleComparator:
         # The persistent pool means we no longer pay spaCy startup per section,
         # so this threshold only guards against task-distribution overhead.
         total_scored_pairs = len(sentences_a) * (
-            effective_k if effective_k < len(sentences_b) else len(sentences_b)
+            min(len(sentences_b), effective_k)
         )
         _SEQUENTIAL_THRESHOLD = 60  # pairs below which sequential is faster
 
@@ -590,8 +590,8 @@ class ArticleComparator:
     # direction="BA": for each sentence in B, find best match in A
     # Scores below MIN_MATCH_THRESHOLD are treated as no match (0.0)
     def best_match_scores(
-        self, matrix: List[List[float]], direction: str
-    ) -> List[float]:
+        self, matrix: list[list[float]], direction: str
+    ) -> list[float]:
         scores = []
 
         if direction == "AB":
@@ -620,7 +620,7 @@ class ArticleComparator:
     # Diagnostic tool to understand scoring behavior
     # Shows sample sentences, top matching pairs, and overlap distribution
     # Use this to debug unexpected scores
-    def diagnose(self, sentences_a: List[str], sentences_b: List[str], top_n: int = 5):
+    def diagnose(self, sentences_a: list[str], sentences_b: list[str], top_n: int = 5):
         print("\n=== DIAGNOSIS ===")
 
         # Show sample sentences from each article
@@ -681,7 +681,7 @@ class ArticleComparator:
         print(f"  Med  (0.2-0.5): {medium}/{total} ({medium / total * 100:.1f}%)")
         print(f"  High (0.5+):    {high}/{total}   ({high / total * 100:.1f}%)")
 
-    def diagnose_scores(self, sentences_a: List[str], sentences_b: List[str]):
+    def diagnose_scores(self, sentences_a: list[str], sentences_b: list[str]):
         print("\n=== SCORE DISTRIBUTION ===")
         all_scores = []
         for sent_a in sentences_a:
@@ -707,7 +707,7 @@ class ArticleComparator:
     #   3. Average A→B and B→A → final score
     # Symmetric approach handles articles of different lengths fairly
     def compare(
-        self, sentences_a: List[str], sentences_b: List[str], verbose: bool = True
+        self, sentences_a: list[str], sentences_b: list[str], verbose: bool = True
     ) -> float:
         if not sentences_a or not sentences_b:
             return 0.0

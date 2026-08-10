@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
-
 
 # ---------------------------------------------------------------------------
 # Base request models
@@ -53,20 +51,20 @@ class SentenceDiff(BaseModel):
 class ComparisonResult(BaseModel):
     """Raw comparison arrays from the semantic comparison engine."""
 
-    left_article_array: List[str]
-    right_article_array: List[str]
-    left_article_missing_info_index: List[int]
-    right_article_extra_info_index: List[int]
+    left_article_array: list[str]
+    right_article_array: list[str]
+    left_article_missing_info_index: list[int]
+    right_article_extra_info_index: list[int]
     # Optional free-form details (e.g. per-sentence scores, top match list)
-    details: Optional[dict] = None
+    details: dict | None = None
 
 
 class CompareResponse(BaseModel):
     """Response for the legacy plain-text article comparison endpoint."""
 
-    missing_info: List[SentenceDiff] = Field(default_factory=list)
-    extra_info: List[SentenceDiff] = Field(default_factory=list)
-    error_message: Optional[str] = None
+    missing_info: list[SentenceDiff] = Field(default_factory=list)
+    extra_info: list[SentenceDiff] = Field(default_factory=list)
+    error_message: str | None = None
     model_name: str = Field(
         default="sentence-transformers/LaBSE",
         description="Name of the model used for comparison",
@@ -77,7 +75,7 @@ class CompareResponse(BaseModel):
         le=1.0,
         description="Similarity threshold used for comparison",
     )
-    comparisons: Optional[List[ComparisonResult]] = None
+    comparisons: list[ComparisonResult] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -88,18 +86,18 @@ class CompareResponse(BaseModel):
 class MissingInfo(BaseModel):
     sentence: str = Field()
     index: int
-    similarity_score: Optional[float] = None
+    similarity_score: float | None = None
 
 
 class ExtraInfo(BaseModel):
     sentence: str = Field()
     index: int
-    similarity_score: Optional[float] = None
+    similarity_score: float | None = None
 
 
 class ArticleComparisonResponse(BaseModel):
-    missing_info: List[MissingInfo]
-    extra_info: List[ExtraInfo]
+    missing_info: list[MissingInfo]
+    extra_info: list[ExtraInfo]
     model_name: str = Field(
         default="sentence-transformers/LaBSE",
         description="Name of the model used for comparison",
@@ -153,11 +151,11 @@ class SectionCompareRequest(BaseModel):
 class ParagraphDiff(BaseModel):
     """Comparison result for a single paragraph within a matched section."""
 
-    source_text: Optional[str] = Field(
+    source_text: str | None = Field(
         default=None,
         description="Paragraph text from the source article (None if added in target)",
     )
-    target_text: Optional[str] = Field(
+    target_text: str | None = Field(
         default=None,
         description="Paragraph text from the target article (None if missing from target)",
     )
@@ -167,21 +165,21 @@ class ParagraphDiff(BaseModel):
         le=1.0,
         description="Cosine similarity score between the two paragraphs",
     )
-    levenshtein_score: Optional[float] = Field(
+    levenshtein_score: float | None = Field(
         default=None,
         description="Levenshtein similarity (used for disambiguation when semantic scores are close)",
     )
     status: str = Field(
         description="One of: 'matched', 'missing_in_target', 'added_in_target'",
     )
-    source_exclusive_keywords: List[str] = Field(
+    source_exclusive_keywords: list[str] = Field(
         default_factory=list,
         description=(
             "Concepts/keywords present in the source paragraph but absent from the "
             "matched target paragraph. Only populated for 'matched' pairs."
         ),
     )
-    target_exclusive_keywords: List[str] = Field(
+    target_exclusive_keywords: list[str] = Field(
         default_factory=list,
         description=(
             "Concepts/keywords present in the target paragraph but absent from the "
@@ -193,11 +191,11 @@ class ParagraphDiff(BaseModel):
 class SectionDiff(BaseModel):
     """Comparison result for a matched pair of sections (or unmatched section)."""
 
-    source_title: Optional[str] = Field(
+    source_title: str | None = Field(
         default=None,
         description="Section title from source article",
     )
-    target_title: Optional[str] = Field(
+    target_title: str | None = Field(
         default=None,
         description="Section title from target article",
     )
@@ -208,7 +206,7 @@ class SectionDiff(BaseModel):
     status: str = Field(
         description="One of: 'matched', 'missing_in_target', 'added_in_target'",
     )
-    paragraph_diffs: List[ParagraphDiff] = Field(
+    paragraph_diffs: list[ParagraphDiff] = Field(
         default_factory=list,
         description="Paragraph-level diffs within this section pair",
     )
@@ -233,8 +231,8 @@ class SectionCompareResponse(BaseModel):
     overall_similarity: float = Field(
         description="Weighted average similarity across matched sections",
     )
-    section_diffs: List[SectionDiff] = Field(
+    section_diffs: list[SectionDiff] = Field(
         default_factory=list,
     )
     model_name: str = Field(default="sentence-transformers/LaBSE")
-    error_message: Optional[str] = None
+    error_message: str | None = None

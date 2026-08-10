@@ -1,8 +1,9 @@
 import logging
+
 from fastapi import HTTPException
 
-from app.services.wiki_utils import parse_wikipedia_url, resolve_title_and_lang
 from app.services.article_parser import article_fetcher
+from app.services.wiki_utils import parse_wikipedia_url, resolve_title_and_lang
 
 
 async def resolve_and_fetch_article(query: str, default_lang: str = "en"):

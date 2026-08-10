@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel
-from typing import List
 
 
 class FactExtractionRequest(BaseModel):
@@ -10,7 +10,7 @@ class FactExtractionRequest(BaseModel):
 
 
 class FactExtractionResponse(BaseModel):
-    facts: List[str]
+    facts: list[str]
     model_used: str
     section_title: str = ""
-    chunks: List[str] = []
+    chunks: list[str] = []

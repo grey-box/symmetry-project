@@ -1,4 +1,4 @@
-from app.ai.comparison import semantic_compare, preprocess_input
+from app.ai.comparison import preprocess_input, semantic_compare
 
 
 class TestSemanticComparison:

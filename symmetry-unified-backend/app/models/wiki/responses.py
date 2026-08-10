@@ -1,5 +1,5 @@
+
 from pydantic import BaseModel, Field
-from typing import List, Optional
 
 from app.models.wiki.structure import Citation, Reference, Section
 
@@ -13,8 +13,8 @@ class StructuredArticleResponse(BaseModel):
     title: str = Field()
     lang: str = Field()
     source: str = Field()
-    sections: List[Section]
-    references: List[Reference]
+    sections: list[Section]
+    references: list[Reference]
     total_sections: int = Field(ge=0)
     total_citations: int = Field(ge=0)
     total_references: int = Field(ge=0)
@@ -24,21 +24,21 @@ class StructuredSectionResponse(BaseModel):
     title: str = Field()
     raw_content: str
     clean_content: str
-    citations: Optional[List[Citation]] = None
-    citation_position: Optional[List[str]] = None
+    citations: list[Citation] | None = None
+    citation_position: list[str] | None = None
     word_count: int = Field(ge=0)
     citation_count: int = Field(ge=0)
 
 
 class StructuredCitationResponse(BaseModel):
-    citations: List[Citation]
+    citations: list[Citation]
     total_citations: int = Field(ge=0)
     unique_targets: int = Field(ge=0)
-    most_cited_articles: List[CitedArticle]
+    most_cited_articles: list[CitedArticle]
 
 
 class StructuredReferenceResponse(BaseModel):
-    references: List[Reference]
+    references: list[Reference]
     total_references: int = Field(ge=0)
     references_with_urls: int = Field(ge=0)
     reference_density: float = Field(ge=0)
@@ -46,7 +46,7 @@ class StructuredReferenceResponse(BaseModel):
 
 class SourceArticleResponse(BaseModel):
     sourceArticle: str
-    articleLanguages: List[str]
+    articleLanguages: list[str]
 
 
 class AvailableTargetLanguage(BaseModel):
@@ -57,7 +57,7 @@ class AvailableTargetLanguage(BaseModel):
 class ArticleLanguagesResponse(BaseModel):
     source_lang: str
     source_title: str
-    available_targets: List[AvailableTargetLanguage]
+    available_targets: list[AvailableTargetLanguage]
 
 
 class TranslateArticleResponse(BaseModel):

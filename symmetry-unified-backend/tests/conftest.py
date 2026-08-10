@@ -1,6 +1,8 @@
+from unittest.mock import Mock
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock
+
 from app.main import app
 
 
@@ -122,10 +124,10 @@ def mock_article_parser():
 def mock_structural_analysis_data():
     """Mock structural analysis data"""
     from app.models import (
-        TableResponse,
+        CitationAnalysisResponse,
         HeaderCount,
         InfoBoxResponse,
-        CitationAnalysisResponse,
+        TableResponse,
     )
 
     return {

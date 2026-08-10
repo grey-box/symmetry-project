@@ -1,6 +1,8 @@
 
-from .preprocessor import Preprocessor
 import math
+
+from .preprocessor import Preprocessor
+
 
 class Vectorizer:
     def __init__(self):
