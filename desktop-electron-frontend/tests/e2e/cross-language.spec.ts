@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
 import { config } from '../config';
 
 const SRC_URL = config.src_url;
-const TARGET_LANG = config.target_lang;
+const TGT_LANG = config.target_lang;
 
 /** Fill comparison form and click Compare Sections, then wait for results */
 async function runComparison(page: import('@playwright/test').Page) {

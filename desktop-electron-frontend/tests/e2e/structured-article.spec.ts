@@ -35,7 +35,7 @@ test.describe('Structured Article Viewer', () => {
     test('handles invalid URL gracefully', async ({ page }) => {
         await page.getByPlaceholder('Enter Wikipedia article title or URL').fill('https://not-wikipedia.com/wiki/Something');
         await page.getByRole('button', { name: 'Load Article' }).click();
-        const errorAlert = page.locator('[class*="red"], [class*="error"], text=/error|invalid|not found/i').first();
+        const errorAlert = page.locator('[class*=red], [class*=error], text=/error|invalid|not found/i').first();
         await expect(errorAlert).toBeVisible({ timeout: 30_000 });
     });
 });
