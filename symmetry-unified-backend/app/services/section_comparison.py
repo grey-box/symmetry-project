@@ -17,7 +17,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-import numpy as np
+from scipy.optimize import linear_sum_assignment
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
@@ -126,9 +126,20 @@ def _match_sections(
     """
     Match sections between source and target articles using title + content embeddings.
 
-    Uses a greedy best-match approach: encode section titles concatenated with a
-    content preview (first 200 chars), compute the full cosine similarity matrix,
-    then greedily assign the best remaining match above threshold.
+    Encodes section titles concatenated with a content preview (first 200 chars),
+    computes the full cosine similarity matrix, then finds the assignment that
+    maximizes total similarity across *all* pairs simultaneously (Hungarian
+    algorithm / scipy.optimize.linear_sum_assignment), rather than greedily
+    taking the single highest-scoring cell in the matrix first.
+
+    A pure greedy approach can let one section "steal" another section's best
+    match: e.g. if source section A's best match anywhere is target section X
+    (score 0.77), greedy assigns A-X immediately even when X is *also* the
+    correct, rightful match for source section B (own best score against X:
+    0.75) purely because A's score happened to be a hair higher globally. That
+    leaves B unmatched even though B-X was the better pairing to keep once you
+    account for both sections' full row of alternatives. The Hungarian
+    algorithm avoids this by optimizing the total assignment score at once.
     """
     if not source_sections or not target_sections:
         return (
@@ -149,25 +160,22 @@ def _match_sections(
 
     sim_matrix = cosine_similarity(source_embeddings, target_embeddings)
 
+    # linear_sum_assignment minimizes cost, so maximize similarity via -sim_matrix.
+    # It always returns min(n_source, n_target) pairs regardless of score, so
+    # pairs below the threshold are filtered out below just like the old greedy pass.
+    row_indices, col_indices = linear_sum_assignment(-sim_matrix)
+
     matched_pairs: list[tuple[int, int, float]] = []
     used_source: set = set()
     used_target: set = set()
 
-    # Greedy assignment: pick best pair, mark used, repeat
-    flat_indices = np.argsort(sim_matrix, axis=None)[::-1]
-    for flat_idx in flat_indices:
-        src_idx = int(flat_idx // sim_matrix.shape[1])
-        tgt_idx = int(flat_idx % sim_matrix.shape[1])
+    for src_idx, tgt_idx in zip(row_indices, col_indices):
         score = float(sim_matrix[src_idx, tgt_idx])
-
         if score < threshold:
-            break
-        if src_idx in used_source or tgt_idx in used_target:
             continue
-
-        matched_pairs.append((src_idx, tgt_idx, score))
-        used_source.add(src_idx)
-        used_target.add(tgt_idx)
+        matched_pairs.append((int(src_idx), int(tgt_idx), score))
+        used_source.add(int(src_idx))
+        used_target.add(int(tgt_idx))
 
     unmatched_source = [i for i in range(len(source_sections)) if i not in used_source]
     unmatched_target = [i for i in range(len(target_sections)) if i not in used_target]
