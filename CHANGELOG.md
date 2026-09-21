@@ -11,6 +11,17 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Backend**: Wikipedia API requests (`article_parser`, `wiki_utils`, `structured_wiki._fetch_revisions`) now use `requests` via `asyncio.to_thread` instead of `httpx`, which Wikimedia's bot mitigation rejected with `403 Forbidden`.
+- **Backend**: `article_parser` preserves paragraph boundaries between `<p>` tags, so `_split_into_paragraphs` no longer falls back to a word-count chunker that produced false "missing paragraph" results across languages.
+- **Backend**: `_match_sections` uses optimal assignment (`scipy.optimize.linear_sum_assignment`) instead of greedy best-cell-first matching, which let one section steal another's match and caused false missing/added sections.
+
+### Added
+
+- **Backend**: `scipy` declared in `requirements.txt`.
+- **Tests**: `tests/test_section_matching_and_parsing.py` regression tests for section matching and paragraph parsing.
+
 ---
 
 ## [v1.1.0] – 2026-05-01
