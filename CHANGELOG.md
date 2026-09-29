@@ -11,6 +11,14 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Backend**: `keyword_proximity` now accepts the WikiNER entity labels (`PER`, `MISC`) used by non-English spaCy models (`es`, `de`, `fr`, `it`, `pt`, ...). Previously people and titled works were dropped from non-English paragraphs, so names present in both articles showed up as falsely exclusive to the English side. For models using WikiNER labels, entity spans without a proper noun are now skipped, since the small models often tag sentence openers like "Además" or "Previamente" as people or places. English (OntoNotes) models are unaffected.
+
+### Added
+
+- **Tests**: `tests/test_keyword_proximity.py` covering entity extraction across OntoNotes and WikiNER label sets (offline, plus one test that runs only when `es_core_news_sm` is installed).
+
 ---
 
 ## [v1.1.0] – 2026-05-01
