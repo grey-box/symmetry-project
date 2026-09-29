@@ -55,6 +55,32 @@ _SPACY_MODEL_MAP: dict[str, str] = {
     "sk": "sk_core_news_sm",
 }
 
+# Entity labels kept as concepts.  The English models use OntoNotes labels,
+# while most other *_core_news_sm models (es, de, fr, it, pt, ...) use the
+# WikiNER set PER / LOC / ORG / MISC, so both sets are needed.  Without PER
+# and MISC, people and titled works vanish from non-English paragraphs.
+_TARGET_ENT_TYPES: frozenset[str] = frozenset(
+    {
+        # OntoNotes (English)
+        "PERSON",
+        "ORG",
+        "GPE",
+        "LOC",
+        "EVENT",
+        "WORK_OF_ART",
+        "FAC",
+        "NORP",
+        "PRODUCT",
+        "LAW",
+        # WikiNER (ORG and LOC are shared with OntoNotes)
+        "PER",
+        "MISC",
+    }
+)
+
+# Pipeline components whose labels tell us which entity scheme a model uses.
+_NER_COMPONENTS = ("ner", "entity_ruler")
+
 # Minimum character length for a keyword to be considered
 _MIN_KEYWORD_LENGTH = 3
 
@@ -103,12 +129,21 @@ def _normalise(text: str) -> str:
     return re.sub(r"[^\w]", "", text.lower().strip())
 
 
+def _uses_wikiner_labels(nlp) -> bool:
+    """True when the pipeline tags entities with the WikiNER set (PER, ...)."""
+    return any(
+        "PER" in nlp.get_pipe(name).labels
+        for name in _NER_COMPONENTS
+        if name in nlp.pipe_names
+    )
+
+
 def _extract_concepts(text: str, language: str) -> set[str]:
     """
     Extract a set of meaningful concepts from *text* written in *language*.
 
     Priority:
-    1. Named-entity surface forms (PERSON, ORG, GPE, LOC, EVENT, WORK_OF_ART)
+    1. Named-entity surface forms (see _TARGET_ENT_TYPES)
     2. Lemmatised PROPN tokens not already captured by NER
     3. Lemmatised NOUN / ADJ tokens (only when NER is unavailable as fallback)
 
@@ -124,21 +159,18 @@ def _extract_concepts(text: str, language: str) -> set[str]:
 
     concepts: set[str] = set()
 
+    # The small WikiNER models often tag capitalised sentence openers as
+    # entities of any label ("Además" as PER or LOC, "Durante el verano" as
+    # MISC).  Real people, places, organisations and titles almost always
+    # contain a proper noun, so require one.  OntoNotes models (English) are
+    # left alone because labels like NORP ("Spanish") are adjectives.
+    require_propn = _uses_wikiner_labels(nlp)
+
     # Named entities (highest priority)
-    target_ent_types = {
-        "PERSON",
-        "ORG",
-        "GPE",
-        "LOC",
-        "EVENT",
-        "WORK_OF_ART",
-        "FAC",
-        "NORP",
-        "PRODUCT",
-        "LAW",
-    }
     for ent in doc.ents:
-        if ent.label_ in target_ent_types:
+        if ent.label_ in _TARGET_ENT_TYPES:
+            if require_propn and not any(t.pos_ == "PROPN" for t in ent):
+                continue
             norm = _normalise(ent.text)
             if len(norm) >= _MIN_KEYWORD_LENGTH:
                 concepts.add(norm)
