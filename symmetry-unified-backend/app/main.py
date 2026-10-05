@@ -17,17 +17,21 @@ from app.routers import (
 )
 from app.routers import (
     config as config_router,
+    statements,
 )
 
 config = Config(".env")
 
 LOG_LEVEL = config.get("LOG_LEVEL", default="INFO")
 FASTAPI_DEBUG = config.get("FASTAPI_DEBUG", cast=bool, default=False)
-SIMILARITY_THRESHOLD = config.get("SIMILARITY_THRESHOLD", cast=float, default=0.65)
+SIMILARITY_THRESHOLD = config.get(
+    "SIMILARITY_THRESHOLD", cast=float, default=0.65)
 
-logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(message)s")
 
-app = FastAPI(debug=FASTAPI_DEBUG, title="Symmetry Unified API", version="1.1.0")
+app = FastAPI(debug=FASTAPI_DEBUG,
+              title="Symmetry Unified API", version="1.1.0")
 
 
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -62,6 +66,7 @@ app.include_router(structured_wiki.router)
 app.include_router(structural_analysis.router)
 app.include_router(models.router)
 app.include_router(config_router.router)
+app.include_router(statements.router)
 
 
 @app.get(
