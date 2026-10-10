@@ -20,7 +20,8 @@ const server = new Server(
 
 const HEALTH_TOOL: Tool = {
   name: "health_check",
-  description: "Check whether the MCP server is alive and responding over stdio.",
+  description:
+    "Check whether the MCP server is alive and responding over stdio.",
   inputSchema: {
     type: "object",
     properties: {},
