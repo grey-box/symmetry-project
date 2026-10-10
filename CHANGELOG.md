@@ -11,6 +11,11 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Backend**: Model adapter interface in `app/engines/`. `ModelAdapter` defines one async `generate()` call that every engine (local SLM, cloud LLM, OpenRouter) implements, with shared `GenerationRequest` and `GenerationResult` types, typed `AdapterError` exceptions, and a name-based registry (`register_adapter`, `get_adapter`). New engines can be added without changing the comparison pipeline.
+- **Tests (Backend)**: Adapter contract tests (`tests/test_adapter_contract.py`) with a `fake` adapter that every future adapter must also pass.
+
 ---
 
 ## [v1.1.0] – 2026-05-01
