@@ -9,6 +9,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.routers import (
+    api_v2,
     comparison,
     models,
     structural_analysis,
@@ -62,6 +63,7 @@ app.include_router(structured_wiki.router)
 app.include_router(structural_analysis.router)
 app.include_router(models.router)
 app.include_router(config_router.router)
+app.include_router(api_v2.router)
 
 
 @app.get(
