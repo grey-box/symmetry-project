@@ -57,7 +57,7 @@ cd symmetry-unified-backend
 python3 -m venv venv
 source venv/bin/activate          # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-python -m spacy download en_core_web_sm
+python scripts/install_spacy_models.py   # spaCy models, see README "spaCy Language Models"
 
 # Copy and edit environment config
 cp ../.env.example .env

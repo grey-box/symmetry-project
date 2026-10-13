@@ -93,7 +93,7 @@ The frontend `structuredWikiService.ts` hardcodes `API_BASE_URL = 'http://127.0.
 - `structured_wiki.py` imports `translate` from `app.ai.translations` (plural), **not** `app.ai.translation` (singular)
 - The frontend `structuredWikiService` uses raw `fetch()` while legacy services use Axios via `getAxiosInstance()` — do not mix the two
 - `similarity_scoring.py` was previously dead code; it's now used by `section_comparison.py` for Levenshtein disambiguation
-- spaCy models must be installed separately: `python -m spacy download en_core_web_sm` etc.
+- spaCy models must be installed separately with `python scripts/install_spacy_models.py` (controlled by `SPACY_MODELS`, default set is en/es/fr/de/pt/it). The language to model map lives in `app/core/spacy_models.py`; do not add a second copy
 - MarianMT models are downloaded on first use (can be slow on first request)
 
 ---

@@ -84,6 +84,7 @@ cd symmetry-unified-backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+python scripts/install_spacy_models.py
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -170,7 +171,7 @@ symmetry-unified-backend/
 - **`translation.py`** is the translation entrypoint. Import from `app.ai.translation` (singular), not `app.ai.translations` (plural).
 - **`app/models/comparison/registry.py`** is the single source of truth for all supported sentence-transformer models.
 - **`similarity_scoring.py`** provides Levenshtein disambiguation and language-family threshold selection, used by `section_comparison.py`.
-- **spaCy models** must be installed separately: `python -m spacy download en_core_web_sm`.
+- **spaCy models** are installed with `python scripts/install_spacy_models.py`. `app/core/spacy_models.py` is the single source of truth for which model belongs to which language. See [spaCy Language Models](#spacy-language-models).
 - **MarianMT models** are downloaded on first use (can be slow on first request).
 
 ---
@@ -237,6 +238,34 @@ FASTAPI_DEBUG=false
 
 See [docs/similarity-threshold-algorithm.md](docs/similarity-threshold-algorithm.md) for the full threshold reference.
 
+#### spaCy Language Models
+
+Keyword proximity (the people, places and organisations shown as missing on one side of a cross-language comparison) and the legacy AI comparison use one spaCy model per language. When a language has no model installed, the backend logs a warning and falls back to a simpler rule that only looks at capitalised words, so results for that language are less accurate.
+
+Models are installed by `scripts/install_spacy_models.py`, which is run by `start.sh`, the backend `Dockerfile` and CI. Which models it installs is controlled by the `SPACY_MODELS` environment variable:
+
+| `SPACY_MODELS` | Installs |
+|----------------|----------|
+| unset or `default` | English, Spanish, French, German, Portuguese, Italian |
+| `es,ja` or `es_core_news_sm,ja_core_news_sm` | Only the listed languages (codes and model names both work) |
+| `default,ja,ru` | The default set plus the listed languages |
+| `all` | All 24 supported languages (several hundred MB; `ja`, `zh`, `ko`, `ru` and `uk` also pull in extra tokenizer packages) |
+
+Supported language codes: `ca`, `da`, `de`, `el`, `en`, `es`, `fi`, `fr`, `hr`, `it`, `ja`, `ko`, `lt`, `mk`, `nb`, `nl`, `pl`, `pt`, `ro`, `ru`, `sl`, `sv`, `uk`, `zh`.
+
+```bash
+cd symmetry-unified-backend
+python scripts/install_spacy_models.py            # SPACY_MODELS, or the default set
+python scripts/install_spacy_models.py ja ru      # add specific languages
+python scripts/install_spacy_models.py --list     # show what is installed
+```
+
+Models that are already installed are skipped, so the script is safe to run again. With Docker the models are installed when the image is built, so set `SPACY_MODELS` in the root `.env` (or the shell) and rebuild:
+
+```bash
+SPACY_MODELS=default,ja ./start.sh docker-up-rebuild
+```
+
 #### Dependencies
 
 | Category | Packages |
@@ -255,6 +284,7 @@ See [docs/similarity-threshold-algorithm.md](docs/similarity-threshold-algorithm
 | Permission denied on `start.sh` | Run `chmod +x start.sh` |
 | Virtual environment issues | `deactivate && rm -rf venv/ && ./start.sh` |
 | Model loading issues | Models auto-download on first use and are cached locally |
+| `spaCy model '...' not installed` in the backend log | Run `python scripts/install_spacy_models.py <language code>` and restart the backend |
 | Python version error | Ensure Python 3.8+ is installed: `python3 --version` |
 
 ---

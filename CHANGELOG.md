@@ -11,6 +11,28 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Backend**: `scripts/install_spacy_models.py` installs the spaCy language models the backend needs and skips ones that are already installed. The `SPACY_MODELS` environment variable picks the set: language codes or model names, `default` (en, es, fr, de, pt, it) or `all`. Run with `--list` to see what is installed.
+- **Backend**: `app/core/spacy_models.py` is now the single language to spaCy model map, shared by keyword proximity, the legacy AI comparison and the install script.
+- **Backend**: `tests/test_spacy_models.py` covers the model map, `SPACY_MODELS` parsing, the install script and the warning and fallback when a model is missing.
+- **Docs**: "spaCy Language Models" section in `README.md`; `SPACY_MODELS` added to `.env.example`.
+
+### Changed
+
+- The backend `Dockerfile`, `start.sh` and CI now install the default six spaCy models through the install script instead of only `en_core_web_sm`. `start.sh` did not install any model before.
+- `docker-compose.yml` passes `SPACY_MODELS` to the image build as a build argument. Changing it needs a rebuild.
+- The legacy AI comparison can now use spaCy sentence splitting for every language in the shared map (it had its own list of seven).
+
+### Fixed
+
+- Non-English spaCy models were never installed, so keyword proximity silently used the capital-letter fallback for every language except English.
+- Removed `sk_core_news_sm` from the model map. spaCy does not publish a Slovak model, so that entry could never load.
+
+### Removed
+
+- `docker-compose.yml`: the `SPACY_DATA` variable, the runtime `SPACY_MODELS` variable and the `spacy_models` volume. Nothing read them, so no models were installed on container start despite earlier changelog entries.
+
 ---
 
 ## [v1.1.0] – 2026-05-01
