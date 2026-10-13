@@ -21,39 +21,10 @@ than distinct.  This makes the extraction meaningful even when source_lang
 import logging
 import re
 
+from app.core.spacy_models import SPACY_MODEL_MAP as _SPACY_MODEL_MAP
+
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# spaCy model registry (same languages as PR #10 / existing code)
-# ---------------------------------------------------------------------------
-
-_SPACY_MODEL_MAP: dict[str, str] = {
-    "en": "en_core_web_sm",
-    "de": "de_core_news_sm",
-    "fr": "fr_core_news_sm",
-    "es": "es_core_news_sm",
-    "it": "it_core_news_sm",
-    "pt": "pt_core_news_sm",
-    "nl": "nl_core_news_sm",
-    "pl": "pl_core_news_sm",
-    "ru": "ru_core_news_sm",
-    "zh": "zh_core_web_sm",
-    "ja": "ja_core_news_sm",
-    "ca": "ca_core_news_sm",
-    "da": "da_core_news_sm",
-    "el": "el_core_news_sm",
-    "nb": "nb_core_news_sm",
-    "lt": "lt_core_news_sm",
-    "mk": "mk_core_news_sm",
-    "ro": "ro_core_news_sm",
-    "sl": "sl_core_news_sm",
-    "uk": "uk_core_news_sm",
-    "ko": "ko_core_news_sm",
-    "fi": "fi_core_news_sm",
-    "sv": "sv_core_news_sm",
-    "hr": "hr_core_news_sm",
-    "sk": "sk_core_news_sm",
-}
 
 # Minimum character length for a keyword to be considered
 _MIN_KEYWORD_LENGTH = 3

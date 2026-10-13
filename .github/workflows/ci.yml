@@ -34,8 +34,8 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Download spaCy model
-        run: python -m spacy download en_core_web_sm
+      - name: Install spaCy models
+        run: python scripts/install_spacy_models.py
 
       - name: Run tests
         run: python -m pytest -m "not slow and not external" --tb=short --junitxml=report.xml

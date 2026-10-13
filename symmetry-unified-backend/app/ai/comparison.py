@@ -9,6 +9,7 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from app.core.settings import SIMILARITY_THRESHOLD as _DEFAULT_SIMILARITY_THRESHOLD
+from app.core.spacy_models import SPACY_MODEL_MAP as _SPACY_MODEL_MAP
 from app.models.comparison.registry import DEFAULT_MODEL
 from app.services.chunking import chunk_text
 
@@ -31,16 +32,6 @@ try:
     )
 except Exception:
     _ArticleComparator = None  # type: ignore[assignment,misc]
-
-_SPACY_MODEL_MAP = {
-    "en": "en_core_web_sm",
-    "de": "de_core_news_sm",
-    "fr": "fr_core_news_sm",
-    "es": "es_core_news_sm",
-    "it": "it_core_news_sm",
-    "pt": "pt_core_news_sm",
-    "nl": "nl_core_news_sm",
-}
 
 
 def _get_model(model_name: str) -> SentenceTransformer:

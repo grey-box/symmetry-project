@@ -65,6 +65,11 @@ check_backend_requirements() {
         touch venv/updated
     fi
     
+    echo "Checking spaCy models..."
+    if ! python scripts/install_spacy_models.py; then
+        echo "Warning: some spaCy models could not be installed. Keyword analysis falls back to a simpler rule for those languages."
+    fi
+    
     cd - > /dev/null
 }
 
