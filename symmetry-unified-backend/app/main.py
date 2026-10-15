@@ -4,11 +4,15 @@ from traceback import format_exc
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from starlette.config import Config
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from app.routers import (
+    api_v2,
     comparison,
     models,
     structural_analysis,
@@ -28,6 +32,10 @@ SIMILARITY_THRESHOLD = config.get("SIMILARITY_THRESHOLD", cast=float, default=0.
 logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s - %(levelname)s - %(message)s")
 
 app = FastAPI(debug=FASTAPI_DEBUG, title="Symmetry Unified API", version="1.1.0")
+
+app.state.limiter = api_v2.limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -62,6 +70,7 @@ app.include_router(structured_wiki.router)
 app.include_router(structural_analysis.router)
 app.include_router(models.router)
 app.include_router(config_router.router)
+app.include_router(api_v2.router)
 
 
 @app.get(
