@@ -11,6 +11,10 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Backend**: API v2 router skeleton under `/symmetry/v2` (`app/routers/api_v2.py`) declaring `POST /compare`, `POST /compare/llm-vs-wikipedia` and `POST /compare/llm-vs-llm`. Each returns `501 Not Implemented` until implemented; `/symmetry/v1` is unchanged.
+
 ---
 
 ## [v1.1.0] – 2026-05-01

@@ -30,6 +30,12 @@ httpx>=0.25.0
 # ML visualization and monitoring
 tensorboard>=2.19.0
 
+# ML visualization and monitoring
+tensorboard>=2.19.0
+
+# API rate limiting
+slowapi==0.1.10
+
 # Development
 pytest>=7.4.0
 sphinx>=7.1.0
