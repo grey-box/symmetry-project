@@ -1,16 +1,24 @@
-import httpx
+import asyncio
+
+import requests
 from bs4 import BeautifulSoup
 
 from app.models.wiki.structure import Article, Citation, Reference, Section
 
 
+def _fetch_wikipedia_json_sync(url: str, params: dict) -> dict:
+    # Wikimedia's bot-mitigation blocks httpx's TLS/connection fingerprint with a 403
+    # ("Please respect our robot policy") even with an identical User-Agent, so this
+    # uses `requests` instead, which is not blocked.
+    response = requests.get(
+        url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}, timeout=10.0
+    )
+    response.raise_for_status()
+    return response.json()
+
+
 async def _fetch_wikipedia_json(url: str, params: dict) -> dict:
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(
-            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
-        )
-        response.raise_for_status()
-        return response.json()
+    return await asyncio.to_thread(_fetch_wikipedia_json_sync, url, params)
 
 
 def _parse_article_html(html: str, title: str, lang: str, source: str) -> Article:
@@ -45,6 +53,14 @@ def _parse_article_html(html: str, title: str, lang: str, source: str) -> Articl
             current_citation_positions = []
 
         elif tag.name == "p":
+            # Preserve paragraph boundaries between separate <p> tags so that
+            # _split_into_paragraphs() (section_comparison.py) can split on them
+            # instead of falling back to a word-count chunker whose chunk count
+            # varies by article length and rarely lines up across languages.
+            if clean_current.strip():
+                clean_current += "\n\n"
+                rich_current += "\n\n"
+
             for element in tag.contents:
                 if hasattr(element, "name"):
                     if (

@@ -1,7 +1,23 @@
+import asyncio
 from datetime import datetime
 from urllib.parse import unquote, urlparse
 
-import httpx
+import requests
+
+
+def _get_wikipedia_json_sync(url: str, params: dict) -> dict:
+    # Wikimedia's bot-mitigation blocks httpx's TLS/connection fingerprint with a 403
+    # ("Please respect our robot policy") even with an identical User-Agent, so this
+    # uses `requests` instead, which is not blocked. See app/services/article_parser.py.
+    response = requests.get(
+        url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}, timeout=10.0
+    )
+    response.raise_for_status()
+    return response.json()
+
+
+async def _get_wikipedia_json(url: str, params: dict) -> dict:
+    return await asyncio.to_thread(_get_wikipedia_json_sync, url, params)
 
 from app.models.revision import LagReport
 
@@ -85,11 +101,7 @@ def validate_language_code(language_code: str) -> bool:
 async def page_exists(title: str, source_language: str = "en") -> bool:
     api_url = f"https://{source_language}.wikipedia.org/w/api.php"
     params = {"action": "query", "page": title, "format": "json"}
-    headers = {"User-Agent": "SymmetryUnified/1.0"}
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(api_url, params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+    data = await _get_wikipedia_json(api_url, params)
     pages = data.get("query", {}).get("pages", {})
     return "-1" not in pages
 
@@ -105,12 +117,8 @@ async def get_translation(
         "lllimit": "500",
         "format": "json",
     }
-    headers = {"User-Agent": "SymmetryUnified/1.0"}
 
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(url, params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+    data = await _get_wikipedia_json(url, params)
     pages = data.get("query", {}).get("pages", {})
 
     for page in pages.values():
@@ -131,12 +139,7 @@ async def get_latest_revision_timestamp(title: str, lang: str) -> datetime | Non
         "rvprop": "timestamp",
         "format": "json",
     }
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.get(
-            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
-        )
-        response.raise_for_status()
-        data = response.json()
+    data = await _get_wikipedia_json(url, params)
     pages = data.get("query", {}).get("pages", {})
     if not pages or "-1" in pages:
         return None
