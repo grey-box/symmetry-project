@@ -2,14 +2,17 @@
 
 Declares the v2 comparison endpoints under ``/symmetry/v2`` so that the
 versioned paths exist and appear in the OpenAPI document. Every endpoint
+accepts a ``ComparisonRequest`` and documents ``ComparisonResponse``, but
 returns ``501 Not Implemented`` until its comparison logic is built.
 
-Request and response models are attached to these endpoints when the v2
-Pydantic models are implemented. The v1 API under ``/symmetry/v1`` is not
+Requests are validated before the handler runs, so an invalid body gets
+``422`` rather than ``501``. The v1 API under ``/symmetry/v1`` is not
 affected by this module.
 """
 
 from fastapi import APIRouter, HTTPException, status
+
+from app.models.v2 import ComparisonRequest, ComparisonResponse
 
 API_V2_PREFIX = "/symmetry/v2"
 
@@ -37,9 +40,10 @@ def _not_implemented(endpoint: str) -> HTTPException:
         "LLM output). The comparison mode and strategy are selected in the "
         "request body. Not implemented yet."
     ),
+    response_model=ComparisonResponse,
     responses=_NOT_IMPLEMENTED,
 )
-async def compare():
+async def compare(body: ComparisonRequest):
     raise _not_implemented(f"POST {API_V2_PREFIX}/compare")
 
 
@@ -51,9 +55,10 @@ async def compare():
         "or not found in the matching Wikipedia article, with a confidence "
         "score and evidence. Not implemented yet."
     ),
+    response_model=ComparisonResponse,
     responses=_NOT_IMPLEMENTED,
 )
-async def compare_llm_vs_wikipedia():
+async def compare_llm_vs_wikipedia(body: ComparisonRequest):
     raise _not_implemented(f"POST {API_V2_PREFIX}/compare/llm-vs-wikipedia")
 
 
@@ -65,7 +70,8 @@ async def compare_llm_vs_wikipedia():
         "If one engine fails, the error is reported for that engine without "
         "failing the whole request. Not implemented yet."
     ),
+    response_model=ComparisonResponse,
     responses=_NOT_IMPLEMENTED,
 )
-async def compare_llm_vs_llm():
+async def compare_llm_vs_llm(body: ComparisonRequest):
     raise _not_implemented(f"POST {API_V2_PREFIX}/compare/llm-vs-llm")

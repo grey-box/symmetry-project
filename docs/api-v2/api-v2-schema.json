@@ -307,10 +307,7 @@
         "strategy": {
           "anyOf": [
             {
-              "enum": [
-                "semantic_similarity",
-                "factual_consistency"
-              ],
+              "minLength": 1,
               "type": "string"
             },
             {
@@ -360,10 +357,7 @@
           "type": "string"
         },
         "strategy": {
-          "enum": [
-            "semantic_similarity",
-            "factual_consistency"
-          ],
+          "minLength": 1,
           "title": "Strategy",
           "type": "string"
         },
