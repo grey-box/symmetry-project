@@ -5,6 +5,7 @@ See ``docs/api-v2/api-v2-response-schema.md``.
 
 from app.models.v2.common import API_VERSION, Span, Usage
 from app.models.v2.errors import ErrorDetail, ErrorResponse
+from app.models.v2.request import ComparisonOptions, ComparisonRequest, SourceInput
 from app.models.v2.response import (
     Alignment,
     Block,
@@ -22,6 +23,8 @@ __all__ = [
     "API_VERSION",
     "Alignment",
     "Block",
+    "ComparisonOptions",
+    "ComparisonRequest",
     "ComparisonResponse",
     "Engine",
     "ErrorDetail",
@@ -30,6 +33,7 @@ __all__ = [
     "GeneratedBy",
     "Result",
     "Source",
+    "SourceInput",
     "Span",
     "Statement",
     "Usage",
