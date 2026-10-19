@@ -11,6 +11,15 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Backend**: API v2 router skeleton under `/symmetry/v2` (`app/routers/api_v2.py`) declaring `POST /compare`, `POST /compare/llm-vs-wikipedia` and `POST /compare/llm-vs-llm`. Each returns `501 Not Implemented` until implemented; `/symmetry/v1` is unchanged.
+- **Backend**: Pydantic models for the API v2 published schema in `app/models/v2/` (`ComparisonRequest`, `ComparisonResponse`, `ErrorResponse` and their parts), following `docs/api-v2/api-v2-response-schema.md`. The v2 routes now validate the request body (invalid bodies get `422`) and document the response model in OpenAPI; they still return `501`.
+
+### Changed
+
+- **Docs**: In the API v2 schema, `strategy` is now an open string id from the strategy registry instead of a fixed enum.
+
 ---
 
 ## [v1.1.0] – 2026-05-01
