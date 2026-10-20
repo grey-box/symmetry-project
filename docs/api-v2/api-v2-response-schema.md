@@ -62,7 +62,7 @@ All v2 comparison endpoints accept the same request body. An endpoint may fix `m
 | `sources`  | `SourceInput[]`     | required     | 2 or more                                                                                             |
 | `prompt`   | string or null        | `null`     | The prompt given to every source with`generate_with`. Required if any source uses `generate_with` |
 | `engines`  | string[]              | `[]`       | Ids of the engines that compare. Empty means the server default for the mode                          |
-| `strategy` | enum or null          | `null`     | `semantic_similarity`, `factual_consistency`. `null` means the server default for the mode      |
+| `strategy` | string or null        | `null`     | Id of a strategy in the server's registry, e.g. `semantic_similarity`, `factual_consistency`. `null` means the server default for the mode |
 | `options`  | `ComparisonOptions` | all defaults | See below                                                                                             |
 
 ### `SourceInput`
@@ -105,7 +105,7 @@ Requests that break these rules are rejected with `invalid_request` (`422`), nam
 5. Sources must match the mode: `llm_vs_wikipedia` takes exactly one `llm_output` and one `wikipedia` source; `llm_vs_llm` takes two or more `llm_output` sources; `text_vs_text` takes two or more `text` or `document` sources.
 6. If both thresholds are set, `partial_threshold` must be lower than `similarity_threshold`.
 
-Unknown engine ids are rejected with `unsupported_engine`. An engine that cannot serve the requested strategy (section 6) is rejected with `unsupported_strategy`.
+Unknown engine ids are rejected with `unsupported_engine`. A strategy id that is not in the registry, or an engine that cannot serve the requested strategy (section 6), is rejected with `unsupported_strategy`. Strategies are an open set: registering a new one does not change this schema or the routes.
 
 ## 5. Response envelope
 
@@ -117,7 +117,7 @@ Unknown engine ids are rejected with `unsupported_engine`. An engine that cannot
 | `request_id`  | string            | Also sent as the`X-Request-ID` response header                |
 | `status`      | enum              | `success`, `partial` (some work failed, see `errors`)     |
 | `mode`        | enum              | As requested                                                    |
-| `strategy`    | enum              | The strategy actually used                                      |
+| `strategy`    | string            | Id of the strategy actually used                                |
 | `prompt`      | string or null    | Echo of the request prompt                                      |
 | `duration_ms` | integer           | Total server time for the request                               |
 | `sources`     | `Source[]`      | Everything that was compared, in request order                  |
