@@ -75,6 +75,17 @@ def _get_model(model_name: str) -> SentenceTransformer:
     return _model_cache[model_name]
 
 
+# Keyword matching always uses LaBSE to recognise translated names
+# ("spain" / "españa"), whichever model compares the paragraphs, because the
+# other selectable models are English-only.
+_NAME_MATCH_MODEL = "sentence-transformers/LaBSE"
+
+
+def _encode_names(names: list[str]) -> Any:
+    """Embed keyword names with LaBSE (loaded on first use, then cached)."""
+    return _get_model(_NAME_MATCH_MODEL).encode(names)
+
+
 def _split_into_paragraphs(section: Section) -> list[str]:
     """
     Split a section's clean_content into paragraph-sized chunks.
@@ -274,6 +285,7 @@ def _compare_paragraphs(
                 target_paragraphs[best_idx],
                 source_lang,
                 target_lang,
+                encode_names=_encode_names if source_lang != target_lang else None,
             )
 
             diffs.append(

@@ -10,16 +10,29 @@ discuss specific people, places, events, or topics that the other omits.
 
 Cross-language strategy
 -----------------------
-Named entities (PERSON, ORG, GPE, LOC) and proper nouns are often written
-identically or very similarly across languages (e.g. "Paris", "Einstein",
-"NATO").  For other tokens we rely on fuzzy Levenshtein matching so that
-cognates (e.g. "democracy" / "démocratie") are treated as equivalent rather
-than distinct.  This makes the extraction meaningful even when source_lang
-≠ target_lang.
+Concepts are kept as lower-case phrases ("pablo ruiz picasso"), with French
+and Italian elisions removed ("golfe d'Italie" becomes "golfe italie").  Two
+concepts from different languages count as the same when, after removing
+accents, any of these hold:
+
+1. They are identical ("Málaga" / "Malaga").
+2. The words of one are contained in the other ("picasso" and
+   "pablo picasso" both match "pablo ruiz picasso").
+3. Their Levenshtein similarity reaches _CROSS_LANG_MATCH_THRESHOLD, which
+   catches close cognates ("barcelona" / "barcelone").
+4. A multilingual sentence encoder (LaBSE) says they are translations
+   ("spain" / "españa", "germany" / "deutschland").  This step only runs on
+   what steps 1-3 left unmatched, and a pair must be each other's best
+   candidate, because LaBSE also rates some neighbours highly
+   ("sweden" / "switzerland" scores 0.89).
 """
 
 import logging
 import re
+import unicodedata
+from collections.abc import Callable, Sequence
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -86,11 +99,54 @@ _MIN_KEYWORD_LENGTH = 3
 
 # Levenshtein similarity threshold for cross-language keyword matching.
 # Two keywords are considered "the same concept" if their normalised edit
-# similarity exceeds this value (0 = completely different, 1 = identical).
-_CROSS_LANG_MATCH_THRESHOLD = 0.75
+# similarity reaches this value (0 = completely different, 1 = identical).
+# 0.75 let one edit in four letters through, which matched "iran" with
+# "iraq" and "austria" with "australia".  Translations that differ by more
+# than that ("france" / "francia") are left to the LaBSE step.
+_CROSS_LANG_MATCH_THRESHOLD = 0.8
+
+# Cosine similarity a pair of names needs under LaBSE to count as a
+# translation.  Chosen from en/fr, en/es, en/de and en/pt comparisons of
+# Picasso, Berlin, Barcelona and Lisbon: pairs from 0.80 up were nearly all
+# right (france/frankreich 0.83, frederick ii/friedrich ii 0.84,
+# iberian peninsula/península ibérica 0.83), and most pairs below 0.75
+# were wrong (manet/mañach 0.73).  Different places that still score high:
+# sweden/switzerland 0.89, austria/australia 0.83, barcino/barkeno 0.83.
+# Requiring a mutual best match stops those when both names appear in the
+# paragraph pair.
+_NAME_TRANSLATION_THRESHOLD = 0.8
+
+# Elided articles and prepositions ("l'", "d'", "dell'", "qu'") that are
+# glued to the next word in French, Italian and Catalan.
+_ELISION_RE = re.compile(
+    r"\b(?:l|d|j|m|n|s|t|c|qu|jusqu|lorsqu|puisqu|dell|dall|nell|sull|all|coll|degl)['’ʼ]",
+    re.IGNORECASE,
+)
+_POSSESSIVE_RE = re.compile(r"['’ʼ]s\b", re.IGNORECASE)
+
+# Small words that join the parts of a name ("Gulf of Naples", "José Ruiz y
+# Blasco").  They are ignored when comparing the words of two names.
+# fmt: off
+_CONNECTOR_WORDS: frozenset[str] = frozenset(
+    {
+        "the", "of", "and", "de", "del", "della", "delle", "di", "da", "do",
+        "dos", "das", "du", "des", "la", "le", "les", "el", "los", "las", "lo",
+        "il", "y", "e", "et", "und", "von", "van", "der", "den", "dem", "zu",
+        "a", "al", "au", "aux",
+    }
+)
+# fmt: on
+
+# Anything that turns a list of strings into a 2-D array of embeddings.
+NameEncoder = Callable[[list[str]], np.ndarray]
 
 # spaCy NLP model cache
 _nlp_cache: dict = {}
+
+# LaBSE vectors for names already seen, keyed by the name.  Cleared when it
+# grows past _NAME_EMBEDDING_CACHE_LIMIT so a long session can't fill memory.
+_name_embedding_cache: dict[str, np.ndarray] = {}
+_NAME_EMBEDDING_CACHE_LIMIT = 20_000
 
 
 def _load_nlp(language: str):
@@ -125,8 +181,38 @@ def _load_nlp(language: str):
 
 
 def _normalise(text: str) -> str:
-    """Lower-case and strip non-alphabetic (and non-digit) characters."""
-    return re.sub(r"[^\w]", "", text.lower().strip())
+    """
+    Turn a name into a lower-case phrase of plain words.
+
+    "Pablo Ruiz Picasso" -> "pablo ruiz picasso", "golfe d'Italie" ->
+    "golfe italie", "the Gulf of Naples" -> "gulf of naples".  Accents are
+    kept so the keyword chips in the UI read naturally; _fold removes them
+    for comparisons.
+    """
+    text = _POSSESSIVE_RE.sub("", text.lower())
+    text = _ELISION_RE.sub("", text)
+    words = re.sub(r"[\W_]+", " ", text).split()
+    if words and words[0] == "the":
+        words = words[1:]
+    return " ".join(words)
+
+
+def _fold(text: str) -> str:
+    """Remove accents so "málaga" and "malaga" compare equal."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(c for c in decomposed if not unicodedata.combining(c))
+
+
+def _content_words(concept: str) -> frozenset[str]:
+    """The words of a concept without connectors, accents removed."""
+    return frozenset(w for w in _fold(concept).split() if w not in _CONNECTOR_WORDS)
+
+
+def _keep(concepts: set[str], text: str) -> None:
+    """Normalise *text* and add it to *concepts* if it is long enough."""
+    norm = _normalise(text)
+    if len(norm.replace(" ", "")) >= _MIN_KEYWORD_LENGTH:
+        concepts.add(norm)
 
 
 def _uses_wikiner_labels(nlp) -> bool:
@@ -144,20 +230,24 @@ def _extract_concepts(text: str, language: str) -> set[str]:
 
     Priority:
     1. Named-entity surface forms (see _TARGET_ENT_TYPES)
-    2. Lemmatised PROPN tokens not already captured by NER
+    2. Runs of PROPN tokens not already captured by NER, kept together so
+       "Pablo Ruiz Picasso" stays one name when NER misses it
     3. Lemmatised NOUN / ADJ tokens (only when NER is unavailable as fallback)
 
-    Returns normalised (lowercased, stripped) concepts with length >= 3.
+    Returns normalised phrases (see _normalise) with at least 3 letters.
     """
     nlp = _load_nlp(language)
     if nlp is None:
         # Fallback: split on spaces, keep tokens >= 4 chars that start uppercase
-        tokens = {_normalise(t) for t in text.split() if len(t) >= 4 and t[0].isupper()}
-        return {t for t in tokens if len(t) >= _MIN_KEYWORD_LENGTH}
+        concepts: set[str] = set()
+        for t in text.split():
+            if len(t) >= 4 and t[0].isupper():
+                _keep(concepts, t)
+        return concepts
 
     doc = nlp(text)
 
-    concepts: set[str] = set()
+    concepts = set()
 
     # The small WikiNER models often tag capitalised sentence openers as
     # entities of any label ("Además" as PER or LOC, "Durante el verano" as
@@ -171,27 +261,44 @@ def _extract_concepts(text: str, language: str) -> set[str]:
         if ent.label_ in _TARGET_ENT_TYPES:
             if require_propn and not any(t.pos_ == "PROPN" for t in ent):
                 continue
-            norm = _normalise(ent.text)
-            if len(norm) >= _MIN_KEYWORD_LENGTH:
-                concepts.add(norm)
+            _keep(concepts, ent.text)
 
-    # Proper nouns not already captured by a named entity span
-    ent_start_tokens = {t.i for ent in doc.ents for t in ent}
+    # Proper nouns not already captured by a named entity span.  Neighbouring
+    # proper nouns are joined into one name.
+    in_entity = {t.i for ent in doc.ents for t in ent}
+    run: list = []
+
+    def flush_run() -> None:
+        # Taggers sometimes count a joining word as part of a name, such as
+        # the Spanish "y" in an English text's "José Ruiz y Blasco".
+        while run and run[0].lower_ in _CONNECTOR_WORDS:
+            run.pop(0)
+        while run and run[-1].lower_ in _CONNECTOR_WORDS:
+            run.pop()
+        if len(run) == 1:
+            _keep(concepts, run[0].lemma_)
+        elif run:
+            _keep(concepts, " ".join(t.text for t in run))
+        run.clear()
+
     for token in doc:
-        if token.i in ent_start_tokens:
-            continue
-        if token.pos_ == "PROPN" and not token.is_stop and token.is_alpha:
-            norm = _normalise(token.lemma_)
-            if len(norm) >= _MIN_KEYWORD_LENGTH:
-                concepts.add(norm)
+        is_name_part = (
+            token.i not in in_entity
+            and token.pos_ == "PROPN"
+            and not token.is_stop
+            and token.is_alpha
+        )
+        if is_name_part:
+            run.append(token)
+        else:
+            flush_run()
+    flush_run()
 
     # If nothing was found (very short or purely numeric text), also scan nouns
     if not concepts:
         for token in doc:
             if token.pos_ in {"NOUN", "ADJ"} and not token.is_stop and token.is_alpha:
-                norm = _normalise(token.lemma_)
-                if len(norm) >= _MIN_KEYWORD_LENGTH:
-                    concepts.add(norm)
+                _keep(concepts, token.lemma_)
 
     return concepts
 
@@ -222,6 +329,19 @@ def _levenshtein_similarity(a: str, b: str) -> float:
     return 1.0 - edit_distance / max(la, lb)
 
 
+def _names_match(a: str, b: str, threshold: float) -> bool:
+    """Spelling-based match between two normalised concepts (steps 1-3)."""
+    folded_a, folded_b = _fold(a), _fold(b)
+    if folded_a == folded_b:
+        return True
+
+    words_a, words_b = _content_words(a), _content_words(b)
+    if words_a and words_b and (words_a <= words_b or words_b <= words_a):
+        return True
+
+    return _levenshtein_similarity(folded_a, folded_b) >= threshold
+
+
 def _is_matched_cross_lang(
     keyword: str,
     other_concepts: set[str],
@@ -229,16 +349,54 @@ def _is_matched_cross_lang(
 ) -> bool:
     """
     Return True if *keyword* has a counterpart in *other_concepts* that is
-    similar enough to count as "the same concept" across languages.
-
-    We first try exact match, then fuzzy Levenshtein similarity.
+    spelled similarly enough to count as "the same concept" across
+    languages.  Translations are handled separately by
+    _pair_translated_names.
     """
     if keyword in other_concepts:
         return True
-    for other in other_concepts:
-        if _levenshtein_similarity(keyword, other) >= threshold:
-            return True
-    return False
+    return any(_names_match(keyword, other, threshold) for other in other_concepts)
+
+
+def _embed_names(names: list[str], encode: NameEncoder) -> np.ndarray:
+    """Unit-length embeddings for *names*, reusing cached vectors."""
+    missing = [n for n in dict.fromkeys(names) if n not in _name_embedding_cache]
+    if missing:
+        if len(_name_embedding_cache) + len(missing) > _NAME_EMBEDDING_CACHE_LIMIT:
+            _name_embedding_cache.clear()
+        vectors = np.asarray(encode(missing), dtype=np.float32)
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        vectors = vectors / np.where(norms == 0, 1, norms)
+        _name_embedding_cache.update(zip(missing, vectors))
+    return np.stack([_name_embedding_cache[n] for n in names])
+
+
+def _pair_translated_names(
+    source_names: Sequence[str],
+    target_names: Sequence[str],
+    encode: NameEncoder,
+    threshold: float = _NAME_TRANSLATION_THRESHOLD,
+) -> set[tuple[str, str]]:
+    """
+    Pair names that LaBSE considers translations of each other.
+
+    A pair is kept only when each name is the other's closest candidate and
+    their cosine similarity reaches *threshold*.
+    """
+    if not source_names or not target_names:
+        return set()
+
+    source_vectors = _embed_names(list(source_names), encode)
+    target_vectors = _embed_names(list(target_names), encode)
+    similarity = source_vectors @ target_vectors.T
+
+    pairs: set[tuple[str, str]] = set()
+    best_target_for = similarity.argmax(axis=1)
+    best_source_for = similarity.argmax(axis=0)
+    for i, j in enumerate(best_target_for):
+        if best_source_for[j] == i and similarity[i, j] >= threshold:
+            pairs.add((source_names[i], target_names[j]))
+    return pairs
 
 
 def extract_exclusive_keywords(
@@ -246,6 +404,7 @@ def extract_exclusive_keywords(
     target_text: str,
     source_lang: str,
     target_lang: str,
+    encode_names: NameEncoder | None = None,
 ) -> tuple[list[str], list[str]]:
     """
     For a matched paragraph pair, return the concepts that are distinctive
@@ -261,6 +420,11 @@ def extract_exclusive_keywords(
         ISO 639-1 code for the source article language (e.g. ``"en"``).
     target_lang : str
         ISO 639-1 code for the target article language (e.g. ``"fr"``).
+    encode_names : callable, optional
+        Multilingual encoder (LaBSE) used to match translated names such as
+        "spain" / "españa" when the languages differ.  It is only called for
+        names that spelling could not match.  Without it, translated names
+        that are spelled differently stay exclusive.
 
     Returns
     -------
@@ -279,25 +443,34 @@ def extract_exclusive_keywords(
         logger.error("Keyword extraction failed: %s", exc)
         return [], []
 
-    source_exclusive: list[str] = []
-    target_exclusive: list[str] = []
+    if source_lang == target_lang:
+        return (
+            sorted(source_concepts - target_concepts),
+            sorted(target_concepts - source_concepts),
+        )
 
-    same_language = source_lang == target_lang
+    source_exclusive = [
+        kw
+        for kw in sorted(source_concepts)
+        if not _is_matched_cross_lang(kw, target_concepts)
+    ]
+    target_exclusive = [
+        kw
+        for kw in sorted(target_concepts)
+        if not _is_matched_cross_lang(kw, source_concepts)
+    ]
 
-    for kw in sorted(source_concepts):
-        if same_language:
-            if kw not in target_concepts:
-                source_exclusive.append(kw)
-        else:
-            if not _is_matched_cross_lang(kw, target_concepts):
-                source_exclusive.append(kw)
-
-    for kw in sorted(target_concepts):
-        if same_language:
-            if kw not in source_concepts:
-                target_exclusive.append(kw)
-        else:
-            if not _is_matched_cross_lang(kw, source_concepts):
-                target_exclusive.append(kw)
+    if encode_names is not None and source_exclusive and target_exclusive:
+        try:
+            pairs = _pair_translated_names(
+                source_exclusive, target_exclusive, encode_names
+            )
+        except Exception as exc:
+            logger.warning("Translated name matching failed: %s", exc)
+            pairs = set()
+        matched_source = {s for s, _ in pairs}
+        matched_target = {t for _, t in pairs}
+        source_exclusive = [kw for kw in source_exclusive if kw not in matched_source]
+        target_exclusive = [kw for kw in target_exclusive if kw not in matched_target]
 
     return source_exclusive, target_exclusive
