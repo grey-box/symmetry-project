@@ -1,0 +1,7 @@
+# Shell scripts must keep Unix line endings or bash (WSL, Docker, Linux)
+# fails on them, even when Git on Windows converts other files to CRLF.
+*.sh text eol=lf
+
+# Windows batch files expect Windows line endings.
+*.cmd text eol=crlf
+*.bat text eol=crlf

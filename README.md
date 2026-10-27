@@ -59,15 +59,22 @@ Python FastAPI backend in `symmetry-unified-backend` and a desktop Electron fron
 ### Unified Script (Recommended)
 
 ```bash
-# Start both backend and frontend
-./start.sh all
+# Start both backend and frontend (the app opens once the backend is ready;
+# closing the app window or pressing Ctrl+C stops both)
+./start.sh
 
 # Start with frontend in development mode
 ./start.sh all --dev
 
 # Start backend only
 ./start.sh backend
+
+# Check or stop running services
+./start.sh status
+./start.sh stop
 ```
+
+**Windows:** run `./start.sh` from Git Bash (installed with [Git for Windows](https://git-scm.com/download/win)), or run `start-windows.cmd` from Command Prompt or PowerShell, which runs `start.sh` through Git Bash and takes the same commands (for example `.\start-windows.cmd backend`). Python 3.11 is found through the `py` launcher, so check that `py -3.11 --version` works first.
 
 ### Docker Compose
 
@@ -251,7 +258,7 @@ See [docs/similarity-threshold-algorithm.md](docs/similarity-threshold-algorithm
 
 | Problem | Solution |
 |---------|---------|
-| `python3: command not found` | Change `python3` to `python` in `start.sh` |
+| `Python 3.11 is not installed` from `start.sh` | Install Python 3.11. On Windows, check that `py -3.11 --version` works |
 | Permission denied on `start.sh` | Run `chmod +x start.sh` |
 | Virtual environment issues | `deactivate && rm -rf venv/ && ./start.sh` |
 | Model loading issues | Models auto-download on first use and are cached locally |
