@@ -11,6 +11,18 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Scripts**: `start.sh` now works on Windows from Git Bash. It finds Python 3.11 through the `py` launcher, uses the Windows virtual environment layout (`venv/Scripts`), and uses `netstat` and `taskkill` instead of `lsof` and `kill`, so `stop`, `status` and the cleanup on exit work there too.
+- **Scripts**: `start-windows.cmd` runs `start.sh` through Git Bash, so Windows users can start Symmetry from Command Prompt or PowerShell or by double-clicking it.
+- **Repo**: `.gitattributes` keeps `.sh` files on LF line endings, so bash outside Git Bash (WSL, Docker) can run them on Windows checkouts.
+
+### Changed
+
+- **Scripts**: `start.sh all` installs missing dependencies first, then waits for the backend's `/health` endpoint before launching the app, instead of a fixed 3-second pause. Closing the app window now also stops the backend.
+- **Scripts**: Running `start.sh` with no command starts everything, as its help text already said, instead of only printing the help.
+- **Scripts**: `stop` and `reset` only stop processes listening on the backend and frontend ports. Before, `lsof` also matched processes that were only connected to them.
+
 ---
 
 ## [v1.1.0] – 2026-05-01
