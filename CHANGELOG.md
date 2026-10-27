@@ -14,10 +14,12 @@ Versioning: [Semantic Versioning](https://semver.org/).
 ### Fixed
 
 - **Backend**: `keyword_proximity` now accepts the WikiNER entity labels (`PER`, `MISC`) used by non-English spaCy models (`es`, `de`, `fr`, `it`, `pt`, ...). Previously people and titled works were dropped from non-English paragraphs, so names present in both articles showed up as falsely exclusive to the English side. For models using WikiNER labels, entity spans without a proper noun are now skipped, since the small models often tag sentence openers like "Además" or "Previamente" as people or places. English (OntoNotes) models are unaffected.
+- **Backend**: Cross-language keyword comparison no longer flags the same name as missing because it is written differently. Keywords keep their spaces ("pablo ruiz picasso" instead of "pabloruizpicasso"), neighbouring proper nouns form one name, French/Italian elisions are removed ("golfe d'Italie" becomes "golfe italie"), and accents are ignored when comparing ("Málaga" / "Malaga"). A name now matches when its words are contained in the other ("Picasso" and "Pablo Picasso" match "Pablo Ruiz Picasso"). The spelling threshold rose from 0.75 to 0.8, which stops "iran" / "iraq" and "austria" / "australia" from matching.
+- **Backend**: Translated names ("Spain" / "España", "Germany" / "Deutschland", "Frederick II" / "Friedrich II") are matched with LaBSE when spelling can't match them. This only runs on names left over after the spelling checks, a pair must be each other's best match with cosine similarity of at least 0.8, and LaBSE is used whichever comparison model is selected because the others are English-only. On en/fr, en/es, en/de and en/pt comparisons of Picasso, Berlin, Barcelona and Lisbon, flagged keywords dropped from 963 to 748.
 
 ### Added
 
-- **Tests**: `tests/test_keyword_proximity.py` covering entity extraction across OntoNotes and WikiNER label sets (offline, plus one test that runs only when `es_core_news_sm` is installed).
+- **Tests**: `tests/test_keyword_proximity.py` covering entity extraction across OntoNotes and WikiNER label sets (offline, plus one test that runs only when `es_core_news_sm` is installed), and for multi-word names, elisions, accents and translated-name matching (using a fake encoder, so LaBSE isn't downloaded in CI).
 
 ---
 
