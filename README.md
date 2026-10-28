@@ -153,6 +153,9 @@ symmetry-unified-backend/
 │   │       └── registry.py    # Single source of truth for models
 │   ├── core/
 │   │   └── settings.py        # All configurable thresholds
+│   ├── engines/               # Model adapters behind one interface
+│   │   ├── base.py            # ModelAdapter, GenerationRequest/Result
+│   │   └── local_slm.py       # Local SLM via an OpenAI-compatible server (Ollama)
 │   ├── routers/               # API route handlers
 │   ├── services/              # Business logic
 │   │   ├── article_parser.py        # Wikipedia HTML → Article model
@@ -236,6 +239,18 @@ FASTAPI_DEBUG=false
 ```
 
 See [docs/similarity-threshold-algorithm.md](docs/similarity-threshold-algorithm.md) for the full threshold reference.
+
+#### Local SLM engine
+
+The `local_slm` adapter (`app/engines/local_slm.py`) runs a small language model on your machine through any OpenAI-compatible server (Ollama, LM Studio, llama.cpp). Set the endpoint in `.env`:
+
+```env
+LOCAL_SLM_BASE_URL=http://localhost:11434/v1
+```
+
+With Ollama, pull a model first (`ollama pull qwen2.5:1.5b`), then build the adapter with `get_adapter("local_slm", "qwen2.5:1.5b")`. Failures raise typed `AdapterError`s: an unreachable server or a rejected request, a timeout or 5xx/429 (retryable), and a bad model name or refused credentials (config errors).
+
+To run the live test against a real server: `LOCAL_SLM_TEST_MODEL=qwen2.5:1.5b python -m pytest tests/test_local_slm_adapter.py -m integration`.
 
 #### Dependencies
 
