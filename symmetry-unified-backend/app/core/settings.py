@@ -84,3 +84,13 @@ BAND_UNKNOWN: tuple = (
     _config("BAND_UNK_DISTANT", cast=float, default=0.25),
     _config("BAND_UNK_UNRELATED", cast=float, default=0.10),
 )
+
+# ---------------------------------------------------------------------------
+# Model engines (app/engines)
+# ---------------------------------------------------------------------------
+
+# OpenAI-compatible endpoint of the local SLM server (Ollama by default).
+# An empty value (e.g. a bare `LOCAL_SLM_BASE_URL=` in .env) falls back to the default.
+LOCAL_SLM_BASE_URL: str = (
+    _config("LOCAL_SLM_BASE_URL", default="").strip() or "http://localhost:11434/v1"
+)
