@@ -26,7 +26,23 @@ def _chat_stub(request):
 ADAPTER_CASES = [
     ("fake", "fake-model", {}),
     ("local_slm", "qwen2.5:1.5b", {"transport": httpx.MockTransport(_chat_stub)}),
+    (
+        "cloud_llm",
+        "cheap-model",
+        {
+            "base_url": "https://llm.test/v1",
+            "api_key_env": "CONTRACT_TEST_API_KEY",
+            "transport": httpx.MockTransport(_chat_stub),
+        },
+    ),
 ]
+
+
+# cloud_llm reads its key from the environment when it is built.
+@pytest.fixture(autouse=True)
+def _contract_api_key(monkeypatch):
+    monkeypatch.setenv("CONTRACT_TEST_API_KEY", "contract-test-key")
+
 
 
 # Runs a coroutine to completion.
