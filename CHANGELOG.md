@@ -15,6 +15,8 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 - **Backend**: Model adapter interface in `app/engines/`. `ModelAdapter` defines one async `generate()` call that every engine (local SLM, cloud LLM, OpenRouter) implements, with shared `GenerationRequest` and `GenerationResult` types, typed `AdapterError` exceptions, and a name-based registry (`register_adapter`, `get_adapter`). New engines can be added without changing the comparison pipeline.
 - **Tests (Backend)**: Adapter contract tests (`tests/test_adapter_contract.py`) with a `fake` adapter that every future adapter must also pass.
+- **Backend**: `local_slm` engine adapter (`app/engines/local_slm.py`). Calls a local small language model through an OpenAI-compatible `/chat/completions` API (Ollama by default; LM Studio and llama.cpp also work), maps timeouts, unreachable servers and HTTP errors onto the typed `AdapterError` classes (401/403 and 404 as config errors, 429 and 5xx as retryable, the server's own error text included), and reports token usage and latency. The endpoint is set with the new `LOCAL_SLM_BASE_URL` setting (default `http://localhost:11434/v1`).
+- **Tests (Backend)**: `tests/test_local_slm_adapter.py` covers the local SLM adapter offline with `httpx.MockTransport`; `local_slm` also runs the shared contract tests. An opt-in live test runs against a real server when `LOCAL_SLM_TEST_MODEL` is set.
 
 ---
 

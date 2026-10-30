@@ -1,4 +1,5 @@
 from . import fake  # noqa: F401  (registers the "fake" adapter)
+from . import local_slm  # noqa: F401  (registers the "local_slm" adapter)
 from .base import GenerationRequest, GenerationResult, ModelAdapter
 from .errors import (
     AdapterConfigError,

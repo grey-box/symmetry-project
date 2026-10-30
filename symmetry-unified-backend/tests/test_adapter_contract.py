@@ -1,5 +1,6 @@
 import asyncio
 
+import httpx
 import pytest
 
 from app.engines import (
@@ -13,8 +14,19 @@ from app.engines import (
     register_adapter,
 )
 
+
+# Stands in for an OpenAI-compatible server so HTTP adapters run offline.
+def _chat_stub(request):
+    if request.url.path.endswith("/models"):
+        return httpx.Response(200, json={"data": []})
+    return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+
 # New adapters get added here so they run the same contract tests.
-ADAPTER_CASES = [("fake", "fake-model", {})]
+ADAPTER_CASES = [
+    ("fake", "fake-model", {}),
+    ("local_slm", "qwen2.5:1.5b", {"transport": httpx.MockTransport(_chat_stub)}),
+]
 
 
 # Runs a coroutine to completion.
