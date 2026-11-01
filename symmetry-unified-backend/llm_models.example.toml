@@ -1,0 +1,62 @@
+# Model catalog for the cost-based model selector (app/engines/selection.py).
+#
+# Copy this file to llm_models.toml (or point LLM_MODELS_PATH at your own file) and edit it.
+# This file holds NO secrets: api_key_env is only the NAME of an environment variable,
+# and the key itself lives in your .env or your shell, never here.
+#
+# The selector calls the cheapest model first (input price + output price per 1M tokens;
+# ties go to the lower tier, then the id). Models whose key is not set are skipped.
+#
+# Every model that is not local must state both prices, so a model with a forgotten price
+# is never mistaken for a free one. Copy the prices from the provider's pricing page; the
+# values below are placeholders, and so are the model names.
+
+[[models]]
+id = "openai-small"
+provider = "cloud_llm"
+model = "REPLACE-WITH-OPENAI-MODEL"
+tier = 1
+price_per_1m_input = 0.0   # FILL IN
+price_per_1m_output = 0.0  # FILL IN
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+# Some newer OpenAI models want max_completion_tokens and reject a temperature value:
+# max_tokens_param = "max_completion_tokens"
+# omit_temperature = true
+
+[[models]]
+id = "mistral-small"
+provider = "cloud_llm"
+model = "REPLACE-WITH-MISTRAL-MODEL"
+tier = 1
+price_per_1m_input = 0.0   # FILL IN
+price_per_1m_output = 0.0  # FILL IN
+base_url = "https://api.mistral.ai/v1"
+api_key_env = "MISTRAL_API_KEY"
+
+[[models]]
+id = "qwen-small"
+provider = "cloud_llm"
+model = "REPLACE-WITH-QWEN-MODEL"
+tier = 1
+price_per_1m_input = 0.0   # FILL IN
+price_per_1m_output = 0.0  # FILL IN
+base_url = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+api_key_env = "DASHSCOPE_API_KEY"
+
+# A higher-tier model, used only where a language pair below says the cheap ones underperform.
+[[models]]
+id = "openai-strong"
+provider = "cloud_llm"
+model = "REPLACE-WITH-HIGHER-TIER-MODEL"
+tier = 2
+price_per_1m_input = 0.0   # FILL IN
+price_per_1m_output = 0.0  # FILL IN
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+
+# Language pairs ("source->target") where the cheapest model is known to underperform.
+# A pair listed here uses ONLY these models, in this order; every other pair uses the
+# cheapest model. Base the entries on measured accuracy, not guesses.
+[language_overrides]
+# "en->sw" = ["openai-strong"]

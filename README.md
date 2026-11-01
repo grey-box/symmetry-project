@@ -155,7 +155,9 @@ symmetry-unified-backend/
 │   │   └── settings.py        # All configurable thresholds
 │   ├── engines/               # Model adapters behind one interface
 │   │   ├── base.py            # ModelAdapter, GenerationRequest/Result
-│   │   └── local_slm.py       # Local SLM via an OpenAI-compatible server (Ollama)
+│   │   ├── local_slm.py       # Local SLM via an OpenAI-compatible server (Ollama)
+│   │   ├── cloud_llm.py       # Hosted LLM via any OpenAI-compatible endpoint
+│   │   └── selection.py       # Cheapest-model selector with per-language-pair overrides
 │   ├── routers/               # API route handlers
 │   ├── services/              # Business logic
 │   │   ├── article_parser.py        # Wikipedia HTML → Article model
@@ -251,6 +253,36 @@ LOCAL_SLM_BASE_URL=http://localhost:11434/v1
 With Ollama, pull a model first (`ollama pull qwen2.5:1.5b`), then build the adapter with `get_adapter("local_slm", "qwen2.5:1.5b")`. Failures raise typed `AdapterError`s: an unreachable server or a rejected request, a timeout or 5xx/429 (retryable), and a bad model name or refused credentials (config errors).
 
 To run the live test against a real server: `LOCAL_SLM_TEST_MODEL=qwen2.5:1.5b python -m pytest tests/test_local_slm_adapter.py -m integration`.
+
+#### Cloud LLM engine and model selection
+
+The `cloud_llm` adapter (`app/engines/cloud_llm.py`) calls a hosted model through any OpenAI-compatible endpoint (OpenAI, Mistral, Qwen, OpenRouter, ...). The provider is configuration, not code:
+
+```python
+get_adapter(
+    "cloud_llm", "<model name>",
+    base_url="https://api.mistral.ai/v1",   # required
+    api_key_env="MISTRAL_API_KEY",           # the NAME of the environment variable
+    price_per_1m_input=0.0, price_per_1m_output=0.0,  # optional; adds usage["cost_usd"]
+)
+```
+
+- **API keys are read from environment variables only.** `api_key_env` names the variable. A raw `api_key` argument is refused, and the key never appears in errors, logs or the adapter's config. Put keys in `.env` (git-ignored) or your shell, never in a committed file.
+- A missing key raises `AdapterConfigError` naming the variable. 429 and 5xx are retryable; 401/403 and 404 are config errors.
+- Models that need `max_completion_tokens` or reject a temperature value are supported with `max_tokens_param="max_completion_tokens"` and `omit_temperature=True`.
+- To run the opt-in live tests against a real endpoint (the key comes from `.env` or your shell): `CLOUD_LLM_TEST_MODEL=<model id> CLOUD_LLM_TEST_BASE_URL=<endpoint> CLOUD_LLM_TEST_KEY_ENV=<key variable name> python -m pytest tests/test_cloud_llm_live.py`. Checked against NVIDIA's free hosted API (`https://integrate.api.nvidia.com/v1`, key variable `NVIDIA_API_KEY`).
+
+**Cost-based selection.** `ModelSelector` (`app/engines/selection.py`) calls the cheapest model by default (input price plus output price per 1M tokens) and uses a higher-tier model only for the language pairs you list as overrides. Copy `symmetry-unified-backend/llm_models.example.toml` to `llm_models.toml`, fill in the model names and the prices from each provider's pricing page, then:
+
+```python
+selector = load_selector()                       # reads llm_models.toml (or LLM_MODELS_PATH)
+result = await selector.generate(request, "en", "sw")                  # cheapest, or the override
+result = await selector.generate(request, "en", "sw", fallback=True)   # on failure, try the next model
+```
+
+- A language pair with an override (`"en->sw" = ["strong-model"]`) uses only the models listed for it. Every other pair uses the cheapest model. Models whose key is not set are skipped.
+- Fallback is off by default, because moving to a pricier model silently raises cost. With `fallback=True` any failure (bad key, unknown model, unreachable server, timeout, rate limit) moves to the next model. If every model fails, the last error is raised and its message lists the earlier failures.
+- `result.model` names the model that answered. Prices are required for every non-local model, so a forgotten price is an error, not a free model.
 
 #### Dependencies
 
