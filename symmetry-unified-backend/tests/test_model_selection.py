@@ -203,12 +203,38 @@ def test_fallback_moves_to_the_next_model_on_a_retryable_failure():
     assert result.model == "strong" and result.text == "rescued"
 
 
+def refuse(status):
+    return lambda request: httpx.Response(status, json={"error": "nope"})
+
+
+def unreachable(request):
+    raise httpx.ConnectError("connection refused")
+
+
+# Fallback means "try a different model", so failures that only that model has (a revoked key,
+# a retired model name, a server that is down, a rejected parameter) move on too.
 @pytest.mark.unit
-def test_fallback_does_not_hide_a_non_retryable_failure():
-    rejected = cloud("cheap", 1, lambda r: httpx.Response(400, json={"error": "bad"}))
-    selector = ModelSelector([rejected, fake("strong", 9)])
-    with pytest.raises(AdapterRequestError):
-        run(selector.generate(REQUEST, fallback=True))
+@pytest.mark.parametrize(
+    "handler",
+    [refuse(401), refuse(403), refuse(404), refuse(400), unreachable],
+    ids=["401", "403", "404", "400", "unreachable"],
+)
+def test_fallback_moves_on_after_any_adapter_failure(handler):
+    selector = ModelSelector(
+        [cloud("cheap", 1, handler), fake("strong", 9, reply="ok")]
+    )
+    assert run(selector.generate(REQUEST, fallback=True)).model == "strong"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("handler", "error"),
+    [(refuse(401), AdapterConfigError), (unreachable, AdapterRequestError)],
+)
+def test_without_fallback_any_failure_raises(handler, error):
+    selector = ModelSelector([cloud("cheap", 1, handler), fake("strong", 9)])
+    with pytest.raises(error):
+        run(selector.generate(REQUEST))
 
 
 @pytest.mark.unit
@@ -219,6 +245,26 @@ def test_fallback_exhausted_raises_the_last_error():
     with pytest.raises(AdapterTimeoutError) as exc:
         run(selector.generate(REQUEST, fallback=True))
     assert exc.value.model == "b"
+
+
+# The raised error keeps the last failure's type but still names every earlier one,
+# including models skipped for a missing key.
+@pytest.mark.unit
+def test_fallback_exhausted_lists_every_earlier_failure(monkeypatch):
+    monkeypatch.delenv("NO_KEY_SET", raising=False)
+    selector = ModelSelector(
+        [
+            fake("first", 1, fail="timeout"),
+            cloud("no-key", 2, reply(), key_env="NO_KEY_SET"),
+            cloud("last", 3, refuse(401)),
+        ]
+    )
+    with pytest.raises(AdapterConfigError) as exc:
+        run(selector.generate(REQUEST, fallback=True))
+    message = exc.value.message
+    assert exc.value.model == "last" and "HTTP 401" in message
+    assert "first:" in message and "no-key: NO_KEY_SET is not set" in message
+    assert "selector-test-key" not in str(exc.value)
 
 
 @pytest.mark.unit

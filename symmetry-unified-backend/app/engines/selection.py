@@ -85,11 +85,13 @@ class ModelSelector:
     def select(
         self, source_lang: str | None = None, target_lang: str | None = None
     ) -> ModelAdapter:
-        adapter, _ = self._first_usable(self.candidates(source_lang, target_lang))
+        adapter, _, _ = self._first_usable(self.candidates(source_lang, target_lang))
         return adapter
 
-    # Generates with the selected model. With fallback=True a retryable failure moves on to the
-    # next candidate; other failures always raise. The result names the model that answered.
+    # Generates with the selected model. With fallback=True any failure (bad key, unknown model,
+    # unreachable server, timeout, ...) moves on to the next candidate, since another model may
+    # still answer; without it every failure raises. When all candidates fail, the last error is
+    # raised with the earlier ones listed in its message. The result names the model that answered.
     async def generate(
         self,
         request: GenerationRequest,
@@ -99,33 +101,35 @@ class ModelSelector:
         fallback: bool = False,
     ) -> GenerationResult:
         pending = self.candidates(source_lang, target_lang)
-        last_error = None
+        failures = []
         while True:
-            adapter, pending = self._first_usable(
-                pending, raise_if_none=last_error is None
+            adapter, pending, skipped = self._first_usable(
+                pending, raise_if_none=not failures
             )
+            failures.extend(skipped)
             if adapter is None:
-                raise last_error
+                raise _exhausted(failures)
             try:
                 return await adapter.generate(request)
             except AdapterError as e:
-                if not (fallback and e.retryable):
+                if not fallback:
                     raise
                 logger.warning("model %s failed (%s); trying next", e.model, e.message)
-                last_error = e
+                failures.append((e.model, e))
 
-    # Builds the first usable adapter and returns it with the candidates after it.
+    # Builds the first usable adapter and returns it with the candidates after it and the
+    # (model id, error) pairs for any it skipped because their configuration is unusable.
     def _first_usable(self, specs, raise_if_none=True):
         skipped = []
         for index, spec in enumerate(specs):
             try:
-                return self.build(spec), specs[index + 1 :]
+                return self.build(spec), specs[index + 1 :], skipped
             except AdapterConfigError as e:
-                skipped.append(f"{spec.id}: {e.message}")
+                skipped.append((spec.id, e))
         if not raise_if_none:
-            return None, []
-        detail = "; ".join(skipped) or "no models are configured"
-        raise _config_error(f"no usable model ({detail})")
+            return None, [], skipped
+        detail = "; ".join(f"{i}: {e.message}" for i, e in skipped)
+        raise _config_error(f"no usable model ({detail or 'no models are configured'})")
 
     # Builds a selector from parsed catalog data (see llm_models.example.toml).
     @classmethod
@@ -152,6 +156,20 @@ def load_selector(path: str | Path | None = None) -> ModelSelector:
 
 def _config_error(message: str) -> AdapterConfigError:
     return AdapterConfigError(message, provider="selector")
+
+
+# Re-raises the last failure, keeping its type, provider and model, with the earlier
+# (model id, error) failures appended to its message so none is lost.
+def _exhausted(failures) -> AdapterError:
+    *earlier, (_, last) = failures
+    if not earlier:
+        return last
+    detail = "; ".join(f"{i}: {e.message}" for i, e in earlier)
+    return type(last)(
+        f"{last.message} (earlier failures: {detail})",
+        provider=last.provider,
+        model=last.model,
+    )
 
 
 # Normalizes "En -> SW" to "en->sw"; a key without both languages is a config error.
