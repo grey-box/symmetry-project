@@ -1,4 +1,7 @@
-from . import fake  # noqa: F401  (registers the "fake" strategy)
+from . import (
+    fake,  # noqa: F401  (registers the "fake" strategy)
+    semantic_similarity,  # noqa: F401  (registers the "semantic_similarity" strategy)
+)
 from .base import ComparisonStrategy, Finding, StrategyInput, StrategyResult
 from .errors import (
     StrategyConfigError,
