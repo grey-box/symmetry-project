@@ -16,6 +16,7 @@ from app.strategies import (
 
 from .errors import PipelineConfigError
 from .models import Difference, PipelineResult, StrategySpec, TextInput
+from .ranking import rank_differences
 from .v2_terms import error_entry, find_span
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 Ranker = Callable[[list[Difference]], list[Difference]]
 
 
-# Default ranker: leaves the differences in the order the strategies reported them.
+# Ranker that leaves the differences in the order the strategies reported them.
 def keep_order(differences: list[Difference]) -> list[Difference]:
     return list(differences)
 
@@ -102,10 +103,11 @@ async def run_strategy(
 # Compares any two texts by running the chosen strategies and assembling one result.
 # The texts reach the strategies unchanged, so offsets in the result match the
 # originals. The pipeline accepts several strategies; the API layer decides how many
-# a request may use.
+# a request may use. Differences come back ranked by significance unless another
+# ranker is passed.
 class ComparisonPipeline:
     def __init__(self, ranker: Ranker | None = None) -> None:
-        self.ranker = ranker or keep_order
+        self.ranker = ranker or rank_differences
 
     # Runs the strategies together; one failing strategy does not fail the others.
     async def run(
