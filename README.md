@@ -277,11 +277,11 @@ get_adapter(
 ```python
 selector = load_selector()                       # reads llm_models.toml (or LLM_MODELS_PATH)
 result = await selector.generate(request, "en", "sw")                  # cheapest, or the override
-result = await selector.generate(request, "en", "sw", fallback=True)   # retry on the next model
+result = await selector.generate(request, "en", "sw", fallback=True)   # on failure, try the next model
 ```
 
 - A language pair with an override (`"en->sw" = ["strong-model"]`) uses only the models listed for it. Every other pair uses the cheapest model. Models whose key is not set are skipped.
-- Fallback is off by default, because moving to a pricier model silently raises cost. With `fallback=True` only retryable failures move to the next model. A non-retryable failure is always raised.
+- Fallback is off by default, because moving to a pricier model silently raises cost. With `fallback=True` any failure (bad key, unknown model, unreachable server, timeout, rate limit) moves to the next model. If every model fails, the last error is raised and its message lists the earlier failures.
 - `result.model` names the model that answered. Prices are required for every non-local model, so a forgotten price is an error, not a free model.
 
 #### Dependencies
