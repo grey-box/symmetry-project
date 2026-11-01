@@ -1,4 +1,5 @@
 from . import (
+    factual_consistency,  # noqa: F401  (registers the "factual_consistency" strategy)
     fake,  # noqa: F401  (registers the "fake" strategy)
     semantic_similarity,  # noqa: F401  (registers the "semantic_similarity" strategy)
 )
