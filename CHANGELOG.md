@@ -11,6 +11,22 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Backend**: API v2 router skeleton under `/symmetry/v2` (`app/routers/api_v2.py`) declaring `POST /compare`, `POST /compare/llm-vs-wikipedia` and `POST /compare/llm-vs-llm`. Each returns `501 Not Implemented` until implemented; `/symmetry/v1` is unchanged.
+- **Backend**: Pydantic models for the API v2 published schema in `app/models/v2/` (`ComparisonRequest`, `ComparisonResponse`, `ErrorResponse` and their parts), following `docs/api-v2/api-v2-response-schema.md`. The v2 routes now validate the request body (invalid bodies get `422`) and document the response model in OpenAPI; they still return `501`.
+- **Backend**: Model adapter interface in `app/engines/`. `ModelAdapter` defines one async `generate()` call that every engine (local SLM, cloud LLM, OpenRouter) implements, with shared `GenerationRequest` and `GenerationResult` types, typed `AdapterError` exceptions, and a name-based registry (`register_adapter`, `get_adapter`). New engines can be added without changing the comparison pipeline.
+- **Tests (Backend)**: Adapter contract tests (`tests/test_adapter_contract.py`) with a `fake` adapter that every future adapter must also pass.
+- **Backend**: `local_slm` engine adapter (`app/engines/local_slm.py`). Calls a local small language model through an OpenAI-compatible `/chat/completions` API (Ollama by default; LM Studio and llama.cpp also work), maps timeouts, unreachable servers and HTTP errors onto the typed `AdapterError` classes (401/403 and 404 as config errors, 429 and 5xx as retryable, the server's own error text included), and reports token usage and latency. The endpoint is set with the new `LOCAL_SLM_BASE_URL` setting (default `http://localhost:11434/v1`).
+- **Tests (Backend)**: `tests/test_local_slm_adapter.py` covers the local SLM adapter offline with `httpx.MockTransport`; `local_slm` also runs the shared contract tests. An opt-in live test runs against a real server when `LOCAL_SLM_TEST_MODEL` is set.
+- **Backend**: `cloud_llm` engine adapter (`app/engines/cloud_llm.py`) for any OpenAI-compatible hosted model. The provider is config-driven (`base_url`, `api_key_env`); the API key is read only from an environment variable or the git-ignored `.env` file, is refused as a plain argument, and is scrubbed from every error. Optional prices add `usage["cost_usd"]` to each result, and `max_tokens_param` / `omit_temperature` cover models with different parameter rules.
+- **Backend**: `ModelSelector` (`app/engines/selection.py`) for cost-effective model selection. It calls the cheapest model (input plus output price per 1M tokens) by default and uses higher-tier models only for the language pairs listed as overrides, skips models whose key is missing, and can optionally fall back to the next model when one fails. The catalog is a TOML file (`llm_models.example.toml`, path via `LLM_MODELS_PATH`).
+- **Tests (Backend)**: `tests/test_cloud_llm_adapter.py` (key handling, error mapping, cost) and `tests/test_model_selection.py` (ordering, overrides, fallback, catalog validation); `cloud_llm` also runs the shared contract tests. Opt-in live tests (`tests/test_cloud_llm_live.py`) run against a real endpoint when `CLOUD_LLM_TEST_MODEL` and `CLOUD_LLM_TEST_BASE_URL` are set.
+
+### Changed
+
+- **Docs**: In the API v2 schema, `strategy` is now an open string id from the strategy registry instead of a fixed enum.
+
 ---
 
 ## [v1.1.0] – 2026-05-01
