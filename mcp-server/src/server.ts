@@ -1,67 +1,171 @@
+import http from "node:http";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 
-const server = new Server(
-  {
-    name: "symmetry-mcp-server",
-    version: "1.0.0",
-  },
-  {
-    capabilities: {
-      tools: {},
+function createServer() {
+  const server = new Server(
+    {
+      name: "symmetry-mcp-server",
+      version: "1.0.0",
     },
-  },
-);
+    {
+      capabilities: {
+        tools: {},
+      },
+    },
+  );
 
-const HEALTH_TOOL: Tool = {
-  name: "health_check",
-  description:
-    "Check whether the MCP server is alive and responding over stdio.",
-  inputSchema: {
-    type: "object",
-    properties: {},
-    additionalProperties: false,
-  },
-};
+  const HEALTH_TOOL: Tool = {
+    name: "health_check",
+    description:
+      "Check whether the MCP server is alive and responding over streamable HTTP.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+  };
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [HEALTH_TOOL],
-}));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [HEALTH_TOOL],
+  }));
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  const { name, arguments: args } = request.params;
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    const { name, arguments: args } = request.params;
 
-  if (name !== "health_check") {
-    throw new Error(`Unknown tool: ${name}`);
+    if (name !== "health_check") {
+      throw new Error(`Unknown tool: ${name}`);
+    }
+
+    const payload = {
+      ok: true,
+      service: "symmetry-mcp-server",
+      status: "healthy",
+      endpoint: "/mcp",
+      transport: "streamable-http",
+      timestamp: new Date().toISOString(),
+      args,
+    };
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(payload, null, 2),
+        },
+      ],
+    };
+  });
+
+  return server;
+}
+
+async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
 
-  const payload = {
-    ok: true,
-    service: "symmetry-mcp-server",
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    args,
-  };
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  if (!raw) {
+    return undefined;
+  }
 
-  return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(payload, null, 2),
-      },
-    ],
-  };
-});
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      `Invalid JSON in MCP request: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function handleMcpRequest(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): Promise<void> {
+  const method = req.method ?? "GET";
+  const pathname = req.url
+    ? new URL(req.url, `http://${req.headers.host ?? "localhost"}`).pathname
+    : "/";
+
+  if (pathname !== "/mcp") {
+    res.writeHead(404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Not found" }));
+    return;
+  }
+
+  if (method === "GET" || method === "DELETE") {
+    res.writeHead(405, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: {
+          code: -32000,
+          message: "Method not allowed.",
+        },
+        id: null,
+      }),
+    );
+    return;
+  }
+
+  if (method !== "POST") {
+    res.writeHead(405, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error: "Method not allowed" }));
+    return;
+  }
+
+  let parsedBody: unknown;
+  try {
+    parsedBody = await readJsonBody(req);
+  } catch (error) {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        error: {
+          code: -32600,
+          message:
+            error instanceof Error ? error.message : "Invalid request body",
+        },
+        id: null,
+      }),
+    );
+    return;
+  }
+
+  const transport = new StreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+  });
+  const mcpServer = createServer();
+
+  await mcpServer.connect(transport);
+  await transport.handleRequest(req, res, parsedBody as never);
+
+  res.on("close", async () => {
+    await transport.close();
+    await mcpServer.close();
+  });
+}
 
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Symmetry MCP server running on stdio");
+  const host = process.env.HOST ?? "127.0.0.1";
+  const port = Number(process.env.PORT ?? 3000);
+
+  const server = http.createServer((req, res) => {
+    void handleMcpRequest(req, res);
+  });
+
+  server.listen(port, host, () => {
+    console.log(`Symmetry MCP server listening on http://${host}:${port}/mcp`);
+  });
 }
 
 main().catch((error) => {

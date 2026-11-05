@@ -1,6 +1,12 @@
 # Symmetry MCP Server
 
-This project scaffolds a minimal Model Context Protocol (MCP) server that speaks over stdio.
+This project runs a minimal Model Context Protocol (MCP) server over Streamable HTTP.
+
+## Endpoint
+
+- `POST /mcp`: MCP JSON-RPC request stream
+- `GET /mcp`: unsupported for this server and returns 405
+- `DELETE /mcp`: unsupported for this server and returns 405
 
 ## Tools
 
@@ -15,4 +21,4 @@ npm run build
 npm start
 ```
 
-The server listens on standard input/output and is ready to be consumed by an MCP client.
+The server listens on `http://127.0.0.1:3000/mcp` by default and is ready to be consumed by an MCP client using the Streamable HTTP transport.
