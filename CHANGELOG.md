@@ -11,16 +11,14 @@ Versioning: [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
-
-- **Backend**: Wikipedia API requests (`article_parser`, `wiki_utils`, `structured_wiki._fetch_revisions`) now use `requests` via `asyncio.to_thread` instead of `httpx`, which Wikimedia's bot mitigation rejected with `403 Forbidden`.
-- **Backend**: `article_parser` preserves paragraph boundaries between `<p>` tags, so `_split_into_paragraphs` no longer falls back to a word-count chunker that produced false "missing paragraph" results across languages.
-- **Backend**: `_match_sections` uses optimal assignment (`scipy.optimize.linear_sum_assignment`) instead of greedy best-cell-first matching, which let one section steal another's match and caused false missing/added sections.
-
 ### Added
 
-- **Backend**: `scipy` declared in `requirements.txt`.
-- **Tests**: `tests/test_section_matching_and_parsing.py` regression tests for section matching and paragraph parsing.
+- **Backend**: API v2 router skeleton under `/symmetry/v2` (`app/routers/api_v2.py`) declaring `POST /compare`, `POST /compare/llm-vs-wikipedia` and `POST /compare/llm-vs-llm`. Each returns `501 Not Implemented` until implemented; `/symmetry/v1` is unchanged.
+- **Backend**: Pydantic models for the API v2 published schema in `app/models/v2/` (`ComparisonRequest`, `ComparisonResponse`, `ErrorResponse` and their parts), following `docs/api-v2/api-v2-response-schema.md`. The v2 routes now validate the request body (invalid bodies get `422`) and document the response model in OpenAPI; they still return `501`.
+
+### Changed
+
+- **Docs**: In the API v2 schema, `strategy` is now an open string id from the strategy registry instead of a fixed enum.
 
 ---
 
