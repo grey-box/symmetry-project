@@ -38,6 +38,30 @@ async function callSymmetryApi(path: string, args: unknown): Promise<unknown> {
   return result;
 }
 
+const SEMANTIC_COMPARISON_TOOL: Tool = {
+  name: "compare_articles",
+  description:
+    "Semantically compare two article texts and return sentences missing from the target and extra in the target.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      original_article_content: { type: "string", minLength: 1 },
+      translated_article_content: { type: "string", minLength: 1 },
+      original_language: { type: "string", default: "en" },
+      translated_language: { type: "string", default: "fr" },
+      similarity_threshold: {
+        type: "number",
+        minimum: 0,
+        maximum: 1,
+        default: 0.75,
+      },
+      model_name: { type: "string", default: "sentence-transformers/LaBSE" },
+    },
+    required: ["original_article_content", "translated_article_content"],
+    additionalProperties: false,
+  },
+};
+
 function createServer() {
   const server = new Server(
     {
@@ -63,11 +87,33 @@ function createServer() {
   };
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [HEALTH_TOOL],
+    tools: [HEALTH_TOOL, SEMANTIC_COMPARISON_TOOL],
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
+
+    if (name === "compare_articles") {
+      try {
+        const result = await callSymmetryApi(
+          "/symmetry/v1/articles/compare",
+          args ?? {},
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: error instanceof Error ? error.message : String(error),
+            },
+          ],
+        };
+      }
+    }
 
     if (name !== "health_check") {
       throw new Error(`Unknown tool: ${name}`);
