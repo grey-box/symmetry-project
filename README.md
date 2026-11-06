@@ -246,10 +246,18 @@ All v2 endpoints accept the same `ComparisonRequest` and return the published `C
 }
 ```
 
-- The labelling is the `factual_consistency` strategy, the only strategy this endpoint accepts. Each comparing engine needs a model in `llm_models.toml` (see the model selection section below). `engines` lists catalog ids; empty means the cheapest usable model.
+- **Choose the check with `strategy`; the route stays the same.** `null` means the default.
+
+  | `strategy` | What it does | Needs | `score_basis` |
+  |---|---|---|---|
+  | `factual_consistency` (default) | A language model labels each statement `supported`, `contradicted` or `not_found`, with its confidence and a quoted passage | A model in `llm_models.toml` (see the model selection section below); `engines` lists catalog ids, empty means the cheapest usable model | `model_reported` |
+  | `semantic_similarity` | The embedding model (LaBSE by default) finds each statement's closest article sentence: `supported` at or above `options.similarity_threshold` (default `SIMILARITY_THRESHOLD`), `partial` above `options.partial_threshold` if set, otherwise `not_found` | Nothing extra: no API key. `engines` must be empty | `cosine_similarity` |
+
+  `semantic_similarity` measures similar meaning, not truth: "400 metres tall" and "330 metres tall" score high, so it never reports `contradicted`. An unknown strategy, or one the requested engines cannot run, gets `422 unsupported_strategy` with the available ids in `details`.
+- **Adding a strategy:** register it in `app/strategies/` and add a `StrategyProfile` in `app/services/v2_strategies.py`. No route or schema change is needed, and the Swagger description lists it automatically.
 - `not_found` means the article did not address the statement. **It does not mean the statement is false.**
 - If one of several engines fails, the response is `200` with `status: "partial"` and the failure in `errors`. If every engine fails, the article is missing (`404`), or no engine is configured (`503`), an `ErrorResponse` is returned.
-- Limits: only the first 12,000 characters of the article are checked, so a claim backed later in a long article can come back `not_found`. `generate_with`, `pivot_language` and direction `both` are not supported yet. Statements are not aligned to Wikipedia sentences yet (`alignments` is empty).
+- Limits: `factual_consistency` checks only the first 12,000 characters of the article, so a claim backed later in a long article can come back `not_found`. `generate_with`, `pivot_language` and direction `both` are not supported yet. Statements are not aligned to Wikipedia sentences yet (`alignments` is empty).
 - Wikipedia text is CC BY-SA 4.0. Show the source's `attribution` wherever its text or evidence is displayed.
 
 ---

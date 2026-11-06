@@ -26,6 +26,8 @@ Versioning: [Semantic Versioning](https://semver.org/).
 - **Backend**: `POST /symmetry/v2/compare/llm-vs-wikipedia` is implemented. It labels each statement of an LLM answer `supported`, `contradicted` or `not_found` against a Wikipedia article, with the engine's confidence and the quoted Wikipedia passage as evidence, using the `factual_consistency` strategy through the comparison pipeline. One result is returned per requested engine; a failing engine gives `status: "partial"`, and a request where nothing usable was produced returns an `ErrorResponse` with the status code from the schema (for example `404` for a missing article, `503` when no engine is configured). Responses carry an `X-Request-ID` header.
 - **Backend**: Building blocks for v2 endpoints in `app/services/`: `wikipedia_reference.py` (reads an article as plain text through the existing article parser, with licence and attribution), `v2_engines.py` (resolves request engine ids against the model catalog) and `v2_responses.py` (error codes, HTTP statuses and response envelopes from the schema).
 - **Tests (Backend)**: `tests/test_api_v2_llm_vs_wikipedia.py` checks the endpoint offline with fake engines and a fake Wikipedia reader, validating every response against the published JSON Schema; `tests/test_wikipedia_reference.py` and `tests/test_v2_engines.py` cover the building blocks.
+- **Backend**: API v2 requests choose their comparison strategy with the `strategy` field, without new routes. `app/services/v2_strategies.py` lists the strategies the API offers, what each needs (a language model or the embedding model), its `score_basis` and the modes it serves, plus a default per mode; registered strategies without an entry (such as `fake`) are not offered. An unknown strategy, or one the requested engines cannot run, gets `422 unsupported_strategy` with the available ids. The LLM vs Wikipedia endpoint now accepts `semantic_similarity` as well as `factual_consistency`: it labels statements `supported`, `partial` or `not_found` by embedding similarity (`score_basis: cosine_similarity`, honouring `similarity_threshold` and `partial_threshold`) and needs no API key. The Swagger description lists the available strategies from the same table.
+- **Tests (Backend)**: `tests/test_v2_strategies.py` covers strategy choice and the strategy table; the endpoint tests run `semantic_similarity` with a deterministic test embedder.
 
 ### Changed
 
@@ -35,7 +37,7 @@ Versioning: [Semantic Versioning](https://semver.org/).
 ### Known issues
 
 - **Backend**: Live Wikipedia reads can fail with `403` because Wikimedia blocks the article parser's `httpx` client; the LLM vs Wikipedia endpoint then returns a retryable `internal_error` for the Wikipedia source. The pending article-parser fix (switching to `requests`) resolves this.
-- **Backend**: The LLM vs Wikipedia endpoint checks only the first 12,000 characters of the article until per-statement evidence retrieval is added.
+- **Backend**: With `factual_consistency`, the LLM vs Wikipedia endpoint checks only the first 12,000 characters of the article until per-statement evidence retrieval is added. `semantic_similarity` reads the whole article.
 
 ---
 
