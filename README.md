@@ -224,6 +224,34 @@ symmetry-unified-backend/
 |--------|------|-------------|
 | GET | `/operations/{source_language}/{title}` | Analyze article across 6 languages with quality scoring |
 
+#### API v2
+
+All v2 endpoints accept the same `ComparisonRequest` and return the published `ComparisonResponse` described in [docs/api-v2/api-v2-response-schema.md](docs/api-v2/api-v2-response-schema.md). Failures return an `ErrorResponse`, and every response carries an `X-Request-ID` header.
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/symmetry/v2/compare/llm-vs-wikipedia` | Label each statement of an LLM answer as `supported`, `contradicted` or `not_found` against a Wikipedia article, with confidence and quoted evidence |
+| POST | `/symmetry/v2/compare` | Generic comparison (`501` until implemented) |
+| POST | `/symmetry/v2/compare/llm-vs-llm` | Compare several LLMs' answers to one prompt (`501` until implemented) |
+
+**LLM vs Wikipedia.** Send one `llm_output` source with the answer as `text` and one `wikipedia` source by `url` (or `title` plus `language`, optionally `revision_id`):
+
+```json
+{
+  "mode": "llm_vs_wikipedia",
+  "sources": [
+    {"id": "a", "kind": "llm_output", "text": "The Eiffel Tower was completed in 1889. It is 400 metres tall."},
+    {"id": "b", "kind": "wikipedia", "url": "https://en.wikipedia.org/wiki/Eiffel_Tower"}
+  ]
+}
+```
+
+- The labelling is the `factual_consistency` strategy, the only strategy this endpoint accepts. Each comparing engine needs a model in `llm_models.toml` (see the model selection section below). `engines` lists catalog ids; empty means the cheapest usable model.
+- `not_found` means the article did not address the statement. **It does not mean the statement is false.**
+- If one of several engines fails, the response is `200` with `status: "partial"` and the failure in `errors`. If every engine fails, the article is missing (`404`), or no engine is configured (`503`), an `ErrorResponse` is returned.
+- Limits: only the first 12,000 characters of the article are checked, so a claim backed later in a long article can come back `not_found`. `generate_with`, `pivot_language` and direction `both` are not supported yet. Statements are not aligned to Wikipedia sentences yet (`alignments` is empty).
+- Wikipedia text is CC BY-SA 4.0. Show the source's `attribution` wherever its text or evidence is displayed.
+
 ---
 
 ### Backend Configuration

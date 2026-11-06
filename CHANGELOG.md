@@ -23,9 +23,19 @@ Versioning: [Semantic Versioning](https://semver.org/).
 - **Backend**: `ModelSelector` (`app/engines/selection.py`) for cost-effective model selection. It calls the cheapest model (input plus output price per 1M tokens) by default and uses higher-tier models only for the language pairs listed as overrides, skips models whose key is missing, and can optionally fall back to the next model when one fails. The catalog is a TOML file (`llm_models.example.toml`, path via `LLM_MODELS_PATH`).
 - **Tests (Backend)**: `tests/test_cloud_llm_adapter.py` (key handling, error mapping, cost) and `tests/test_model_selection.py` (ordering, overrides, fallback, catalog validation); `cloud_llm` also runs the shared contract tests. Opt-in live tests (`tests/test_cloud_llm_live.py`) run against a real endpoint when `CLOUD_LLM_TEST_MODEL` and `CLOUD_LLM_TEST_BASE_URL` are set.
 
+- **Backend**: `POST /symmetry/v2/compare/llm-vs-wikipedia` is implemented. It labels each statement of an LLM answer `supported`, `contradicted` or `not_found` against a Wikipedia article, with the engine's confidence and the quoted Wikipedia passage as evidence, using the `factual_consistency` strategy through the comparison pipeline. One result is returned per requested engine; a failing engine gives `status: "partial"`, and a request where nothing usable was produced returns an `ErrorResponse` with the status code from the schema (for example `404` for a missing article, `503` when no engine is configured). Responses carry an `X-Request-ID` header.
+- **Backend**: Building blocks for v2 endpoints in `app/services/`: `wikipedia_reference.py` (reads an article as plain text through the existing article parser, with licence and attribution), `v2_engines.py` (resolves request engine ids against the model catalog) and `v2_responses.py` (error codes, HTTP statuses and response envelopes from the schema).
+- **Tests (Backend)**: `tests/test_api_v2_llm_vs_wikipedia.py` checks the endpoint offline with fake engines and a fake Wikipedia reader, validating every response against the published JSON Schema; `tests/test_wikipedia_reference.py` and `tests/test_v2_engines.py` cover the building blocks.
+
 ### Changed
 
 - **Docs**: In the API v2 schema, `strategy` is now an open string id from the strategy registry instead of a fixed enum.
+- **Backend**: `POST /symmetry/v2/compare/llm-vs-wikipedia` no longer returns `501`. The other v2 endpoints still do.
+
+### Known issues
+
+- **Backend**: Live Wikipedia reads can fail with `403` because Wikimedia blocks the article parser's `httpx` client; the LLM vs Wikipedia endpoint then returns a retryable `internal_error` for the Wikipedia source. The pending article-parser fix (switching to `requests`) resolves this.
+- **Backend**: The LLM vs Wikipedia endpoint checks only the first 12,000 characters of the article until per-statement evidence retrieval is added.
 
 ---
 
