@@ -62,6 +62,38 @@ const SEMANTIC_COMPARISON_TOOL: Tool = {
   },
 };
 
+const SECTION_COMPARISON_TOOL: Tool = {
+  name: "compare_article_sections",
+  description:
+    "Fetch and compare two Wikipedia articles by section and paragraph, reporting matched, missing, and added content.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      source_query: {
+        type: "string",
+        minLength: 1,
+        description: "Wikipedia URL or article title",
+      },
+      target_query: {
+        type: "string",
+        minLength: 1,
+        description: "Wikipedia URL or article title",
+      },
+      source_lang: { type: "string", default: "en" },
+      target_lang: { type: "string", default: "fr" },
+      similarity_threshold: {
+        type: "number",
+        minimum: 0,
+        maximum: 1,
+        default: 0.65,
+      },
+      model_name: { type: "string", default: "sentence-transformers/LaBSE" },
+    },
+    required: ["source_query", "target_query"],
+    additionalProperties: false,
+  },
+};
+
 function createServer() {
   const server = new Server(
     {
@@ -87,7 +119,7 @@ function createServer() {
   };
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [HEALTH_TOOL, SEMANTIC_COMPARISON_TOOL],
+    tools: [HEALTH_TOOL, SEMANTIC_COMPARISON_TOOL, SECTION_COMPARISON_TOOL],
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -97,6 +129,28 @@ function createServer() {
       try {
         const result = await callSymmetryApi(
           "/symmetry/v1/articles/compare",
+          args ?? {},
+        );
+        return {
+          content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: error instanceof Error ? error.message : String(error),
+            },
+          ],
+        };
+      }
+    }
+
+    if (name === "compare_article_sections") {
+      try {
+        const result = await callSymmetryApi(
+          "/symmetry/v1/articles/compare-sections",
           args ?? {},
         );
         return {
