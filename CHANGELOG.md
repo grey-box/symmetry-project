@@ -28,11 +28,13 @@ Versioning: [Semantic Versioning](https://semver.org/).
 - **Tests (Backend)**: `tests/test_api_v2_llm_vs_wikipedia.py` checks the endpoint offline with fake engines and a fake Wikipedia reader, validating every response against the published JSON Schema; `tests/test_wikipedia_reference.py` and `tests/test_v2_engines.py` cover the building blocks.
 - **Backend**: API v2 requests choose their comparison strategy with the `strategy` field, without new routes. `app/services/v2_strategies.py` lists the strategies the API offers, what each needs (a language model or the embedding model), its `score_basis` and the modes it serves, plus a default per mode; registered strategies without an entry (such as `fake`) are not offered. An unknown strategy, or one the requested engines cannot run, gets `422 unsupported_strategy` with the available ids. The LLM vs Wikipedia endpoint now accepts `semantic_similarity` as well as `factual_consistency`: it labels statements `supported`, `partial` or `not_found` by embedding similarity (`score_basis: cosine_similarity`, honouring `similarity_threshold` and `partial_threshold`) and needs no API key. The Swagger description lists the available strategies from the same table.
 - **Tests (Backend)**: `tests/test_v2_strategies.py` covers strategy choice and the strategy table; the endpoint tests run `semantic_similarity` with a deterministic test embedder.
+- **Backend**: `POST /symmetry/v2/compare/llm-vs-llm` is implemented for answers sent as text. Every pair of two or more LLM answers gets one result; every sentence of both answers is labelled `supported`, `partial` or `not_found` against the other answer with its `best_match_similarity`, matching sentences cite each other as `counterpart_statement` evidence, and `alignments` mark sentences `equal`, `modified`, `missing` or `added` (the highlighted disagreements). It uses `semantic_similarity` through the comparison pipeline, now offered and the default for `llm_vs_llm`. A pair that cannot be compared gives `status: "partial"`. Generating answers on the server (`generate_with`) is rejected with `422` until the multi-engine fan-out with per-engine errors is available. The embedding helpers both endpoints share moved to `app/services/v2_similarity.py`.
+- **Tests (Backend)**: `tests/test_api_v2_llm_vs_llm.py` checks the endpoint offline with a deterministic embedder, validating every response against the published JSON Schema and checking that alignment and evidence references resolve.
 
 ### Changed
 
 - **Docs**: In the API v2 schema, `strategy` is now an open string id from the strategy registry instead of a fixed enum.
-- **Backend**: `POST /symmetry/v2/compare/llm-vs-wikipedia` no longer returns `501`. The other v2 endpoints still do.
+- **Backend**: `POST /symmetry/v2/compare/llm-vs-wikipedia` and `POST /symmetry/v2/compare/llm-vs-llm` no longer return `501`. `POST /symmetry/v2/compare` still does.
 
 ### Known issues
 
