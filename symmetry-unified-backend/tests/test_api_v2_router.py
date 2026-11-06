@@ -1,4 +1,8 @@
-"""Tests for the API v2 router skeleton under /symmetry/v2."""
+"""Tests for the API v2 router under /symmetry/v2.
+
+The LLM vs Wikipedia endpoint is implemented; its behaviour is tested in
+``test_api_v2_llm_vs_wikipedia.py``.
+"""
 
 import pytest
 
@@ -7,6 +11,11 @@ from tests.api_v2_examples import example
 V2_ENDPOINTS = [
     "/symmetry/v2/compare",
     "/symmetry/v2/compare/llm-vs-wikipedia",
+    "/symmetry/v2/compare/llm-vs-llm",
+]
+
+NOT_IMPLEMENTED_ENDPOINTS = [
+    "/symmetry/v2/compare",
     "/symmetry/v2/compare/llm-vs-llm",
 ]
 
@@ -28,13 +37,12 @@ LLM_VS_WIKIPEDIA_REQUEST = {
 
 VALID_REQUESTS = {
     "/symmetry/v2/compare": LLM_VS_WIKIPEDIA_REQUEST,
-    "/symmetry/v2/compare/llm-vs-wikipedia": LLM_VS_WIKIPEDIA_REQUEST,
     "/symmetry/v2/compare/llm-vs-llm": example("10.1"),
 }
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("path", V2_ENDPOINTS)
+@pytest.mark.parametrize("path", NOT_IMPLEMENTED_ENDPOINTS)
 def test_v2_endpoint_returns_501_for_valid_request(client, path):
     response = client.post(path, json=VALID_REQUESTS[path])
     assert response.status_code == 501
