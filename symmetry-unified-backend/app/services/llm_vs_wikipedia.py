@@ -79,6 +79,11 @@ from app.services.v2_responses import (
     failed_result,
     latency_usage,
 )
+from app.services.v2_similarity import (
+    embedding_engine,
+    embedding_error,
+    similarity_rows,
+)
 from app.services.v2_strategies import StrategyProfile, choose_strategy
 from app.services.wikipedia_reference import (
     WIKIPEDIA_LICENSE,
@@ -88,14 +93,12 @@ from app.services.wikipedia_reference import (
     WikipediaUnavailableError,
     article_ref,
 )
-from app.strategies.text import split_sentences
 
 logger = logging.getLogger(__name__)
 
 MODE = "llm_vs_wikipedia"
 DIRECTION = "first_to_second"
 DEFAULT_TIMEOUT_S = 120.0
-EMBEDDING_ENGINE_ID = "embedding-default"
 
 
 # Wraps an engine to remember its last failure, so the API can report the precise
@@ -249,14 +252,8 @@ class LlmVsWikipediaService:
 
     # The server's embedding model, which serves embedding strategies.
     def _embedding_engine(self, profile: StrategyProfile) -> EngineHandle:
-        from app.models.comparison.registry import DEFAULT_MODEL
-
-        model = self.strategy_config.get(profile.id, {}).get("model_name")
-        return EngineHandle(
-            id=EMBEDDING_ENGINE_ID,
-            type="embedding",
-            model=model or DEFAULT_MODEL,
-            provider="local",
+        return embedding_engine(
+            self.strategy_config.get(profile.id, {}).get("model_name")
         )
 
     def _resolve_engines(self, engine_ids: list[str]) -> list[EngineHandle]:
@@ -366,7 +363,7 @@ class LlmVsWikipediaService:
             return _EngineRun(handle, None, [error_detail(code, exc.message)])
         latency_ms = (time.perf_counter() - started) * 1000
         if recorder is None:
-            errors = [_embedding_error(entry, handle.id) for entry in outcome.errors]
+            errors = [embedding_error(entry, handle.id) for entry in outcome.errors]
         else:
             errors = [_engine_error(e, recorder, handle.id) for e in outcome.errors]
         return _EngineRun(handle, outcome, errors, latency_ms)
@@ -384,7 +381,7 @@ class LlmVsWikipediaService:
         strategy_result = run.outcome.results[0]
         handle = run.handle
         if profile.score_basis == "cosine_similarity":
-            rows = _similarity_rows(
+            rows = similarity_rows(
                 strategy_result.details,
                 strategy_result.findings,
                 claim_text,
@@ -474,51 +471,6 @@ def _statements(
     return statements
 
 
-# Turns a semantic_similarity result (claims compared first) into per-claim rows.
-# Matched claims are in details["alignments"] with their score; unmatched claims are
-# findings whose confidence is 1 - similarity. Labels follow schema section 6:
-# similarity >= threshold is supported, >= partial_threshold is partial, else not_found.
-# Evidence is the closest article sentence, kept only for supported and partial.
-def _similarity_rows(
-    details: dict,
-    findings: list,
-    claim_text: str,
-    *,
-    partial_threshold: float | None,
-) -> list[dict]:
-    threshold = details["threshold"]
-    matched = {a["source_index"]: a for a in details.get("alignments", [])}
-    unmatched = iter(f for f in findings if f.label == "no_match_in_target")
-    rows = []
-    for index, sentence in enumerate(split_sentences(claim_text)):
-        if index in matched:
-            similarity = matched[index]["score"]
-            closest = matched[index]["target_text"]
-        else:
-            finding = next(unmatched, None)
-            if finding is None:
-                continue
-            similarity = 1.0 - (finding.confidence or 0.0)
-            closest = finding.evidence
-        similarity = round(min(1.0, max(0.0, similarity)), 4)
-        if similarity >= threshold:
-            label = "supported"
-        elif partial_threshold is not None and similarity >= partial_threshold:
-            label = "partial"
-        else:
-            label = "not_found"
-        rows.append(
-            {
-                "statement": sentence,
-                "label": label,
-                "confidence": None,
-                "similarity": similarity,
-                "evidence": closest if label != "not_found" else None,
-            }
-        )
-    return rows
-
-
 # The result's summary score (schema section 6): the share of judged statements
 # labelled supported for model-reported results, the mean similarity otherwise.
 def _overall_score(statements: list[Statement], score_basis: str) -> float | None:
@@ -531,17 +483,6 @@ def _overall_score(statements: list[Statement], score_basis: str) -> float | Non
         s.best_match_similarity for s in judged if s.best_match_similarity is not None
     ]
     return round(sum(scores) / len(scores), 4) if scores else None
-
-
-# Maps a pipeline error entry from the embedding model onto the v2 error model.
-def _embedding_error(entry: dict, engine_id: str) -> ErrorDetail:
-    message = str(entry.get("message") or "The embedding model failed.")
-    code = entry.get("code")
-    if code == "invalid_request":
-        return error_detail("invalid_request", message)
-    if code != "engine_timeout":
-        code = "engine_unavailable"
-    return error_detail(code, message, "engine", engine_id=engine_id)
 
 
 # Maps a pipeline error entry for one engine onto the v2 error model.
