@@ -31,7 +31,8 @@ jobs:
         run: pip install pip-audit
 
       - name: Audit Python dependencies
-        run: pip-audit -r requirements.txt --desc on
+        # Temporary ignore until PYSEC-2026-3740 has an upstream fix release.
+        run: pip-audit -r requirements.txt --desc on --ignore-vuln PYSEC-2026-3740
 
   python-lint:
     name: Python Lint (ruff)
