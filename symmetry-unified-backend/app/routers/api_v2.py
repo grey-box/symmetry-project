@@ -24,6 +24,7 @@ from app.services.v2_responses import (
     new_request_id,
     success_response,
 )
+from app.services.v2_strategies import PROFILES, available_strategies
 from app.services.wikipedia_reference import ParsedArticleReader
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,14 @@ _ERROR_RESPONSES = {
 }
 
 
+# Markdown list of the strategies a mode offers, for the OpenAPI descriptions.
+def _strategy_docs(mode: str) -> str:
+    return "\n".join(
+        f"- `{sid}` ({PROFILES[sid].score_basis}): {PROFILES[sid].description}"
+        for sid in available_strategies(mode)
+    )
+
+
 # Builds the LLM vs Wikipedia service. Tests override this dependency with fakes.
 def get_llm_vs_wikipedia_service() -> LlmVsWikipediaService:
     return LlmVsWikipediaService(ParsedArticleReader(), CatalogEngineResolver())
@@ -100,25 +109,33 @@ Checks each statement of an LLM answer against a Wikipedia article.
 Send exactly two sources: one `llm_output` source with the answer as `text`,
 and one `wikipedia` source given by `url`, or by `title` with `language`
 (optionally a `revision_id`). Each statement of the answer comes back with a
-`label`, the engine's `confidence` and, when the engine quotes one, the
-Wikipedia passage it relied on as `evidence`:
+`label` and, where the strategy finds one, the Wikipedia passage as `evidence`:
 
 - `supported`: the article states the statement or clearly implies it.
 - `contradicted`: the article says something that conflicts with it.
+- `partial`: close to an article sentence but below the similarity threshold
+  (`semantic_similarity` only, when `options.partial_threshold` is set).
 - `not_found`: the article does not address it. **This does not mean the
   statement is false**, only that the article text did not cover it.
 
-`strategy` defaults to `factual_consistency`, the only strategy this endpoint
-supports. `engines` lists model catalog ids; empty means the cheapest
-configured model. If one of several engines fails, the response is `200`
-with `status: "partial"` and the failure in `errors`; if every engine fails,
-an `ErrorResponse` is returned.
+**Choosing a strategy.** Set `strategy` in the body; `null` uses
+`factual_consistency`. The route stays the same for every strategy:
+"""
+    + _strategy_docs("llm_vs_wikipedia")
+    + """
 
-Limits: only the first 12,000 characters of the article are checked, so
-claims backed later in a long article can come back `not_found`. Generating
-the answer on the server (`generate_with`), `pivot_language` and direction
-`both` are not supported yet. Wikipedia text is licensed CC BY-SA 4.0:
-show the source's `attribution` wherever its text or evidence is displayed.
+`engines` lists model catalog ids for language-model strategies; empty means
+the cheapest configured model. Embedding strategies use the server's embedding
+model, so `engines` must be empty. A strategy that is unknown or cannot run on
+the requested engines is rejected with `422 unsupported_strategy`, listing the
+available ones. If one of several engines fails, the response is `200` with
+`status: "partial"`; if every engine fails, an `ErrorResponse` is returned.
+
+Limits: `factual_consistency` checks only the first 12,000 characters of the
+article, so claims backed later in a long article can come back `not_found`.
+Generating the answer on the server (`generate_with`), `pivot_language` and
+direction `both` are not supported yet. Wikipedia text is licensed CC BY-SA
+4.0: show the source's `attribution` wherever its text or evidence is displayed.
 """,
     response_model=ComparisonResponse,
     responses=_ERROR_RESPONSES,

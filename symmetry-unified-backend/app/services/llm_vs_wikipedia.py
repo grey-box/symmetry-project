@@ -1,18 +1,26 @@
 """LLM vs Wikipedia comparison for API v2.
 
-Checks each statement of an LLM answer against a Wikipedia article and labels
-it ``supported``, ``contradicted`` or ``not_found``, with the engine's
-confidence and, when the engine quotes one, the Wikipedia passage it relied on.
+Checks each statement of an LLM answer against a Wikipedia article. The
+request's ``strategy`` picks how (see ``app/services/v2_strategies.py``):
 
-The labelling itself is the ``factual_consistency`` strategy, run through the
-generic comparison pipeline once per requested engine. This module validates
-the request, obtains the article, and maps the pipeline output onto the
-published v2 response (``docs/api-v2/api-v2-response-schema.md``).
+- ``factual_consistency`` (default): a language model labels each statement
+  ``supported``, ``contradicted`` or ``not_found``, with its confidence and,
+  when it quotes one, the Wikipedia passage it relied on. Runs once per
+  requested engine.
+- ``semantic_similarity``: the server's embedding model finds each statement's
+  closest article sentence and labels it ``supported``, ``partial`` or
+  ``not_found`` by similarity. It never reports ``contradicted``: similar is
+  not the same as true.
+
+Both run through the generic comparison pipeline. This module validates the
+request, obtains the article, and maps the pipeline output onto the published
+v2 response (``docs/api-v2/api-v2-response-schema.md``).
 
 Known limits:
-- Only the first ``max_reference_chars`` (12,000 by default) characters of the
-  article reach the engine, so claims backed later in a long article can come
-  back ``not_found``. Per-statement evidence retrieval will remove this limit.
+- With ``factual_consistency``, only the first ``max_reference_chars`` (12,000
+  by default) characters of the article reach the engine, so claims backed
+  later in a long article can come back ``not_found``. Per-statement evidence
+  retrieval will remove this limit.
 - ``not_found`` means the article text did not address the statement. It does
   not mean the statement is false.
 - Statements are not aligned to Wikipedia statements yet (``alignments`` is
@@ -20,6 +28,7 @@ Known limits:
 """
 
 import asyncio
+import dataclasses
 import logging
 import time
 from dataclasses import dataclass, field
@@ -70,6 +79,7 @@ from app.services.v2_responses import (
     failed_result,
     latency_usage,
 )
+from app.services.v2_strategies import StrategyProfile, choose_strategy
 from app.services.wikipedia_reference import (
     WIKIPEDIA_LICENSE,
     ArticleNotFoundError,
@@ -78,16 +88,14 @@ from app.services.wikipedia_reference import (
     WikipediaUnavailableError,
     article_ref,
 )
-from app.strategies import list_strategies
+from app.strategies.text import split_sentences
 
 logger = logging.getLogger(__name__)
 
 MODE = "llm_vs_wikipedia"
 DIRECTION = "first_to_second"
-DEFAULT_STRATEGY = "factual_consistency"
-# Strategies that can label LLM statements against a reference on this endpoint.
-SUPPORTED_STRATEGIES = ("factual_consistency",)
 DEFAULT_TIMEOUT_S = 120.0
+EMBEDDING_ENGINE_ID = "embedding-default"
 
 
 # Wraps an engine to remember its last failure, so the API can report the precise
@@ -118,23 +126,27 @@ class _EngineRun:
 
 # Validates an LLM vs Wikipedia request, runs it on every engine and builds the response.
 class LlmVsWikipediaService:
+    # strategy_config adds settings per strategy id, for example a test embedder
+    # for semantic_similarity: {"semantic_similarity": {"embedder": ...}}.
     def __init__(
         self,
         reader: WikipediaReader,
         engines: EngineResolver,
         pipeline: ComparisonPipeline | None = None,
+        strategy_config: dict[str, dict] | None = None,
     ) -> None:
         self.reader = reader
         self.engines = engines
         # Statements are reported in text order, so no significance ranking is needed.
         self.pipeline = pipeline or ComparisonPipeline(ranker=keep_order)
+        self.strategy_config = strategy_config or {}
 
     # Returns the response, or raises V2Failure when nothing usable was produced.
     async def compare(
         self, body: ComparisonRequest, request_id: str
     ) -> ComparisonResponse:
         started = time.perf_counter()
-        strategy = self._check_request(body)
+        profile = self._check_request(body)
         claim_input = next(s for s in body.sources if s.kind == "llm_output")
         wiki_input = next(s for s in body.sources if s.kind == "wikipedia")
         if claim_input.generate_with is not None:
@@ -157,16 +169,15 @@ class LlmVsWikipediaService:
                 "invalid_request", str(exc), "source", source_id=wiki_input.id
             ) from None
 
-        engines = self._resolve_engines(body.engines)
+        if profile.engine == "embedding":
+            engines = [self._embedding_engine(profile)]
+        else:
+            engines = self._resolve_engines(body.engines)
         article = await self._read_article(ref, wiki_input.id)
         claims, reference = self._texts(claim_input, wiki_input, article)
 
-        timeout_s = body.options.timeout_seconds or DEFAULT_TIMEOUT_S
         runs = await asyncio.gather(
-            *(
-                self._run(engine, strategy, reference, claims, timeout_s)
-                for engine in engines
-            )
+            *(self._run(engine, profile, reference, claims, body) for engine in engines)
         )
 
         source_ids = (claim_input.id, wiki_input.id)
@@ -175,7 +186,9 @@ class LlmVsWikipediaService:
             errors.extend(run.errors)
             if run.outcome is not None and run.outcome.results:
                 results.append(
-                    self._ok_result(run, source_ids, claims.text, article, body)
+                    self._ok_result(
+                        run, profile, source_ids, claims.text, article, body
+                    )
                 )
             else:
                 results.append(
@@ -200,7 +213,7 @@ class LlmVsWikipediaService:
             request_id=request_id,
             status="partial" if errors else "success",
             mode=MODE,
-            strategy=strategy,
+            strategy=profile.id,
             prompt=body.prompt,
             duration_ms=round((time.perf_counter() - started) * 1000),
             sources=sources,
@@ -208,29 +221,16 @@ class LlmVsWikipediaService:
             errors=errors,
         )
 
-    # Checks the parts of the request this endpoint handles and returns the strategy id.
+    # Checks the parts of the request this endpoint handles and returns the strategy.
     @staticmethod
-    def _check_request(body: ComparisonRequest) -> str:
+    def _check_request(body: ComparisonRequest) -> StrategyProfile:
         if body.mode != MODE:
             raise fail(
                 "invalid_request",
                 f"This endpoint only accepts mode '{MODE}', got '{body.mode}'.",
                 details={"field": "mode"},
             )
-        strategy = body.strategy or DEFAULT_STRATEGY
-        if strategy not in list_strategies() or strategy not in SUPPORTED_STRATEGIES:
-            known = strategy in list_strategies()
-            raise fail(
-                "unsupported_strategy",
-                f"Strategy '{strategy}' "
-                + (
-                    "cannot label statements against Wikipedia."
-                    if known
-                    else "is not available."
-                )
-                + f" Supported here: {', '.join(SUPPORTED_STRATEGIES)}.",
-                details={"strategy": strategy, "supported": list(SUPPORTED_STRATEGIES)},
-            )
+        profile = choose_strategy(MODE, body.strategy, body.engines)
         options = body.options
         if options.direction not in (None, DIRECTION):
             raise fail(
@@ -245,7 +245,19 @@ class LlmVsWikipediaService:
                 "pivot_language is not supported by this endpoint yet.",
                 details={"field": "options.pivot_language"},
             )
-        return strategy
+        return profile
+
+    # The server's embedding model, which serves embedding strategies.
+    def _embedding_engine(self, profile: StrategyProfile) -> EngineHandle:
+        from app.models.comparison.registry import DEFAULT_MODEL
+
+        model = self.strategy_config.get(profile.id, {}).get("model_name")
+        return EngineHandle(
+            id=EMBEDDING_ENGINE_ID,
+            type="embedding",
+            model=model or DEFAULT_MODEL,
+            provider="local",
+        )
 
     def _resolve_engines(self, engine_ids: list[str]) -> list[EngineHandle]:
         try:
@@ -314,53 +326,82 @@ class LlmVsWikipediaService:
     async def _run(
         self,
         handle: EngineHandle,
-        strategy: str,
+        profile: StrategyProfile,
         reference: TextInput,
         claims: TextInput,
-        timeout_s: float,
+        body: ComparisonRequest,
     ) -> _EngineRun:
-        if handle.adapter is None:
-            reason = handle.error.message if handle.error else "it could not be built"
-            error = error_detail(
-                "engine_unavailable",
-                f"Engine '{handle.id}' is not usable: {reason}",
-                "engine",
-                engine_id=handle.id,
-                retryable=False,
-            )
-            return _EngineRun(handle, None, [error])
+        timeout_s = body.options.timeout_seconds or DEFAULT_TIMEOUT_S
+        config = dict(self.strategy_config.get(profile.id, {}))
+        recorder = None
+        if profile.engine == "embedding":
+            if body.options.similarity_threshold is not None:
+                config["threshold"] = body.options.similarity_threshold
+            # The claims go first so each claim gets its closest article sentence.
+            first, second = claims, reference
+        else:
+            if handle.adapter is None:
+                reason = (
+                    handle.error.message if handle.error else "it could not be built"
+                )
+                error = error_detail(
+                    "engine_unavailable",
+                    f"Engine '{handle.id}' is not usable: {reason}",
+                    "engine",
+                    engine_id=handle.id,
+                    retryable=False,
+                )
+                return _EngineRun(handle, None, [error])
+            recorder = _RecordingAdapter(handle.adapter)
+            config["model_adapter"] = recorder
+            # The article is the reference (source); the claims are checked (target).
+            first, second = reference, claims
 
-        recorder = _RecordingAdapter(handle.adapter)
-        spec = StrategySpec(
-            strategy, config={"model_adapter": recorder}, timeout_s=timeout_s
-        )
+        spec = StrategySpec(profile.id, config=config, timeout_s=timeout_s)
         started = time.perf_counter()
         try:
-            outcome = await self.pipeline.run(reference, claims, [spec])
+            outcome = await self.pipeline.run(first, second, [spec])
         except PipelineConfigError as exc:
             code = exc.code if exc.code in ERROR_CODES else "invalid_request"
             return _EngineRun(handle, None, [error_detail(code, exc.message)])
         latency_ms = (time.perf_counter() - started) * 1000
-        errors = [_engine_error(entry, recorder, handle.id) for entry in outcome.errors]
+        if recorder is None:
+            errors = [_embedding_error(entry, handle.id) for entry in outcome.errors]
+        else:
+            errors = [_engine_error(e, recorder, handle.id) for e in outcome.errors]
         return _EngineRun(handle, outcome, errors, latency_ms)
 
     # Builds the result of an engine that finished: one labelled statement per sentence.
     @staticmethod
     def _ok_result(
         run: _EngineRun,
+        profile: StrategyProfile,
         source_ids: tuple[str, str],
         claim_text: str,
         article: WikipediaArticle,
         body: ComparisonRequest,
     ) -> Result:
         strategy_result = run.outcome.results[0]
-        if strategy_result.details.get("reference_truncated"):
-            logger.info(
-                "article %r was truncated before checking; later passages were not seen",
-                article.title,
+        handle = run.handle
+        if profile.score_basis == "cosine_similarity":
+            rows = _similarity_rows(
+                strategy_result.details,
+                strategy_result.findings,
+                claim_text,
+                partial_threshold=body.options.partial_threshold,
             )
+            model = strategy_result.details.get("model")
+            if model:
+                handle = dataclasses.replace(handle, model=model)
+        else:
+            rows = strategy_result.details.get("statements", [])
+            if strategy_result.details.get("reference_truncated"):
+                logger.info(
+                    "article %r was truncated before checking; later passages were not seen",
+                    article.title,
+                )
         statements = _statements(
-            strategy_result.details.get("statements", []),
+            rows,
             claim_text,
             claim_id=source_ids[0],
             wiki_id=source_ids[1],
@@ -369,12 +410,12 @@ class LlmVsWikipediaService:
         )
         return Result(
             source_ids=source_ids,
-            engine=engine_model(run.handle),
+            engine=engine_model(handle),
             status="ok",
             direction=DIRECTION,
             comparison_language=None,
-            overall_score=_overall_score(statements),
-            score_basis="model_reported",
+            overall_score=_overall_score(statements, profile.score_basis),
+            score_basis=profile.score_basis,
             statements=statements,
             alignments=[],
             usage=latency_usage(run.latency_ms),
@@ -426,19 +467,81 @@ def _statements(
                 block_id=None,
                 label=label,
                 confidence=None if label == "unverifiable" else row.get("confidence"),
-                best_match_similarity=None,
+                best_match_similarity=row.get("similarity"),
                 evidence=evidence,
             )
         )
     return statements
 
 
-# Share of judged statements labelled supported, ignoring unverifiable (schema section 6).
-def _overall_score(statements: list[Statement]) -> float | None:
+# Turns a semantic_similarity result (claims compared first) into per-claim rows.
+# Matched claims are in details["alignments"] with their score; unmatched claims are
+# findings whose confidence is 1 - similarity. Labels follow schema section 6:
+# similarity >= threshold is supported, >= partial_threshold is partial, else not_found.
+# Evidence is the closest article sentence, kept only for supported and partial.
+def _similarity_rows(
+    details: dict,
+    findings: list,
+    claim_text: str,
+    *,
+    partial_threshold: float | None,
+) -> list[dict]:
+    threshold = details["threshold"]
+    matched = {a["source_index"]: a for a in details.get("alignments", [])}
+    unmatched = iter(f for f in findings if f.label == "no_match_in_target")
+    rows = []
+    for index, sentence in enumerate(split_sentences(claim_text)):
+        if index in matched:
+            similarity = matched[index]["score"]
+            closest = matched[index]["target_text"]
+        else:
+            finding = next(unmatched, None)
+            if finding is None:
+                continue
+            similarity = 1.0 - (finding.confidence or 0.0)
+            closest = finding.evidence
+        similarity = round(min(1.0, max(0.0, similarity)), 4)
+        if similarity >= threshold:
+            label = "supported"
+        elif partial_threshold is not None and similarity >= partial_threshold:
+            label = "partial"
+        else:
+            label = "not_found"
+        rows.append(
+            {
+                "statement": sentence,
+                "label": label,
+                "confidence": None,
+                "similarity": similarity,
+                "evidence": closest if label != "not_found" else None,
+            }
+        )
+    return rows
+
+
+# The result's summary score (schema section 6): the share of judged statements
+# labelled supported for model-reported results, the mean similarity otherwise.
+def _overall_score(statements: list[Statement], score_basis: str) -> float | None:
     judged = [s for s in statements if s.label not in (None, "unverifiable")]
     if not judged:
         return None
-    return sum(s.label == "supported" for s in judged) / len(judged)
+    if score_basis == "model_reported":
+        return sum(s.label == "supported" for s in judged) / len(judged)
+    scores = [
+        s.best_match_similarity for s in judged if s.best_match_similarity is not None
+    ]
+    return round(sum(scores) / len(scores), 4) if scores else None
+
+
+# Maps a pipeline error entry from the embedding model onto the v2 error model.
+def _embedding_error(entry: dict, engine_id: str) -> ErrorDetail:
+    message = str(entry.get("message") or "The embedding model failed.")
+    code = entry.get("code")
+    if code == "invalid_request":
+        return error_detail("invalid_request", message)
+    if code != "engine_timeout":
+        code = "engine_unavailable"
+    return error_detail(code, message, "engine", engine_id=engine_id)
 
 
 # Maps a pipeline error entry for one engine onto the v2 error model.

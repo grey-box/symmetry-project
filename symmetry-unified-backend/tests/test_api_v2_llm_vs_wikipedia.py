@@ -7,6 +7,7 @@ schema document.
 """
 
 import json
+import re
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -157,10 +158,12 @@ class FakeReader(WikipediaReader):
 
 @pytest.fixture
 def use_service():
-    def install(reader=None, resolver=None):
+    def install(reader=None, resolver=None, strategy_config=None):
         reader = reader or FakeReader()
         resolver = resolver or FakeResolver()
-        service = LlmVsWikipediaService(reader, resolver)
+        service = LlmVsWikipediaService(
+            reader, resolver, strategy_config=strategy_config
+        )
         app.dependency_overrides[get_llm_vs_wikipedia_service] = lambda: service
         return reader, resolver
 
@@ -433,13 +436,18 @@ class TestFailure:
 
 @pytest.mark.unit
 class TestRequestChecks:
-    @pytest.mark.parametrize(
-        "strategy", ["semantic_similarity", "no_such_strategy", "fake"]
-    )
-    def test_other_strategies_are_unsupported(self, client, use_service, strategy):
+    @pytest.mark.parametrize("strategy", ["no_such_strategy", "fake"])
+    def test_unknown_and_internal_strategies_are_unsupported(
+        self, client, use_service, strategy
+    ):
         use_service()
         body = _check_error(client.post(PATH, json=_request(strategy=strategy)), 422)
-        assert body["errors"][0]["code"] == "unsupported_strategy"
+        [error] = body["errors"]
+        assert error["code"] == "unsupported_strategy"
+        assert error["details"]["available"] == [
+            "factual_consistency",
+            "semantic_similarity",
+        ]
 
     def test_explicit_factual_consistency_is_accepted(self, client, use_service):
         use_service()
@@ -500,3 +508,133 @@ class TestRequestChecks:
         body = _check_error(client.post(PATH, json=request), 422)
         [error] = body["errors"]
         assert (error["code"], error["scope"]) == ("invalid_request", "request")
+
+
+# Deterministic stand-in for the embedding model: bag-of-words vectors, so
+# identical sentences score 1.0 and sentences sharing no words score 0.0.
+class WordEmbedder:
+    def __init__(self, fail: bool = False):
+        self.fail = fail
+
+    def encode(self, sentences):
+        if self.fail:
+            raise RuntimeError("model file missing")
+        tokens = [re.findall(r"\w+", s.lower()) for s in sentences]
+        vocabulary = {
+            w: i for i, w in enumerate(sorted({w for t in tokens for w in t}))
+        }
+        vectors = []
+        for words in tokens:
+            vector = [0.0] * len(vocabulary)
+            for word in words:
+                vector[vocabulary[word]] += 1.0
+            vectors.append(vector)
+        return vectors
+
+
+SIMILARITY_ANSWER = (
+    "The Eiffel Tower was completed in 1889. "
+    "The tower is 400 metres tall. "
+    "Bananas grow on trees."
+)
+
+
+def _semantic_config(fail: bool = False) -> dict:
+    return {
+        "semantic_similarity": {
+            "embedder": WordEmbedder(fail),
+            "model_name": "test-embedder",
+        }
+    }
+
+
+def _semantic_request(**options) -> dict:
+    request = _request(strategy="semantic_similarity", options=options)
+    request["sources"][0]["text"] = SIMILARITY_ANSWER
+    return request
+
+
+@pytest.mark.unit
+class TestStrategySelection:
+    def test_semantic_similarity_is_chosen_by_the_request(self, client, use_service):
+        use_service(strategy_config=_semantic_config())
+        request = _semantic_request(similarity_threshold=0.9, partial_threshold=0.7)
+        body = _check_comparison(client.post(PATH, json=request))
+
+        assert body["strategy"] == "semantic_similarity"
+        [result] = body["results"]
+        assert result["score_basis"] == "cosine_similarity"
+        assert result["engine"] == {
+            "id": "embedding-default",
+            "type": "embedding",
+            "provider": "local",
+            "model": "test-embedder",
+            "fallback_from": None,
+        }
+        rows = [
+            (s["label"], s["best_match_similarity"], s["confidence"])
+            for s in result["statements"]
+        ]
+        assert rows == [
+            ("supported", 1.0, None),
+            ("partial", pytest.approx(5 / 6, abs=1e-4), None),
+            ("not_found", 0.0, None),
+        ]
+        assert result["overall_score"] == pytest.approx((1 + 5 / 6 + 0) / 3, abs=1e-3)
+
+    def test_evidence_is_the_closest_article_sentence(self, client, use_service):
+        use_service(strategy_config=_semantic_config())
+        request = _semantic_request(similarity_threshold=0.9, partial_threshold=0.7)
+        statements = _check_comparison(client.post(PATH, json=request))["results"][0][
+            "statements"
+        ]
+        assert [e["text"] for s in statements for e in s["evidence"]] == [
+            "The Eiffel Tower was completed in 1889.",
+            "The tower is 330 metres tall.",
+        ]
+        # No passage is offered for a statement the article does not address.
+        assert statements[2]["evidence"] == []
+
+    def test_server_threshold_applies_when_none_is_requested(self, client, use_service):
+        use_service(strategy_config=_semantic_config())
+        body = _check_comparison(client.post(PATH, json=_semantic_request()))
+        labels = [s["label"] for s in body["results"][0]["statements"]]
+        # 0.83 is above the default threshold of 0.65.
+        assert labels == ["supported", "supported", "not_found"]
+
+    def test_semantic_similarity_needs_no_language_model(self, client, use_service):
+        use_service(
+            resolver=FakeResolver(raises=NoEngineError("no engine")),
+            strategy_config=_semantic_config(),
+        )
+        _check_comparison(client.post(PATH, json=_semantic_request()))
+
+    def test_embedding_strategy_rejects_catalog_engines(self, client, use_service):
+        use_service(strategy_config=_semantic_config())
+        request = _semantic_request()
+        request["engines"] = ["judge"]
+        body = _check_error(client.post(PATH, json=request), 422)
+        [error] = body["errors"]
+        assert error["code"] == "unsupported_strategy"
+        assert error["details"]["engines"] == ["judge"]
+
+    def test_embedding_model_failure_returns_503(self, client, use_service):
+        use_service(strategy_config=_semantic_config(fail=True))
+        body = _check_error(client.post(PATH, json=_semantic_request()), 503)
+        [error] = body["errors"]
+        assert (error["code"], error["scope"], error["engine_id"]) == (
+            "engine_unavailable",
+            "engine",
+            "embedding-default",
+        )
+
+    def test_default_strategy_is_factual_consistency(self, client, use_service):
+        use_service()
+        body = _check_comparison(client.post(PATH, json=_request(strategy=None)))
+        assert body["strategy"] == "factual_consistency"
+        assert body["results"][0]["score_basis"] == "model_reported"
+
+    def test_openapi_lists_the_available_strategies(self, client):
+        operation = client.get("/openapi.json").json()["paths"][PATH]["post"]
+        assert "`factual_consistency` (model_reported)" in operation["description"]
+        assert "`semantic_similarity` (cosine_similarity)" in operation["description"]
