@@ -7,6 +7,37 @@ import {
   type Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 
+const API_BASE_URL = (process.env.SYMMETRY_API_URL ?? "http://127.0.0.1:8000")
+  .replace(/\/$/, "");
+
+async function callSymmetryApi(path: string, args: unknown): Promise<unknown> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(args),
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch (error) {
+    throw new Error(
+      `Could not reach Symmetry API at ${API_BASE_URL}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  const responseText = await response.text();
+  let result: unknown;
+  try {
+    result = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    result = responseText;
+  }
+  if (!response.ok) {
+    throw new Error(`Symmetry API returned HTTP ${response.status}: ${typeof result === "string" ? result : JSON.stringify(result)}`);
+  }
+  return result;
+}
+
 function createServer() {
   const server = new Server(
     {
