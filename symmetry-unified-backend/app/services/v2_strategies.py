@@ -46,18 +46,21 @@ PROFILES: dict[str, StrategyProfile] = {
             id="semantic_similarity",
             engine="embedding",
             score_basis="cosine_similarity",
-            modes=("llm_vs_wikipedia",),
+            modes=("llm_vs_wikipedia", "llm_vs_llm"),
             description=(
-                "An embedding model finds the closest article sentence to each "
-                "statement. Fast and needs no API key, but it measures similar "
-                "meaning, not truth: it never reports contradicted."
+                "An embedding model finds the closest sentence in the other text "
+                "for each statement. Fast and needs no API key, but it measures "
+                "similar meaning, not truth: it never reports contradicted."
             ),
         ),
     )
 }
 
 # Strategy used when a request leaves strategy null.
-MODE_DEFAULTS: dict[str, str] = {"llm_vs_wikipedia": "factual_consistency"}
+MODE_DEFAULTS: dict[str, str] = {
+    "llm_vs_wikipedia": "factual_consistency",
+    "llm_vs_llm": "semantic_similarity",
+}
 
 
 # Ids of the strategies a mode offers: profiled, registered, and serving the mode.

@@ -57,8 +57,18 @@ class TestChooseStrategy:
 
     def test_mode_without_a_default_needs_a_strategy(self):
         with pytest.raises(V2Failure) as caught:
-            choose_strategy("llm_vs_llm", None)
+            choose_strategy("text_vs_text", None)
         assert _error(caught)["code"] == "unsupported_strategy"
+
+    def test_llm_vs_llm_defaults_to_semantic_similarity(self):
+        assert choose_strategy("llm_vs_llm", None).id == "semantic_similarity"
+
+    def test_factual_consistency_is_not_offered_for_llm_vs_llm(self):
+        with pytest.raises(V2Failure) as caught:
+            choose_strategy("llm_vs_llm", "factual_consistency")
+        error = _error(caught)
+        assert "not available for mode 'llm_vs_llm'" in error["message"]
+        assert error["details"]["available"] == ["semantic_similarity"]
 
     def test_embedding_strategy_cannot_run_on_catalog_engines(self):
         with pytest.raises(V2Failure) as caught:
