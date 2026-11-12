@@ -3,7 +3,6 @@ import difflib
 import logging
 from typing import Any
 
-import httpx
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
@@ -40,7 +39,11 @@ from app.services.article_parser import article_fetcher, revision_fetcher
 from app.services.paragraph_diff import diff_sections as _diff_para_sections
 from app.services.revision_flagging import flag_revision
 from app.services.structured_translation import translate_article
-from app.services.wiki_utils import detect_language_lag, parse_wikipedia_url
+from app.services.wiki_utils import (
+    _get_wikipedia_json,
+    detect_language_lag,
+    parse_wikipedia_url,
+)
 
 
 class ParagraphDiffRequest(BaseModel):
@@ -777,12 +780,7 @@ async def _fetch_revisions(title: str, lang: str, limit: int = 20) -> list[Revis
         "rvdir": "older",
         "format": "json",
     }
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(
-            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
-        )
-        r.raise_for_status()
-        data = r.json()
+    data = await _get_wikipedia_json(url, params)
 
     pages = data.get("query", {}).get("pages", {})
     if not pages:
