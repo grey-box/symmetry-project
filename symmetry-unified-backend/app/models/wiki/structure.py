@@ -11,7 +11,7 @@ class Citation(BaseModel):
 class Reference(BaseModel):
     model_config = {"frozen": True}
     label: str = Field(max_length=10000)
-    id: str | None = Field(default=None, max_length=300)
+    id: str | None = Field(default=None, max_length=10000)
     url: str | None = Field(default=None, max_length=2000)
 
 class WikiLink(BaseModel):

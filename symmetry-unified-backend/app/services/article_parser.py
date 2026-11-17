@@ -51,7 +51,7 @@ def _fetch_wikipedia_json_sync(url: str, params: dict) -> dict:
     # ("Please respect our robot policy") even with an identical User-Agent, so this
     # uses `requests` instead, which is not blocked.
     response = requests.get(
-        url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}, timeout=10.0
+        url, params=params, headers={"User-Agent": "SymmetryUnified/1.0 (https://github.com/grey-box/symmetry-project; educational project)"}, timeout=10.0
     )
     response.raise_for_status()
     return response.json()
@@ -64,6 +64,12 @@ async def _fetch_wikipedia_json(url: str, params: dict) -> dict:
 def _parse_article_html(html: str, title: str, lang: str, source: str) -> Article:
     """Parse rendered Wikipedia HTML into an Article object."""
     soup = BeautifulSoup(html, "html.parser")
+
+    # Remove styling and executable content before extracting article text.
+    # Wikipedia can place CSS inside article markup, which would otherwise
+    # appear as normal paragraph text and pollute comparison results.
+    for unwanted_tag in soup.find_all(["style", "script", "noscript"]):
+        unwanted_tag.decompose()
 
     sections = []
     current_title = "Lead section"

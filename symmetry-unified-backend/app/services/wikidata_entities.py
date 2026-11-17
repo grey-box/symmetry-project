@@ -87,7 +87,7 @@ def _post_query_sync(lang: str, params: dict) -> dict:
         response = requests.post(
             f"https://{lang}.wikipedia.org/w/api.php",
             data=data,
-            headers={"User-Agent": "SymmetryUnified/1.0"},
+            headers={"User-Agent": "SymmetryUnified/1.0 (https://github.com/grey-box/symmetry-project; educational project)"},
             timeout=10.0,
         )
         if response.status_code in (429, 503) and attempt < _RETRIES:
