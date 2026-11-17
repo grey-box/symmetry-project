@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { Phase } from '@/models/Phase'
+import { useSessionState } from '@/lib/sessionState'
 import { Separator } from '@/components/ui/separator'
 import StructuredArticleViewer from '@/components/StructuredArticleViewer'
 import CrossLanguageComparison from '@/components/CrossLanguageComparison'
@@ -8,7 +9,8 @@ import TranslationSection from '@/components/TranslationSection'
 import ComparisonSection from '@/components/ComparisonSection'
 
 const Home = () => {
-  const [activeTab, setActiveTab] = useState(Phase.STRUCTURED_ARTICLE)
+  // Remembered while the app is open, so coming back from Settings returns to the same tab.
+  const [activeTab, setActiveTab] = useSessionState('home.activeTab', Phase.STRUCTURED_ARTICLE)
 
   useEffect(() => {
     const handleSetActiveTab = (event: Event) => {

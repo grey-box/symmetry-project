@@ -15,7 +15,9 @@ import {
   Section,
   ParagraphDiffRequest,
   ParagraphDiffResponse,
+  RevisionAiSummaryResponse,
 } from '../models/structured-wiki';
+import { AiAgentSettings } from './aiAgentSettings';
 import { FactExtractionModel, FactExtractionRequest, FactExtractionResponse } from '../models/FactExtraction';
 
 // Get API base URL from constants
@@ -205,6 +207,41 @@ class StructuredWikiService {
 
     const url = `${API_BASE_URL}/symmetry/v1/wiki/revision-diff?${params.toString()}`;
     return this.fetchWithErrorHandling<RevisionDetailedDiffResponse>(url);
+  }
+
+  /**
+   * Ask the backend's AI agent to summarize the changes between two revisions.
+   * The API key goes in a header so it is never part of a URL or request body.
+   */
+  async getRevisionAiSummary(
+    request: { old_revid: number; new_revid: number; title: string; lang?: string },
+    settings: AiAgentSettings,
+  ): Promise<RevisionAiSummaryResponse> {
+    const response = await fetch(`${API_BASE_URL}/symmetry/v1/wiki/revision-ai-summary`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-AI-API-Key': settings.apiKey,
+      },
+      body: JSON.stringify({
+        ...request,
+        provider: settings.provider,
+        model: settings.model || null,
+        base_url: settings.provider === 'custom' ? settings.baseUrl : null,
+      }),
+    });
+    if (!response.ok) {
+      // The backend explains what went wrong (bad key, rate limit, ...).
+      let detail = `HTTP error! status: ${response.status}`;
+      try {
+        const body = await response.json();
+        if (typeof body?.detail === 'string') detail = body.detail;
+      } catch {
+        // keep the status message
+      }
+      throw new Error(detail);
+    }
+    return response.json();
   }
 
   /**

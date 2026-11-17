@@ -9,6 +9,7 @@ import {
 import { structuredWikiService } from '../services/structuredWikiService';
 import { FactExtractionModel, FactExtractionResponse } from '../models/FactExtraction';
 import { translateArticleChunked } from '@/services/translateArticle';
+import { useSessionState } from '../lib/sessionState';
 
 const TRANSLATION_LANGUAGES = [
   { code: 'en', label: 'English' },
@@ -32,29 +33,29 @@ const StructuredArticleViewer: React.FC<StructuredArticleViewerProps> = ({
   initialQuery = '',
   initialLang = 'en'
 }) => {
-  const [article, setArticle] = useState<StructuredArticleResponse | null>(null);
-  const [citationAnalysis, setCitationAnalysis] = useState<StructuredCitationResponse | null>(null);
-  const [referenceAnalysis, setReferenceAnalysis] = useState<StructuredReferenceResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState(''); // For section search
-  const [searchInput, setSearchInput] = useState(''); // For article search input
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
-  const [targetLang, setTargetLang] = useState(initialLang);
-  const [translating, setTranslating] = useState(false);
-  const [translatedArticle, setTranslatedArticle] = useState<string>('');
+  const [article, setArticle] = useSessionState<StructuredArticleResponse | null>('structuredArticle.article', null);
+  const [citationAnalysis, setCitationAnalysis] = useSessionState<StructuredCitationResponse | null>('structuredArticle.citationAnalysis', null);
+  const [referenceAnalysis, setReferenceAnalysis] = useSessionState<StructuredReferenceResponse | null>('structuredArticle.referenceAnalysis', null);
+  const [loading, setLoading] = useSessionState('structuredArticle.loading', false);
+  const [error, setError] = useSessionState<string | null>('structuredArticle.error', null);
+  const [searchTerm, setSearchTerm] = useSessionState('structuredArticle.searchTerm', ''); // For section search
+  const [searchInput, setSearchInput] = useSessionState('structuredArticle.searchInput', ''); // For article search input
+  const [selectedSection, setSelectedSection] = useSessionState<string | null>('structuredArticle.selectedSection', null);
+  const [targetLang, setTargetLang] = useSessionState('structuredArticle.targetLang', initialLang);
+  const [translating, setTranslating] = useSessionState('structuredArticle.translating', false);
+  const [translatedArticle, setTranslatedArticle] = useSessionState<string>('structuredArticle.translatedArticle', '');
 
   // Fact extraction states
-  const [factModels, setFactModels] = useState<FactExtractionModel[]>([]);
-  const [selectedFactModel, setSelectedFactModel] = useState<string>('');
-  const [customFactModel, setCustomFactModel] = useState<string>('');
-  const [customModelValidation, setCustomModelValidation] = useState<{ valid: boolean; error?: string } | null>(null);
-  const [validatingCustomModel, setValidatingCustomModel] = useState<boolean>(false);
-  const [sectionFacts, setSectionFacts] = useState<Record<string, FactExtractionResponse>>({});
-  const [extractingSection, setExtractingSection] = useState<string | null>(null);
-  const [factError, setFactError] = useState<string | null>(null);
-  const [numFacts, setNumFacts] = useState<number>(1);
-  const [autoNumFacts, setAutoNumFacts] = useState<boolean>(false);
+  const [factModels, setFactModels] = useSessionState<FactExtractionModel[]>('structuredArticle.factModels', []);
+  const [selectedFactModel, setSelectedFactModel] = useSessionState<string>('structuredArticle.selectedFactModel', '');
+  const [customFactModel, setCustomFactModel] = useSessionState<string>('structuredArticle.customFactModel', '');
+  const [customModelValidation, setCustomModelValidation] = useSessionState<{ valid: boolean; error?: string } | null>('structuredArticle.customModelValidation', null);
+  const [validatingCustomModel, setValidatingCustomModel] = useSessionState<boolean>('structuredArticle.validatingCustomModel', false);
+  const [sectionFacts, setSectionFacts] = useSessionState<Record<string, FactExtractionResponse>>('structuredArticle.sectionFacts', {});
+  const [extractingSection, setExtractingSection] = useSessionState<string | null>('structuredArticle.extractingSection', null);
+  const [factError, setFactError] = useSessionState<string | null>('structuredArticle.factError', null);
+  const [numFacts, setNumFacts] = useSessionState<number>('structuredArticle.numFacts', 1);
+  const [autoNumFacts, setAutoNumFacts] = useSessionState<boolean>('structuredArticle.autoNumFacts', false);
   const [hoveredChunk, setHoveredChunk] = useState<string | null>(null);
   const [clickedChunk, setClickedChunk] = useState<string | null>(null);
 

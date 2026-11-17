@@ -1,15 +1,26 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import RevisionTimeline, { computeRevisionSelection } from './RevisionTimeline';
 import SectionHeatmap from './SectionHeatmap';
+import RevisionAiSummary from './RevisionAiSummary';
 import {
   Revision,
   RevisionDiffResponse,
   RevisionSectionChange,
   RevisionDetailedDiffResponse,
   RevisionFlag,
+  RevisionAiSummaryResponse,
 } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
+import {
+  effectiveModel,
+  loadAiAgentSettings,
+  missingSetting,
+  providerInfo,
+} from '../services/aiAgentSettings';
+import ROUTES from '../constants/ROUTES';
+import { useSessionState } from '../lib/sessionState';
 
 const formatDate = (iso: string) => {
   try {
@@ -56,20 +67,40 @@ const flagTone = (severity: RevisionFlag['severity']) => {
 };
 
 const ThroughTimeComparison: React.FC = () => {
-  const [query, setQuery] = useState('Python (programming language)');
-  const [lang, setLang] = useState('en');
-  const [limit, setLimit] = useState(20);
-  const [includeFlags, setIncludeFlags] = useState(true);
+  const [query, setQuery] = useSessionState('throughTime.query', 'Python (programming language)');
+  const [lang, setLang] = useSessionState('throughTime.lang', 'en');
+  const [limit, setLimit] = useSessionState('throughTime.limit', 20);
+  const [includeFlags, setIncludeFlags] = useSessionState('throughTime.includeFlags', true);
 
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [compareLoading, setCompareLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [historyLoading, setHistoryLoading] = useSessionState('throughTime.historyLoading', false);
+  const [compareLoading, setCompareLoading] = useSessionState('throughTime.compareLoading', false);
+  const [error, setError] = useSessionState<string | null>('throughTime.error', null);
 
-  const [revisions, setRevisions] = useState<Revision[]>([]);
-  const [oldRevisionId, setOldRevisionId] = useState<number | null>(null);
-  const [newRevisionId, setNewRevisionId] = useState<number | null>(null);
-  const [diff, setDiff] = useState<RevisionDiffResponse | null>(null);
-  const [detailedDiff, setDetailedDiff] = useState<RevisionDetailedDiffResponse | null>(null);
+  const [revisions, setRevisions] = useSessionState<Revision[]>('throughTime.revisions', []);
+  const [oldRevisionId, setOldRevisionId] = useSessionState<number | null>('throughTime.oldRevisionId', null);
+  const [newRevisionId, setNewRevisionId] = useSessionState<number | null>('throughTime.newRevisionId', null);
+  const [diff, setDiff] = useSessionState<RevisionDiffResponse | null>('throughTime.diff', null);
+  const [detailedDiff, setDetailedDiff] = useSessionState<RevisionDetailedDiffResponse | null>('throughTime.detailedDiff', null);
+
+  // AI summary of the selected pair
+  const [aiSettings] = useState(loadAiAgentSettings);
+  const [aiLoading, setAiLoading] = useSessionState('throughTime.aiLoading', false);
+  const [aiError, setAiError] = useSessionState<string | null>('throughTime.aiError', null);
+  const [aiResult, setAiResult] = useSessionState<RevisionAiSummaryResponse | null>('throughTime.aiResult', null);
+  const aiSetupProblem = missingSetting(aiSettings);
+
+  // A summary belongs to one pair of revisions; clear it when the pair
+  // changes.  Comparing with the last pair (instead of running on every
+  // mount) keeps the summary when the user comes back to this tab.
+  const lastPair = useRef(`${oldRevisionId}-${newRevisionId}`);
+  useEffect(() => {
+    const pair = `${oldRevisionId}-${newRevisionId}`;
+    if (pair !== lastPair.current) {
+      lastPair.current = pair;
+      setAiResult(null);
+      setAiError(null);
+    }
+  }, [oldRevisionId, newRevisionId]);
 
   const sortedRevisions = useMemo(() => {
     return [...revisions].sort((a, b) => {
@@ -123,6 +154,40 @@ const ThroughTimeComparison: React.FC = () => {
       setNewRevisionId(null);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const articleTitleAndLang = () => {
+    const trimmedQuery = query.trim();
+    const parsed = trimmedQuery.includes('://')
+      ? structuredWikiService.parseWikipediaUrl(trimmedQuery)
+      : null;
+    return { title: parsed?.title ?? trimmedQuery, lang: parsed?.lang ?? lang };
+  };
+
+  const generateAiSummary = async () => {
+    if (!oldRevisionId || !newRevisionId || oldRevisionId === newRevisionId) {
+      setAiError('Select two different revisions first.');
+      return;
+    }
+    // Revisions are compared oldest to newest whichever was clicked first.
+    const olderId = Math.min(oldRevisionId, newRevisionId);
+    const newerId = Math.max(oldRevisionId, newRevisionId);
+    const { title, lang: articleLang } = articleTitleAndLang();
+
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const result = await structuredWikiService.getRevisionAiSummary(
+        { old_revid: olderId, new_revid: newerId, title, lang: articleLang },
+        aiSettings,
+      );
+      setAiResult(result);
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Failed to generate the AI summary');
+      setAiResult(null);
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -404,6 +469,52 @@ const ThroughTimeComparison: React.FC = () => {
               tone="bg-amber-50 border-amber-200 text-amber-900"
             />
           </div>
+        </div>
+      )}
+      {sortedRevisions.length > 0 && (
+        <div className="min-w-0 bg-white rounded-xl shadow-md p-6 space-y-4" data-testid="ai-summary-card">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold">AI Revision Summary</h3>
+              <p className="text-sm text-gray-500">
+                Sends the LaBSE paragraph comparison, Wikidata-linked entities and edit summaries for the
+                selected revisions to your AI agent, which explains what changed and what to double check.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={generateAiSummary}
+              disabled={aiLoading || !!aiSetupProblem || !oldRevisionId || !newRevisionId}
+              className="px-5 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 disabled:opacity-50"
+              data-testid="btn-ai-summary"
+            >
+              {aiLoading ? 'Summarizing...' : aiResult ? 'Summarize Again' : 'Generate AI Summary'}
+            </button>
+          </div>
+
+          <div className="text-xs text-gray-500">
+            {aiSetupProblem ? (
+              <span className="text-amber-700">
+                {aiSetupProblem}{' '}
+                <Link to={`/${ROUTES.SETTINGS}`} className="underline">Open Settings</Link>
+              </span>
+            ) : (
+              <span>
+                Using {providerInfo(aiSettings.provider).label} · {effectiveModel(aiSettings)}.{' '}
+                <Link to={`/${ROUTES.SETTINGS}`} className="underline">Change</Link>
+              </span>
+            )}
+          </div>
+
+          {aiLoading && (
+            <p className="text-sm text-gray-500">
+              Comparing the revisions and waiting for the AI. This can take a minute for big edits.
+            </p>
+          )}
+          {aiError && (
+            <div className="p-3 bg-red-100 border border-red-300 text-red-700 rounded-md text-sm">{aiError}</div>
+          )}
+          {aiResult && <RevisionAiSummary result={aiResult} />}
         </div>
       )}
     </section>

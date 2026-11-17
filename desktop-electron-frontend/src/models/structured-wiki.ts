@@ -217,3 +217,74 @@ export interface ParagraphDiffRequest {
   similarity_threshold?: number;
   model_name?: string;
 }
+
+// AI summary of the changes between two revisions (POST /wiki/revision-ai-summary)
+
+export type AiSignificance = 'low' | 'medium' | 'high';
+
+export interface AiKeyChange {
+  section: string;
+  change_type: 'added' | 'removed' | 'reworded' | 'expanded' | 'condensed' | 'moved' | 'recontextualized';
+  description: string;
+  significance: AiSignificance;
+  old_excerpt: string;
+  new_excerpt: string;
+}
+
+export interface AiSemanticShift {
+  topic: string;
+  before: string;
+  after: string;
+  why_it_matters: string;
+}
+
+export interface AiConcern {
+  severity: AiSignificance;
+  category: string;
+  section: string;
+  explanation: string;
+  evidence: string;
+}
+
+export interface AiEntityChange {
+  entity: string;
+  wikidata_id: string;
+  change: 'added' | 'removed' | 'relinked';
+  note: string;
+}
+
+export interface AiRevisionSummary {
+  headline: string;
+  overall_impact: 'minor' | 'moderate' | 'substantial';
+  overview: string;
+  key_changes: AiKeyChange[];
+  semantic_shifts: AiSemanticShift[];
+  concerns: AiConcern[];
+  entity_changes: AiEntityChange[];
+  things_to_verify: string[];
+}
+
+export interface RevisionEvidenceStats {
+  sections_added: number;
+  sections_removed: number;
+  paragraphs_modified: number;
+  paragraphs_added: number;
+  paragraphs_removed: number;
+  entities_added: number;
+  entities_removed: number;
+  edits_between: number;
+  changes_left_out: number;
+}
+
+export interface RevisionAiSummaryResponse {
+  title: string;
+  lang: string;
+  old_revid: number;
+  new_revid: number;
+  provider: string;
+  model: string;
+  summary: AiRevisionSummary;
+  evidence_stats: RevisionEvidenceStats;
+  input_tokens: number | null;
+  output_tokens: number | null;
+}

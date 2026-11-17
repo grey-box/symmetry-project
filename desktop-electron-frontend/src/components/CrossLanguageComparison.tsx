@@ -1,40 +1,47 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 import SectionComparisonView from './SectionComparisonView';
 import SectionHeatmap from './SectionHeatmap';
 import SideBySideComparisonView from './SideBySideComparisonView';
 import { SectionCompareResponse, ParagraphDiffResponse } from '../models/structured-wiki';
 import { structuredWikiService } from '../services/structuredWikiService';
+import { useSessionState } from '../lib/sessionState';
 
 type TargetLanguage = { lang: string; title: string };
 
 const CrossLanguageComparison: React.FC = () => {
   // ── Source (URL-driven) ───────────────────────────────────────────────────
-  const [sourceUrl, setSourceUrl] = useState('');
-  const [sourceTitle, setSourceTitle] = useState('');
-  const [sourceLang, setSourceLang] = useState('');
-  const [availableTargets, setAvailableTargets] = useState<TargetLanguage[]>([]);
-  const [urlLoading, setUrlLoading] = useState(false);
-  const [urlError, setUrlError] = useState<string | null>(null);
+  const [sourceUrl, setSourceUrl] = useSessionState('crossLanguage.sourceUrl', '');
+  const [sourceTitle, setSourceTitle] = useSessionState('crossLanguage.sourceTitle', '');
+  const [sourceLang, setSourceLang] = useSessionState('crossLanguage.sourceLang', '');
+  const [availableTargets, setAvailableTargets] = useSessionState<TargetLanguage[]>('crossLanguage.availableTargets', []);
+  const [urlLoading, setUrlLoading] = useSessionState('crossLanguage.urlLoading', false);
+  const [urlError, setUrlError] = useSessionState<string | null>('crossLanguage.urlError', null);
 
   // ── Target ────────────────────────────────────────────────────────────────
-  const [targetLang, setTargetLang] = useState('');
-  const [targetQuery, setTargetQuery] = useState('');
-  const [targetEditedManually, setTargetEditedManually] = useState(false);
+  const [targetLang, setTargetLang] = useSessionState('crossLanguage.targetLang', '');
+  const [targetQuery, setTargetQuery] = useSessionState('crossLanguage.targetQuery', '');
+  const [targetEditedManually, setTargetEditedManually] = useSessionState('crossLanguage.targetEditedManually', false);
 
   // ── Options & results ─────────────────────────────────────────────────────
-  const [threshold, setThreshold] = useState(0.65);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SectionCompareResponse | null>(null);
-  const [paragraphDiff, setParagraphDiff] = useState<ParagraphDiffResponse | null>(null);
-  const [paragraphDiffLoading, setParagraphDiffLoading] = useState(false);
-  const [showSideBySide, setShowSideBySide] = useState(false);
+  const [threshold, setThreshold] = useSessionState('crossLanguage.threshold', 0.65);
+  const [loading, setLoading] = useSessionState('crossLanguage.loading', false);
+  const [error, setError] = useSessionState<string | null>('crossLanguage.error', null);
+  const [result, setResult] = useSessionState<SectionCompareResponse | null>('crossLanguage.result', null);
+  const [paragraphDiff, setParagraphDiff] = useSessionState<ParagraphDiffResponse | null>('crossLanguage.paragraphDiff', null);
+  const [paragraphDiffLoading, setParagraphDiffLoading] = useSessionState('crossLanguage.paragraphDiffLoading', false);
+  const [showSideBySide, setShowSideBySide] = useSessionState('crossLanguage.showSideBySide', false);
 
   // Debounce URL lookup (500 ms after last keystroke)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // The URL lookup below resets the chosen target language, so it must only
+  // run when the URL actually changes, not every time this tab is reopened.
+  const lastLookedUpUrl = useRef(sourceUrl);
+
   useEffect(() => {
+    if (sourceUrl === lastLookedUpUrl.current) return;
+    lastLookedUpUrl.current = sourceUrl;
     const trimmed = sourceUrl.trim();
 
     // Only trigger when it looks like a Wikipedia URL
