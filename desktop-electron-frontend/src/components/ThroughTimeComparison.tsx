@@ -173,7 +173,7 @@ const ThroughTimeComparison: React.FC = () => {
   };
 
   return (
-    <section className="space-y-6">
+    <section className="min-w-0 space-y-6">
       <div className="bg-white rounded-xl shadow-md p-6">
         <h2 className="text-xl font-semibold text-gray-900 mb-1">Through-Time Comparison</h2>
         <p className="text-sm text-gray-500 mb-6">
@@ -254,7 +254,7 @@ const ThroughTimeComparison: React.FC = () => {
       )}
 
       {sortedRevisions.length > 0 && (
-        <div className="bg-white rounded-xl shadow-md p-6 space-y-4">
+        <div className="min-w-0 overflow-hidden bg-white rounded-xl shadow-md p-6 space-y-4">
           <h3 className="text-lg font-semibold">Revision Selection</h3>
 
           <RevisionTimeline
@@ -267,8 +267,8 @@ const ThroughTimeComparison: React.FC = () => {
             }}
           />
 
-          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md mt-4">
-            <table className="w-full text-sm">
+          <div className="max-h-48 w-full overflow-auto border border-gray-200 rounded-md mt-4">
+            <table className="w-full table-fixed text-sm">
               <thead className="bg-gray-50 text-gray-600 sticky top-0">
                 <tr>
                   <th className="text-left p-2">Revision</th>
@@ -295,7 +295,9 @@ const ThroughTimeComparison: React.FC = () => {
                       </td>
                       <td className="p-2">{formatDate(rev.timestamp)}</td>
                       <td className="p-2">{rev.user}</td>
-                      <td className="p-2 text-gray-600">{rev.comment || 'No edit comment'}</td>
+                      <td className="p-2 text-gray-600 break-words">
+                        {rev.comment || 'No edit comment'}
+                      </td>
                     </tr>
                   );
                 })}

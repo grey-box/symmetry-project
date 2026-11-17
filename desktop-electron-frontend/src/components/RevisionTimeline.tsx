@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { Revision } from '../models/structured-wiki';
 
 interface RevisionTimelineProps {
@@ -87,7 +87,8 @@ const RevisionTimeline: React.FC<RevisionTimelineProps> = ({
     onChange,
 }) => {
     // Revisions arrive newest-first from the Wikipedia API; display oldest → newest left → right
-    const sorted = [...revisions].reverse();
+    const sorted = useMemo(() => [...revisions].reverse(), [revisions]);
+    const timelineRef = useRef<HTMLDivElement>(null);
 
     const [selectedOldIndex, selectedNewIndex, selectedOldRevision, selectedNewRevision] = useMemo(() => {
         const oldIndex = selectedOld !== null ? sorted.findIndex((r) => r.revid === selectedOld) : -1;
@@ -108,7 +109,12 @@ const RevisionTimeline: React.FC<RevisionTimelineProps> = ({
         },
         [selectedOld, selectedNew, sorted, onChange]
     );
-
+    const scrollTimeline = useCallback((direction: 'left' | 'right') => {
+        timelineRef.current?.scrollBy({
+            left: direction === 'left' ? -280 : 280,
+            behavior: 'smooth',
+        });
+    }, []);
     if (sorted.length === 0) {
         return <p className="text-sm text-gray-400 italic">No revisions loaded.</p>;
     }
@@ -121,13 +127,50 @@ const RevisionTimeline: React.FC<RevisionTimelineProps> = ({
                 <span className="text-green-600 font-medium">later revision</span> for comparison.
             </p>
 
+        <div className="flex items-center justify-between gap-3">
+    <span className="text-xs text-gray-500">
+        {sorted.length} revisions
+    </span>
+
+    <div className="flex gap-2">
+        <button
+            type="button"
+            onClick={() => scrollTimeline('left')}
+            className="px-3 py-1 text-sm rounded border border-gray-300 bg-white hover:bg-gray-50"
+            aria-label="Scroll to earlier revisions"
+        >
+            ← Earlier
+        </button>
+
+        <button
+            type="button"
+            onClick={() => scrollTimeline('right')}
+            className="px-3 py-1 text-sm rounded border border-gray-300 bg-white hover:bg-gray-50"
+            aria-label="Scroll to later revisions"
+        >
+            Later →
+        </button>
+    </div>
+</div>
             {/* Timeline track */}
-            <div className="relative">
+            <div className="relative min-w-0">
                 {/* Connecting line */}
                 <div className="absolute top-4 left-4 right-4 h-0.5 bg-gray-200" />
 
                 {/* Dots */}
-                <div className="flex items-start overflow-x-auto pb-2 gap-0">
+                <div
+                    ref={timelineRef}
+                    className="flex w-full items-start overflow-x-auto overscroll-x-contain scroll-smooth pb-3 pt-5 gap-0"
+                    onWheel={(event) => {
+                        if (
+                            timelineRef.current &&
+                            Math.abs(event.deltaY) > Math.abs(event.deltaX)
+                        ) {
+                            timelineRef.current.scrollLeft += event.deltaY;
+                        }
+                    }}
+                >
+
                     {sorted.map((rev, idx) => {
                         const prev = sorted[idx - 1];
                         const isOld = rev.revid === selectedOld;

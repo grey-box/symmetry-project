@@ -779,7 +779,11 @@ async def _fetch_revisions(title: str, lang: str, limit: int = 20) -> list[Revis
     }
     async with httpx.AsyncClient(timeout=10.0) as client:
         r = await client.get(
-            url, params=params, headers={"User-Agent": "SymmetryUnified/1.0"}
+            url,
+            params=params,
+            headers={
+                "User-Agent": "SymmetryUnified/1.0 (https://grey-box.ca; contact@grey-box.ca)"
+            },
         )
         r.raise_for_status()
         data = r.json()
