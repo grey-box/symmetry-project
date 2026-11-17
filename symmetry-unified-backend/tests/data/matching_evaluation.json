@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "description": "Hand-labeled evaluation cases for section and paragraph matching.",
+  "article_pairs": [
+    {
+      "id": "obama_revisions",
+      "evaluation_type": "paragraph",
+      "source_file": "obama_A.txt",
+      "target_file": "obama_B.txt",
+      "source_language": "en",
+      "target_language": "en",
+      "expected_matches": [
+        {"source_index": 0, "target_index": 0},
+        {"source_index": 1, "target_index": 5},
+        {"source_index": 3, "target_index": 2},
+        {"source_index": 4, "target_index": 3},
+        {"source_index": 5, "target_index": 6}
+      ],
+      "unmatched_source": [2, 6],
+      "unmatched_target": [1, 4]
+    }
+  ]
+}
