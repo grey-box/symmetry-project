@@ -33,13 +33,13 @@ const Home = () => {
   ]
 
   return (
-    <section>
+    <section className="min-w-0">
       {/* Tab Navigation */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex gap-4 mb-6 overflow-x-auto pb-2">
         {tabs.map(({ phase, label }) => (
           <button
             key={phase}
-            className={`px-4 py-2 rounded-lg transition-colors ${activeTab === phase
+            className={`flex-shrink-0 whitespace-nowrap px-4 py-2 rounded-lg transition-colors ${activeTab === phase
                 ? 'bg-blue-500 text-white'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
