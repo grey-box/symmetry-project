@@ -3,7 +3,6 @@ from pathlib import Path
 
 from scripts.evaluate_matching import calculate_metrics
 
-
 DATA_DIR = Path(__file__).parent / "data"
 LABELS_PATH = DATA_DIR / "matching_evaluation.json"
 

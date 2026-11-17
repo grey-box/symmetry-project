@@ -3,7 +3,7 @@ import difflib
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.ai.comparison import _get_model as _get_st_model
@@ -24,6 +24,11 @@ from app.models.extraction.engine import (
     validate_model,
 )
 from app.models.extraction.models import FactExtractionRequest, FactExtractionResponse
+from app.models.revision_summary import (
+    EvidenceStats,
+    RevisionSummaryRequest,
+    RevisionSummaryResponse,
+)
 from app.models.wiki.paragraph_diff import (
     ParagraphDiffResponse,
     ParagraphDiffSection,
@@ -35,15 +40,19 @@ from app.models.wiki.responses import (
     StructuredReferenceResponse,
     StructuredSectionResponse,
 )
+from app.services.ai_agent import AiAgentError
 from app.services.article_parser import article_fetcher, revision_fetcher
 from app.services.paragraph_diff import diff_sections as _diff_para_sections
+from app.services.revision_evidence import build_revision_evidence
 from app.services.revision_flagging import flag_revision
+from app.services.revision_summary import summarize_evidence
 from app.services.structured_translation import translate_article
 from app.services.wiki_utils import (
     _get_wikipedia_json,
     detect_language_lag,
     parse_wikipedia_url,
 )
+from app.services.wikidata_entities import attach_wikidata_ids
 
 
 class ParagraphDiffRequest(BaseModel):
@@ -764,6 +773,118 @@ async def get_revision_diff(
 
 
 # ---------------------------------------------------------------------------
+# AI summary of a revision-to-revision diff
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/revision-ai-summary",
+    response_model=RevisionSummaryResponse,
+    summary="AI Summary of Changes Between Two Revisions",
+    description=(
+        "Compares two revisions with LaBSE paragraph matching and Wikidata "
+        "entity links, then asks the AI provider chosen in the app's settings "
+        "to explain what changed, which changes shift the meaning, and which "
+        "edits deserve a closer look. The provider's API key is sent in the "
+        "`X-AI-API-Key` header and is never stored or logged."
+    ),
+)
+async def revision_ai_summary(
+    request: RevisionSummaryRequest,
+    x_ai_api_key: str = Header("", alias="X-AI-API-Key"),
+):
+    logging.info(
+        "Calling revision-ai-summary endpoint (title='%s', old=%d, new=%d, provider=%s)",
+        request.title,
+        request.old_revid,
+        request.new_revid,
+        request.provider,
+    )
+    lang = request.lang or "en"
+    old_revid, new_revid = request.old_revid, request.new_revid
+    if old_revid == new_revid:
+        raise HTTPException(status_code=400, detail="Pick two different revisions.")
+
+    try:
+        article_old, article_new = await asyncio.gather(
+            revision_fetcher(old_revid, lang), revision_fetcher(new_revid, lang)
+        )
+    except Exception as e:
+        logging.error("Error fetching revisions for AI summary: %s", str(e))
+        raise HTTPException(status_code=500, detail=f"Failed to fetch revisions: {e!s}")
+
+    # Wikidata ids for the links in both revisions.  A failed lookup just
+    # leaves entities compared by title.
+    try:
+        await asyncio.gather(
+            attach_wikidata_ids(article_old), attach_wikidata_ids(article_new)
+        )
+    except Exception as e:
+        logging.warning("Wikidata lookup failed for AI summary: %s", str(e))
+
+    try:
+        edits_between = await _fetch_revisions_between(
+            request.title, lang, old_revid, new_revid
+        )
+    except Exception as e:
+        logging.warning("Could not fetch edits between revisions: %s", str(e))
+        edits_between = []
+
+    # Same heuristic flags the Through-Time tab shows.
+    old_sections = {s.title: s.clean_content for s in article_old.sections}
+    new_sections = {s.title: s.clean_content for s in article_new.sections}
+    diff = DiffResponse(
+        old_revid=old_revid,
+        new_revid=new_revid,
+        title=request.title,
+        section_diffs=_diff_sections(old_sections, new_sections),
+        total_chars_old=sum(len(c) for c in old_sections.values()),
+        total_chars_new=sum(len(c) for c in new_sections.values()),
+    )
+    flags = flag_revision(diff, edits_between)
+
+    try:
+        evidence, stats = await asyncio.to_thread(
+            build_revision_evidence,
+            article_old,
+            article_new,
+            old_revid,
+            new_revid,
+            edits_between,
+            flags,
+        )
+    except Exception:
+        logging.exception("Error comparing revisions for AI summary")
+        raise HTTPException(
+            status_code=500, detail="Internal server error while comparing revisions."
+        )
+
+    try:
+        summary, reply = await summarize_evidence(
+            evidence,
+            request.provider,
+            x_ai_api_key.strip(),
+            request.model,
+            base_url=request.base_url,
+        )
+    except AiAgentError as e:
+        raise HTTPException(status_code=e.status, detail=str(e))
+
+    return RevisionSummaryResponse(
+        title=article_new.title,
+        lang=lang,
+        old_revid=old_revid,
+        new_revid=new_revid,
+        provider=request.provider,
+        model=reply.model,
+        summary=summary,
+        evidence_stats=EvidenceStats(**stats),
+        input_tokens=reply.input_tokens,
+        output_tokens=reply.output_tokens,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
@@ -802,6 +923,44 @@ async def _fetch_revisions(title: str, lang: str, limit: int = 20) -> list[Revis
             )
         )
     return revisions
+
+
+async def _fetch_revisions_between(
+    title: str, lang: str, old_revid: int, new_revid: int, limit: int = 50
+) -> list[Revision]:
+    """
+    Edits made after *old_revid* up to and including *new_revid*, newest
+    first, so their edit summaries can be shown to the AI agent.
+    """
+    url = f"https://{lang}.wikipedia.org/w/api.php"
+    params = {
+        "action": "query",
+        "titles": title,
+        "prop": "revisions",
+        "rvprop": "ids|timestamp|user|comment|size",
+        "rvstartid": new_revid,
+        "rvendid": old_revid,
+        "rvdir": "older",
+        "rvlimit": limit,
+        "format": "json",
+    }
+    data = await _get_wikipedia_json(url, params)
+    pages = data.get("query", {}).get("pages", {})
+    if not pages:
+        return []
+    page = next(iter(pages.values()))
+    return [
+        Revision(
+            revid=rev.get("revid", 0),
+            parentid=rev.get("parentid", 0),
+            timestamp=rev.get("timestamp", ""),
+            user=rev.get("user", ""),
+            comment=rev.get("comment", ""),
+            size=rev.get("size", 0),
+        )
+        for rev in page.get("revisions", [])
+        if rev.get("revid") != old_revid
+    ]
 
 
 def _diff_sections(

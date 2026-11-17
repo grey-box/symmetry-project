@@ -28,6 +28,9 @@ lxml>=4.9.0
 # HTTP client
 httpx>=0.25.0
 
+# AI revision summaries (Claude); other providers use httpx
+anthropic>=2.9.0
+
 # ML visualization and monitoring
 tensorboard>=2.19.0
 
