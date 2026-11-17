@@ -25,12 +25,20 @@ accents, any of these hold:
    what steps 1-3 left unmatched, and a pair must be each other's best
    candidate, because LaBSE also rates some neighbours highly
    ("sweden" / "switzerland" scores 0.89).
+5. Both name the same Wikidata item.  Wikipedia links in each article show
+   which item a name refers to ("Germany" and "Alemania" both link to
+   Q183, "Moscow" and "Москва" both link to Q649), so this works across
+   scripts and for translations that spelling can't match.  It runs last, on
+   what steps 1-4 left, and only when the caller passes ParagraphEntities
+   for both paragraphs.
 """
 
 import logging
 import re
 import unicodedata
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
+from functools import lru_cache
 
 import numpy as np
 
@@ -140,6 +148,25 @@ _CONNECTOR_WORDS: frozenset[str] = frozenset(
 # Anything that turns a list of strings into a 2-D array of embeddings.
 NameEncoder = Callable[[list[str]], np.ndarray]
 
+
+@dataclass
+class ParagraphEntities:
+    """
+    The Wikidata items a paragraph talks about, used to match keywords.
+
+    names maps a normalised name ("pablo picasso", see _normalise) to its
+    Wikidata id.  It holds every linked name in the article, because
+    Wikipedia usually links a name only the first time it appears, and the
+    paragraph's own links win when a name is linked to different items.
+
+    ids holds the Wikidata ids the paragraph mentions: the ones it links and
+    the ones whose names appear in its text.
+    """
+
+    names: dict[str, str] = field(default_factory=dict)
+    ids: frozenset[str] = frozenset()
+
+
 # spaCy NLP model cache
 _nlp_cache: dict = {}
 
@@ -203,6 +230,9 @@ def _fold(text: str) -> str:
     return "".join(c for c in decomposed if not unicodedata.combining(c))
 
 
+# Cached because Wikidata matching compares every keyword with every name
+# linked in the article, paragraph after paragraph.
+@lru_cache(maxsize=100_000)
 def _content_words(concept: str) -> frozenset[str]:
     """The words of a concept without connectors, accents removed."""
     return frozenset(w for w in _fold(concept).split() if w not in _CONNECTOR_WORDS)
@@ -358,6 +388,58 @@ def _is_matched_cross_lang(
     return any(_names_match(keyword, other, threshold) for other in other_concepts)
 
 
+def _entity_id(keyword: str, names: dict[str, str]) -> str | None:
+    """
+    The Wikidata id *keyword* refers to, or None when it isn't clear.
+
+    An exact name (accents ignored) wins.  Otherwise the keyword's words must
+    all be part of linked names that point to a single item, so "picasso"
+    resolves through "pablo picasso", but "barcelona" stays unresolved when
+    both "fc barcelona" and "barcelona province" are linked and no plain
+    "barcelona" is.
+    """
+    folded = _fold(keyword)
+    exact = names.get(keyword) or names.get(folded)
+    if exact:
+        return exact
+
+    keyword_words = _content_words(keyword)
+    if not keyword_words:
+        return None
+    candidates = {
+        entity_id
+        for name, entity_id in names.items()
+        if keyword_words <= _content_words(name)
+    }
+    if len(candidates) == 1:
+        return candidates.pop()
+    return None
+
+
+def _match_by_entity_id(
+    source_keywords: list[str],
+    target_keywords: list[str],
+    source_entities: ParagraphEntities,
+    target_entities: ParagraphEntities,
+) -> tuple[list[str], list[str]]:
+    """
+    Drop keywords whose Wikidata item is mentioned on the other side.
+
+    Returns the keywords still unmatched on each side.
+    """
+    source_ids = {kw: _entity_id(kw, source_entities.names) for kw in source_keywords}
+    target_ids = {kw: _entity_id(kw, target_entities.names) for kw in target_keywords}
+
+    # The other paragraph may mention an item without spaCy picking it up as
+    # a keyword, so its linked ids count too.
+    ids_in_source = set(source_entities.ids) | {i for i in source_ids.values() if i}
+    ids_in_target = set(target_entities.ids) | {i for i in target_ids.values() if i}
+
+    still_source = [kw for kw in source_keywords if source_ids[kw] not in ids_in_target]
+    still_target = [kw for kw in target_keywords if target_ids[kw] not in ids_in_source]
+    return still_source, still_target
+
+
 def _embed_names(names: list[str], encode: NameEncoder) -> np.ndarray:
     """Unit-length embeddings for *names*, reusing cached vectors."""
     missing = [n for n in dict.fromkeys(names) if n not in _name_embedding_cache]
@@ -405,6 +487,8 @@ def extract_exclusive_keywords(
     source_lang: str,
     target_lang: str,
     encode_names: NameEncoder | None = None,
+    source_entities: ParagraphEntities | None = None,
+    target_entities: ParagraphEntities | None = None,
 ) -> tuple[list[str], list[str]]:
     """
     For a matched paragraph pair, return the concepts that are distinctive
@@ -425,6 +509,10 @@ def extract_exclusive_keywords(
         "spain" / "españa" when the languages differ.  It is only called for
         names that spelling could not match.  Without it, translated names
         that are spelled differently stay exclusive.
+    source_entities, target_entities : ParagraphEntities, optional
+        Wikidata items linked from each paragraph's article.  When both are
+        given, names left unmatched by spelling and LaBSE are matched when
+        they point to the same item.
 
     Returns
     -------
@@ -472,5 +560,14 @@ def extract_exclusive_keywords(
         matched_target = {t for _, t in pairs}
         source_exclusive = [kw for kw in source_exclusive if kw not in matched_source]
         target_exclusive = [kw for kw in target_exclusive if kw not in matched_target]
+
+    # Wikidata ids go last so they can only remove flags.  Run first, they
+    # would shrink the lists LaBSE pairs from and could break a pair it
+    # would otherwise find ("moscow" / "москва" when "москва" was already
+    # matched to "moskva" by id).
+    if source_entities is not None and target_entities is not None:
+        source_exclusive, target_exclusive = _match_by_entity_id(
+            source_exclusive, target_exclusive, source_entities, target_entities
+        )
 
     return source_exclusive, target_exclusive

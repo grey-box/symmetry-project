@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import re
 from concurrent.futures import TimeoutError
@@ -21,6 +22,7 @@ from app.models.translation.models import ChunkedTranslateRequest
 from app.models.wiki.responses import TranslateArticleResponse
 from app.services.router_utils import resolve_and_fetch_article
 from app.services.section_comparison import compare_article_sections
+from app.services.wikidata_entities import attach_wikidata_ids
 
 try:
     from app.ai.comparison import perform_semantic_comparison
@@ -341,6 +343,15 @@ async def compare_article_sections_endpoint(payload: SectionCompareRequest):
     target_article = await resolve_and_fetch_article(
         payload.target_query, payload.target_lang or "en"
     )
+
+    # Wikidata ids let keyword comparison match names across languages and
+    # scripts ("Germany" / "Alemania" / "Германия").  Lookup failures are
+    # logged inside and only mean fewer ids, never a failed comparison.
+    if source_article.lang != target_article.lang:
+        await asyncio.gather(
+            attach_wikidata_ids(source_article),
+            attach_wikidata_ids(target_article),
+        )
 
     return compare_article_sections(
         source_article=source_article,

@@ -1,9 +1,49 @@
 import asyncio
+from urllib.parse import unquote
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
-from app.models.wiki.structure import Article, Citation, Reference, Section
+from app.models.wiki.structure import Article, Citation, Reference, Section, WikiLink
+
+
+def _link_title(href: str) -> str:
+    """
+    Article title from a "/wiki/..." link, or "" if it doesn't point to one.
+
+    "/wiki/Pablo_Picasso#Early_life" becomes "Pablo Picasso".
+    """
+    if not href.startswith("/wiki/"):
+        return ""
+    title = href[len("/wiki/") :].split("#", 1)[0]
+    return unquote(title).replace("_", " ").strip()
+
+
+def _nested_links(element, text: str, start: int) -> list[WikiLink]:
+    """
+    Article links inside *element*, whose text was added at offset *start*.
+
+    Each link's words are searched for in *text* from left to right, so a
+    name that appears twice gets the offset of the right occurrence.
+    """
+    links: list[WikiLink] = []
+    if not isinstance(element, Tag):
+        # Plain text between tags has no links inside it.
+        return links
+    search_from = 0
+    for anchor in element.find_all("a", href=True):
+        link_title = _link_title(anchor["href"])
+        anchor_text = anchor.get_text(strip=True)
+        if not link_title or not anchor_text:
+            continue
+        found_at = text.find(anchor_text, search_from)
+        if found_at == -1:
+            continue
+        links.append(
+            WikiLink(title=link_title, text=anchor_text, start=start + found_at)
+        )
+        search_from = found_at + len(anchor_text)
+    return links
 
 
 def _fetch_wikipedia_json_sync(url: str, params: dict) -> dict:
@@ -31,26 +71,51 @@ def _parse_article_html(html: str, title: str, lang: str, source: str) -> Articl
     clean_current = ""
     current_citations = []
     current_citation_positions = []
+    current_links: list[WikiLink] = []
+
+    def add_text(text: str) -> int:
+        """Append *text* to the current section and return where it starts."""
+        nonlocal clean_current, rich_current
+        if clean_current.strip():
+            clean_current += " "
+            rich_current += " "
+        start = len(clean_current)
+        clean_current += text
+        rich_current += text
+        return start
+
+    def finish_section() -> None:
+        if not clean_current.strip():
+            return
+        # clean_content is stripped below, so move link offsets by however
+        # much whitespace comes off the front (normally none).
+        shift = len(clean_current) - len(clean_current.lstrip())
+        sections.append(
+            Section(
+                title=current_title,
+                raw_content=rich_current.strip(),
+                clean_content=clean_current.strip(),
+                citations=current_citations,
+                citation_position=current_citation_positions,
+                links=[
+                    link.model_copy(update={"start": link.start - shift})
+                    for link in current_links
+                ],
+            )
+        )
 
     content_tags = soup.find_all(["h2", "h3", "p"])
 
     for tag in content_tags:
         if tag.name in ["h2", "h3"]:
-            if clean_current.strip():
-                section = Section(
-                    title=current_title,
-                    raw_content=rich_current.strip(),
-                    clean_content=clean_current.strip(),
-                    citations=current_citations,
-                    citation_position=current_citation_positions,
-                )
-                sections.append(section)
+            finish_section()
 
             current_title = tag.get_text(strip=True)
             rich_current = ""
             clean_current = ""
             current_citations = []
             current_citation_positions = []
+            current_links = []
 
         elif tag.name == "p":
             # Preserve paragraph boundaries between separate <p> tags so that
@@ -84,43 +149,28 @@ def _parse_article_html(html: str, title: str, lang: str, source: str) -> Articl
                         current_citations.append(Citation(label=text, url=hyperlink))
                         current_citation_positions.append(f"{text}:{position}")
 
-                        if clean_current.strip():
-                            clean_current += " " + text
-                            rich_current += " " + text
-                        else:
-                            clean_current += text
-                            rich_current += text
+                        start = add_text(text)
+                        link_title = _link_title(element.get("href", ""))
+                        if link_title and text:
+                            current_links.append(
+                                WikiLink(title=link_title, text=text, start=start)
+                            )
                         continue
 
                     else:
                         text = element.get_text(strip=True)
                         if text:
-                            if clean_current.strip():
-                                clean_current += " " + text
-                                rich_current += " " + text
-                            else:
-                                clean_current += text
-                                rich_current += text
+                            start = add_text(text)
+                            # Links wrapped in other tags, such as an italic
+                            # title "<i><a>Guernica</a></i>" or bold text.
+                            current_links.extend(_nested_links(element, text, start))
 
                 else:
                     text = str(element).strip()
                     if text:
-                        if clean_current.strip():
-                            clean_current += " " + text
-                            rich_current += " " + text
-                        else:
-                            clean_current += text
-                            rich_current += text
+                        add_text(text)
 
-    if clean_current.strip():
-        section = Section(
-            title=current_title,
-            raw_content=rich_current.strip(),
-            clean_content=clean_current.strip(),
-            citations=current_citations,
-            citation_position=current_citation_positions,
-        )
-        sections.append(section)
+    finish_section()
 
     full_references_data = []
     references_list = soup.select("ol.references > li")

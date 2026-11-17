@@ -28,8 +28,16 @@ from app.models.comparison.models import (
     SectionDiff,
 )
 from app.models.wiki.structure import Article, Section
-from app.services.keyword_proximity import extract_exclusive_keywords
+from app.services.keyword_proximity import (
+    ParagraphEntities,
+    extract_exclusive_keywords,
+)
 from app.services.similarity_scoring import normalized_levenshtein_distance
+from app.services.wikidata_entities import (
+    article_entity_names,
+    has_wikidata_ids,
+    paragraph_entities,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,42 +94,90 @@ def _encode_names(names: list[str]) -> Any:
     return _get_model(_NAME_MATCH_MODEL).encode(names)
 
 
-def _split_into_paragraphs(section: Section) -> list[str]:
+def _trimmed_span(text: str, start: int, end: int) -> tuple[int, int]:
+    """Shrink text[start:end] so it has no whitespace at either end."""
+    while start < end and text[start].isspace():
+        start += 1
+    while end > start and text[end - 1].isspace():
+        end -= 1
+    return start, end
+
+
+def _split_with_offsets(text: str, separator: str) -> list[tuple[int, int]]:
+    """Spans of the non-empty pieces of *text* between *separator* matches."""
+    spans: list[tuple[int, int]] = []
+    piece_start = 0
+    for match in re.finditer(separator, text):
+        spans.append(_trimmed_span(text, piece_start, match.start()))
+        piece_start = match.end()
+    spans.append(_trimmed_span(text, piece_start, len(text)))
+    return [(start, end) for start, end in spans if end > start]
+
+
+def _paragraphs_with_offsets(section: Section) -> list[tuple[str, int, int]]:
     """
     Split a section's clean_content into paragraph-sized chunks.
 
-    Wikipedia sections parsed by article_fetcher concatenate <p> tags with
-    spaces.  We split on double-newline boundaries first; if that produces
-    only one chunk we fall back to sentence-level splitting (period + space).
+    Returns (paragraph, start, end) where clean_content[start:end] is the
+    stretch of text the paragraph came from, so the section's links can be
+    matched to the paragraph they appear in.
+
+    The parser keeps <p> boundaries as blank lines, so those are split on
+    first.  A long section that is still one block is grouped into chunks of
+    about 150 words along sentence boundaries.
     """
-    text = section.clean_content.strip()
-    if not text:
+    content = section.clean_content
+    if not content.strip():
         return []
 
-    # Try splitting on double-newline (paragraph boundaries preserved from HTML)
-    paragraphs = [p.strip() for p in re.split(r"\n\n+", text) if p.strip()]
+    paragraph_spans = _split_with_offsets(content, r"\n\n+")
+    whole_start, whole_end = _trimmed_span(content, 0, len(content))
 
-    if len(paragraphs) <= 1 and len(text) > 300:
+    if len(paragraph_spans) <= 1 and whole_end - whole_start > 300:
         # Fallback: split on sentence boundaries for long single-paragraph sections
-        sentences = re.split(r"(?<=[.!?])\s+", text)
+        sentence_spans = _split_with_offsets(content, r"(?<=[.!?])\s+")
         # Group sentences into ~150-word chunks
-        chunks: list[str] = []
-        current: list[str] = []
+        chunks: list[tuple[str, int, int]] = []
+        current: list[tuple[int, int]] = []
         word_count = 0
-        for sentence in sentences:
-            words = len(sentence.split())
+
+        def flush() -> None:
+            if current:
+                joined = " ".join(content[a:b] for a, b in current)
+                chunks.append((joined, current[0][0], current[-1][1]))
+
+        for sentence_start, sentence_end in sentence_spans:
+            words = len(content[sentence_start:sentence_end].split())
             if word_count + words > 150 and current:
-                chunks.append(" ".join(current))
-                current = [sentence]
+                flush()
+                current = [(sentence_start, sentence_end)]
                 word_count = words
             else:
-                current.append(sentence)
+                current.append((sentence_start, sentence_end))
                 word_count += words
-        if current:
-            chunks.append(" ".join(current))
-        return [c for c in chunks if c.strip()]
+        flush()
+        return chunks
 
-    return paragraphs
+    return [(content[a:b], a, b) for a, b in paragraph_spans]
+
+
+def _split_into_paragraphs(section: Section) -> list[str]:
+    """The paragraph texts of a section (see _paragraphs_with_offsets)."""
+    return [text for text, _, _ in _paragraphs_with_offsets(section)]
+
+
+def _entities_for_paragraphs(
+    section: Section,
+    paragraphs: list[tuple[str, int, int]],
+    article_names: dict[str, str] | None,
+) -> list[ParagraphEntities] | None:
+    """Wikidata entities for each paragraph, or None without id data."""
+    if article_names is None:
+        return None
+    return [
+        paragraph_entities(section, start, end, text, article_names)
+        for text, start, end in paragraphs
+    ]
 
 
 def _match_sections(
@@ -201,12 +257,18 @@ def _compare_paragraphs(
     threshold: float,
     source_lang: str = "en",
     target_lang: str = "en",
+    source_entities: list[ParagraphEntities] | None = None,
+    target_entities: list[ParagraphEntities] | None = None,
 ) -> list[ParagraphDiff]:
     """
     Compare paragraphs within a matched section pair.
 
     Uses cosine similarity for primary matching and Levenshtein distance for
     disambiguation when two candidates are within LEVENSHTEIN_DISAMBIGUATION_MARGIN.
+
+    source_entities and target_entities, when given, hold the Wikidata
+    entities of each paragraph (same order as the paragraph lists) and let
+    keyword comparison match names that link to the same item.
     """
     if not source_paragraphs and not target_paragraphs:
         return []
@@ -294,6 +356,8 @@ def _compare_paragraphs(
                 source_lang,
                 target_lang,
                 encode_names=_encode_names if source_lang != target_lang else None,
+                source_entities=source_entities[src_idx] if source_entities else None,
+                target_entities=target_entities[best_idx] if target_entities else None,
             )
 
             diffs.append(
@@ -532,6 +596,13 @@ def compare_article_sections(
             error_message=f"Failed to load model: {e}",
         )
 
+    # Wikidata ids are only there when the caller looked them up (see
+    # attach_wikidata_ids).  Without them keyword matching works as before.
+    source_names = target_names = None
+    if has_wikidata_ids(source_article) and has_wikidata_ids(target_article):
+        source_names = article_entity_names(source_article)
+        target_names = article_entity_names(target_article)
+
     # 1. Match sections across articles
     matched_pairs, unmatched_source, unmatched_target = _match_sections(
         source_article.sections,
@@ -548,8 +619,10 @@ def compare_article_sections(
         source_section = source_article.sections[src_idx]
         target_section = target_article.sections[tgt_idx]
 
-        source_paragraphs = _split_into_paragraphs(source_section)
-        target_paragraphs = _split_into_paragraphs(target_section)
+        source_spans = _paragraphs_with_offsets(source_section)
+        target_spans = _paragraphs_with_offsets(target_section)
+        source_paragraphs = [text for text, _, _ in source_spans]
+        target_paragraphs = [text for text, _, _ in target_spans]
 
         if use_prototype and comparator is not None:
             paragraph_diffs = _compare_paragraphs_prototype(
@@ -568,6 +641,12 @@ def compare_article_sections(
                 similarity_threshold,
                 source_lang=source_article.lang,
                 target_lang=target_article.lang,
+                source_entities=_entities_for_paragraphs(
+                    source_section, source_spans, source_names
+                ),
+                target_entities=_entities_for_paragraphs(
+                    target_section, target_spans, target_names
+                ),
             )
 
         section_diffs.append(
