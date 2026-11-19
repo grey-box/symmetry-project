@@ -5,6 +5,7 @@ statement (evidence retrieval) is a separate step and is not done here.
 """
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from urllib.parse import quote, unquote, urlsplit
@@ -14,6 +15,10 @@ from app.services.article_parser import article_fetcher, revision_fetcher
 logger = logging.getLogger(__name__)
 
 WIKIPEDIA_LICENSE = "CC BY-SA 4.0"
+
+# A Wikipedia language edition code such as "en", "fr" or "zh-yue". The code becomes the
+# subdomain of the host that is fetched, so nothing else (dots, slashes) may pass.
+_LANGUAGE_CODE = re.compile(r"[a-z0-9]+(-[a-z0-9]+)*")
 
 
 # Base class for failures to obtain a Wikipedia article.
@@ -92,9 +97,15 @@ def article_ref(
     if title is not None:
         if not language:
             raise ValueError("language is required when the article is given by title")
-        return ArticleRef(
-            language=language.lower(), title=title.strip(), revision_id=revision_id
-        )
+        code = language.strip().lower()
+        if not _LANGUAGE_CODE.fullmatch(code):
+            raise ValueError(
+                f"language '{language}' is not a Wikipedia language code such as "
+                "'en' or 'fr'"
+            )
+        if not title.strip():
+            raise ValueError("title must not be empty")
+        return ArticleRef(language=code, title=title.strip(), revision_id=revision_id)
     raise ValueError("a wikipedia source needs a url or a title")
 
 
