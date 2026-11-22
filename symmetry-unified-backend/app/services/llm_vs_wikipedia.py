@@ -176,8 +176,11 @@ class LlmVsWikipediaService:
             engines = [self._embedding_engine(profile)]
         else:
             engines = self._resolve_engines(body.engines)
+        # The LLM answer is checked before the article is fetched, so a bad answer
+        # is rejected without a Wikipedia request.
+        claims = self._claims(claim_input)
         article = await self._read_article(ref, wiki_input.id)
-        claims, reference = self._texts(claim_input, wiki_input, article)
+        reference = self._reference(wiki_input, article)
 
         runs = await asyncio.gather(
             *(self._run(engine, profile, reference, claims, body) for engine in engines)
@@ -289,14 +292,11 @@ class LlmVsWikipediaService:
                 "internal_error", exc.message, "source", source_id=source_id
             ) from None
 
-    # The texts handed to the pipeline: the article is the reference (pipeline source),
-    # the LLM answer holds the statements to check (pipeline target).
+    # The LLM answer holds the statements to check (pipeline target).
     @staticmethod
-    def _texts(
-        claim_input: SourceInput, wiki_input: SourceInput, article: WikipediaArticle
-    ) -> tuple[TextInput, TextInput]:
+    def _claims(claim_input: SourceInput) -> TextInput:
         try:
-            claims = TextInput(
+            return TextInput(
                 text=claim_input.text,
                 id=claim_input.id,
                 kind="llm_output",
@@ -309,7 +309,11 @@ class LlmVsWikipediaService:
                 "source",
                 source_id=claim_input.id,
             ) from None
-        reference = TextInput(
+
+    # The article is the reference (pipeline source).
+    @staticmethod
+    def _reference(wiki_input: SourceInput, article: WikipediaArticle) -> TextInput:
+        return TextInput(
             text=article.text[:MAX_TEXT_CHARS],
             label=article.title,
             id=wiki_input.id,
@@ -318,7 +322,6 @@ class LlmVsWikipediaService:
             url=article.url,
             revision_id=article.revision_id,
         )
-        return claims, reference
 
     async def _run(
         self,
