@@ -1,17 +1,31 @@
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 
 from app.engines.base import (
     GenerationRequest,
     GenerationResult,
     ModelAdapter,
 )
+from app.engines.errors import AdapterError
+
+
+@dataclass(frozen=True)
+class MultiEngineResult:
+    """Successful generations and per-engine failures from one fan-out."""
+
+    results: list[GenerationResult] = field(default_factory=list)
+    errors: list[dict] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.errors
 
 
 async def generate_from_engines(
     request: GenerationRequest,
     engines: Sequence[ModelAdapter],
-) -> list[GenerationResult]:
-    """Send the same request to each engine and return results in input order."""
+) -> MultiEngineResult:
+    """Send one request to every engine without one failure stopping the others."""
     engines = tuple(engines)
 
     if len(engines) < 2:
@@ -22,7 +36,12 @@ async def generate_from_engines(
         raise ValueError("Each engine must have a distinct provider/model pair")
 
     results = []
-    for engine in engines:
-        results.append(await engine.generate(request))
+    errors = []
 
-    return results
+    for engine in engines:
+        try:
+            results.append(await engine.generate(request))
+        except AdapterError as exc:
+            errors.append(exc.to_dict())
+
+    return MultiEngineResult(results=results, errors=errors)
