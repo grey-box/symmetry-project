@@ -23,7 +23,7 @@ from app.services.router_utils import resolve_and_fetch_article
 from app.services.section_comparison import compare_article_sections
 
 try:
-    from app.ai.comparison import perform_semantic_comparison
+    from app.services.pipeline_comparison import perform_semantic_comparison
 except Exception:
     perform_semantic_comparison = None
 

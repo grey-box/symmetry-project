@@ -44,6 +44,9 @@ def _load_default_embedder(model_name: str | None) -> tuple[Any, str]:
 # Config: threshold (defaults to the SIMILARITY_THRESHOLD setting), model_name
 # (defaults to the default comparison model), embedder (any object with
 # encode(list[str]), for tests) and splitter (a function from text to sentences).
+# source_splitter and target_splitter override the splitter for one side, for texts
+# in different languages. include_matrix adds the full similarity matrix to the
+# details, for callers that need every pair score.
 @register_strategy("semantic_similarity")
 class SemanticSimilarityStrategy(ComparisonStrategy):
     description = "Sentence-level meaning similarity using embeddings."
@@ -67,6 +70,13 @@ class SemanticSimilarityStrategy(ComparisonStrategy):
         self.splitter: Callable[[str], list[str]] = (
             config.get("splitter") or split_sentences
         )
+        self.source_splitter: Callable[[str], list[str]] = (
+            config.get("source_splitter") or self.splitter
+        )
+        self.target_splitter: Callable[[str], list[str]] = (
+            config.get("target_splitter") or self.splitter
+        )
+        self.include_matrix = bool(config.get("include_matrix", False))
 
     # Embeds the sentences and returns unit vectors; runs in a worker thread because
     # loading and running a model blocks.
@@ -85,8 +95,8 @@ class SemanticSimilarityStrategy(ComparisonStrategy):
 
     # Matches each sentence to its closest sentence in the other text.
     async def compare(self, request: StrategyInput) -> StrategyResult:
-        source = self.splitter(request.source_text)
-        target = self.splitter(request.target_text)
+        source = self.source_splitter(request.source_text)
+        target = self.target_splitter(request.target_text)
         if not source or not target:
             raise StrategyInputError(
                 "both texts need at least one sentence", strategy=self.name
@@ -135,17 +145,36 @@ class SemanticSimilarityStrategy(ComparisonStrategy):
             )
             if sim >= self.threshold
         ]
+        details = {
+            "model": model,
+            "threshold": self.threshold,
+            "source_sentences": len(source),
+            "target_sentences": len(target),
+            "alignments": alignments,
+            "source_sentence_list": source,
+            "target_sentence_list": target,
+            "source_unmatched": [
+                i for i, sim in enumerate(best_for_source) if sim < self.threshold
+            ],
+            "target_unmatched": [
+                j for j, sim in enumerate(best_for_target) if sim < self.threshold
+            ],
+            "best_for_source": [
+                {"best_index": int(j), "score": float(sim)}
+                for sim, j in zip(best_for_source, closest_target, strict=True)
+            ],
+            "best_for_target": [
+                {"best_index": int(i), "score": float(sim)}
+                for sim, i in zip(best_for_target, closest_source, strict=True)
+            ],
+        }
+        if self.include_matrix:
+            details["similarity_matrix"] = similarity.tolist()
         return StrategyResult(
             strategy=self.name,
             score=float(np.clip(score, 0.0, 1.0)),
             findings=findings,
-            details={
-                "model": model,
-                "threshold": self.threshold,
-                "source_sentences": len(source),
-                "target_sentences": len(target),
-                "alignments": alignments,
-            },
+            details=details,
         )
 
 
